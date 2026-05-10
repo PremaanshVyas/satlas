@@ -80,6 +80,8 @@ On each `requestAnimationFrame` tick:
 2. Propagate ISS TLE via `satellite.js` → ECI position → geodetic → 3D Cartesian on unit sphere → update `SatelliteMesh` dot position
 3. Render scene
 
+Camera uses `OrbitControls` — mouse drag to rotate, scroll to zoom, no auto-rotation. Controls are attached on mount and disposed on unmount alongside the renderer.
+
 Exposes `mount(canvas: HTMLCanvasElement)`, `unmount()`, `resize(w, h)`.
 
 ### `EarthMesh.ts`
@@ -168,12 +170,12 @@ No `suncalc`, no `three-globe`, no other globe library.
 
 ## Textures
 
-NASA Blue Marble and Black Marble are public domain (NASA open data). Download the 2048×1024 versions for the scaffold (4K later). Store in `public/textures/` so Vite serves them as static assets. Do not commit the texture files to git — add to `.gitignore` and note the download URLs in the README.
+NASA Blue Marble and Black Marble are public domain (NASA open data). Download the 2048×1024 versions for the scaffold (4K later) and **commit them to git** — they're ~1–2 MB each, never change, and committing them ensures fresh clones and Vercel deployments work without any setup step. Store in `apps/web/public/textures/` so Vite serves them as static assets.
 
 - **Blue Marble (day):** https://visibleearth.nasa.gov/images/73909/december-blue-marble-next-generation-w-topography
 - **Black Marble (night):** https://visibleearth.nasa.gov/images/144898/earth-at-night-black-marble-2016-color-maps
 
-For Vercel deployment, use `public/` bundling for MVP (textures ship with the build). Move to S3/CloudFront in V1 to keep the bundle lean.
+For Vercel deployment, textures ship with the build from `public/`. Move to S3/CloudFront in V1 if bundle size becomes a concern.
 
 ---
 
@@ -185,7 +187,7 @@ ISS (ZARYA)
 2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522
 ```
 
-The TLE epoch doesn't need to be current for the scaffold — SGP4 will still propagate a reasonable position. Replace with a live fetch from CelesTrak in V1.
+The epoch is March 2024. SGP4 propagation degrades meaningfully past a few days of age, so the displayed ISS position will be visibly wrong against reality — it is symbolic for the scaffold, not accurate. This is intentional and fine for week 1. Replacing this with a live TLE fetch from CelesTrak is a V1 requirement, not a later nice-to-have.
 
 ---
 
