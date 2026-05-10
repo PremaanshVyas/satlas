@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.output/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Texture assets (download separately — see README)
+public/textures/
+
+# Brainstorming sessions
+.superpowers/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
