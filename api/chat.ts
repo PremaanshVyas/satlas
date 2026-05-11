@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-export const config = { runtime: 'edge' }
+export const config = { runtime: 'nodejs20.x' }
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL!
