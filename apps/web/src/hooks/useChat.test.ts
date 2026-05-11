@@ -127,6 +127,24 @@ describe('useChat highlight parsing', () => {
     })
   })
 
+  test('shows full content when directive JSON is malformed', async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      mockStream(['Some text.', '\n__HIGHLIGHT__:{bad json}\n'])
+    )
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('Show me the ISS')
+    })
+
+    await waitFor(() => {
+      expect(result.current.messages[1].content).toBe(
+        'Some text.\n__HIGHLIGHT__:{bad json}\n'
+      )
+      expect(result.current.highlight).toBeNull()
+    })
+  })
+
   test('handles directive split across chunks', async () => {
     vi.mocked(fetch).mockReturnValueOnce(
       mockStream([
