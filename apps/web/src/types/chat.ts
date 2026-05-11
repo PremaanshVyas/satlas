@@ -6,3 +6,8 @@ export interface ChatMessage {
   content: string
   streaming: boolean
 }
+
+export interface HighlightDirective {
+  norad_id: string
+  satellite_name: string
+}
