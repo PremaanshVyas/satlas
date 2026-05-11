@@ -15,7 +15,7 @@ function parseChunkForHighlight(
     const highlight = JSON.parse(jsonStr) as HighlightDirective
     return { text, highlight }
   } catch {
-    return { text: accumulated, highlight: null }
+    return { text, highlight: null }
   }
 }
 
