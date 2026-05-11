@@ -2,13 +2,16 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { EarthMesh } from './EarthMesh'
 import { SatelliteMesh } from './SatelliteMesh'
+import { SatelliteField } from './SatelliteField'
 import { getSunDirection } from '../lib/solar'
+import { fetchSatelliteCatalog } from '../lib/celestrak'
 
 const ISS_TLE1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
 const ISS_TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
 const ISS_NORAD = '25544'
 const FLY_DURATION_MS = 1500
 const CAMERA_DISTANCE = 2.5
+const FIELD_TICK_MS = 100
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
@@ -21,13 +24,18 @@ export class Globe {
   private controls!: OrbitControls
   private earth!: EarthMesh
   private iss!: SatelliteMesh
+  private field: SatelliteField | null = null
+  private worker: Worker | null = null
+  private lastFieldTickMs = 0
+  private mounted = false
   private rafId: number | null = null
 
   private flyFromPos: THREE.Vector3 | null = null
   private flyToPos: THREE.Vector3 | null = null
   private flyStartTime: number | null = null
 
-  mount(canvas: HTMLCanvasElement): void {
+  mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
+    this.mounted = true
     const w = canvas.clientWidth || canvas.width || 800
     const h = canvas.clientHeight || canvas.height || 600
 
@@ -43,6 +51,8 @@ export class Globe {
     this.earth = new EarthMesh()
     this.scene.add(this.earth.mesh)
 
+    // ISS always initialised with hardcoded TLE so tick() never crashes
+    // before the catalog arrives.
     this.iss = new SatelliteMesh(ISS_TLE1, ISS_TLE2)
     this.scene.add(this.iss.group)
 
@@ -54,6 +64,36 @@ export class Globe {
     this.controls.autoRotate = false
 
     this.tick()
+    void this.initCatalog(onReady)
+  }
+
+  private async initCatalog(onReady?: () => void): Promise<void> {
+    const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
+    try {
+      const tles = await fetchSatelliteCatalog(baseUrl)
+      if (!this.mounted) return
+      const others = tles.filter(t => t.norad_id !== ISS_NORAD)
+
+      this.field = new SatelliteField(others.length)
+      this.scene.add(this.field.mesh)
+
+      this.worker = new Worker(
+        new URL('../workers/propagator.worker.ts', import.meta.url),
+        { type: 'module' },
+      )
+      this.worker.onmessage = (e: MessageEvent) => {
+        const msg = e.data as { type: string; buffer?: Float32Array }
+        if (msg.type === 'ready') {
+          onReady?.()
+        } else if (msg.type === 'positions' && msg.buffer && this.field) {
+          this.field.update(msg.buffer)
+        }
+      }
+      this.worker.postMessage({ type: 'init', tles: others })
+    } catch (err) {
+      console.warn('[Globe] Catalog unavailable, running ISS-only:', err)
+      if (this.mounted) onReady?.()
+    }
   }
 
   highlightSatellite(noradId: string): void {
@@ -62,7 +102,6 @@ export class Globe {
     const issPos = this.iss.getCurrentPosition()
     if (!issPos) return
 
-    // Position camera 2.5 units away in the direction of the ISS from Earth center
     const dir = issPos.clone().normalize()
     this.flyFromPos = this.camera.position.clone()
     this.flyToPos = dir.multiplyScalar(CAMERA_DISTANCE)
@@ -74,17 +113,21 @@ export class Globe {
   private tick(): void {
     this.rafId = requestAnimationFrame(() => this.tick())
     const now = new Date()
+    const nowMs = now.getTime()
+
     this.earth.update(getSunDirection(now))
     this.iss.update(now)
 
-    // Camera fly-to animation
+    if (this.worker && nowMs - this.lastFieldTickMs >= FIELD_TICK_MS) {
+      this.lastFieldTickMs = nowMs
+      this.worker.postMessage({ type: 'tick', timestamp: nowMs })
+    }
+
     if (this.flyFromPos && this.flyToPos && this.flyStartTime !== null) {
       const elapsed = performance.now() - this.flyStartTime
       const t = Math.min(elapsed / FLY_DURATION_MS, 1)
       const eased = easeInOutCubic(t)
-
       this.camera.position.lerpVectors(this.flyFromPos, this.flyToPos, eased)
-
       if (t >= 1) {
         this.flyFromPos = null
         this.flyToPos = null
@@ -103,10 +146,14 @@ export class Globe {
   }
 
   unmount(): void {
+    this.mounted = false
     if (this.rafId !== null) cancelAnimationFrame(this.rafId)
+    this.worker?.terminate()
+    this.worker = null
     this.controls.dispose()
     this.earth.dispose()
     this.iss.dispose()
+    this.field?.dispose()
     this.renderer.dispose()
   }
 }
