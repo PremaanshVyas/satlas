@@ -1,8 +1,13 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
-import { useChat } from '../hooks/useChat'
+import type { ChatMessage } from '../types/chat'
 
-export default function AgentPanel() {
-  const { messages, isLoading, sendMessage } = useChat()
+interface AgentPanelProps {
+  messages: ChatMessage[]
+  isLoading: boolean
+  sendMessage: (content: string) => void
+}
+
+export default function AgentPanel({ messages, isLoading, sendMessage }: AgentPanelProps) {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -30,10 +35,10 @@ export default function AgentPanel() {
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="text-xs text-gray-600 text-center leading-relaxed px-4">
-              Ask about ISS passes over any location.
+              Ask about ISS passes or where it is right now.
               <br />
               <span className="text-gray-700">
-                e.g. "When does the ISS pass over Melbourne tonight?"
+                e.g. "Show me where the ISS is right now"
               </span>
             </p>
           </div>
