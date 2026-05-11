@@ -6,7 +6,8 @@ A live, open platform that lets anyone explore what's happening in Earth orbit �
 
 **Live demo:** [aussie-sky.vercel.app](https://aussie-sky.vercel.app)  
 Ask the agent: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
-**Status:** MVP shipped — agent + first tool live
+Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
+**Status:** Agent drives the globe — chat and visualization are one surface
 
 ---
 
@@ -84,12 +85,19 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 
 ## Roadmap
 
+### What's working now
+- [x] 3D Earth with ISS rendered in real time (TLE propagation via satellite.js)
+- [x] AI agent answers questions with real orbital mechanics (skyfield pass prediction)
+- [x] Agent-driven globe interaction — asking about a satellite focuses the camera and pulses it
+- [x] Streaming chat UI with typing indicator
+- [x] Deployed and auto-deploying at [aussie-sky.vercel.app](https://aussie-sky.vercel.app)
+
 ### MVP (weeks 1–4)
 - [x] Project scaffolding
-- [ ] 3D Earth with ~5,000 satellites rendering accurately
+- [ ] Live TLE catalog (~500–2000 satellites, instanced meshes + web worker propagation)
+- [ ] More agent tools: find_satellites_overhead, get_satellite_info
 - [ ] Click satellite → details
 - [ ] Filter by category (Starlink, ISS, debris, etc.)
-- [ ] Deployed to a real domain
 - [ ] CI/CD wired up
 
 ### V1 (weeks 5–8)
