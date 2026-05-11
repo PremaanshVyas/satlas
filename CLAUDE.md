@@ -114,7 +114,7 @@ aussie-sky/
 
 **Current phase:** Pre-MVP / scaffolding.
 
-**Next milestone:** Highlight satellites on the globe in response to chat — when the user asks "show me X", the agent calls a tool that focuses the camera and pulses the target satellite.
+**Next milestone:** highlight_on_globe tool — agent emits a structured signal alongside its text response that causes the frontend to focus the camera on a satellite and pulse-animate it. Closes the gap between chat and visual: the agent can now drive the visualization, not just talk about it.
 
 **This week's task (week 1):**
 - [x] Create GitHub repo (private to start, public on MVP)
@@ -133,6 +133,16 @@ aussie-sky/
 - [x] `apps/web/src/components/AgentPanel.tsx` — real streaming chat UI (replaces placeholder)
 - [x] Deploy orbital service to Railway
 - [x] Add `ANTHROPIC_API_KEY` + `ORBITAL_SERVICE_URL` to Vercel env vars → redeploy
+
+**Session 3 tasks (highlight_on_globe):**
+- [ ] Define a structured response format so the agent can return both prose and a `highlight` directive in one response
+- [ ] Update api/chat.ts to handle the new format and stream it correctly
+- [ ] Add a second tool to the system prompt: highlight_on_globe(norad_id, satellite_name) — describes when to call it
+- [ ] Wire the frontend to parse highlight directives from the response stream
+- [ ] Implement camera fly-to and pulse animation in the existing Three.js globe
+- [ ] Test end-to-end: "show me where the ISS is right now" → text response + globe focuses and pulses
+- [ ] Manual deploy verify on aussie-sky.vercel.app
+- [ ] Update README.md and CLAUDE.md at end of session
 
 **Blockers:** None.
 
@@ -155,6 +165,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-11 — Deployed to Vercel.** Live at https://aussie-sky.vercel.app. Auto-deploys on push to main. Free tier sufficient for portfolio traffic.
 
 - **2026-05-11 — Agent + first tool shipped.** Wired the full agent-tool loop end-to-end. `apps/orbital/passes.py` uses skyfield `find_events` (altitude_degrees=10°, builtin timescale) to predict ISS passes, returning start/end UTC, max elevation, and compass direction. `apps/orbital/main.py` is a FastAPI service exposing `GET /predict-passes` with lat/lon/hours_ahead query params, containerised in a Dockerfile for Railway. `api/chat.ts` is a Vercel Edge Function that runs a two-turn Claude tool-use loop: first call (non-streaming) detects whether to invoke `predict_iss_passes`, executes the tool against the Railway service, then streams Claude's final answer back to the browser via `ReadableStream`. Prompt caching applied to the system prompt on both turns. `useChat` hook manages message state and streams chunks into the assistant bubble in real time. `AgentPanel` replaces the static placeholder with a full chat UI: scrollable history, animated bouncing dots while streaming, Enter-to-send, disabled input while loading. 11 passing Vitest tests. Railway deploy + Vercel env vars are the only remaining manual steps before the feature is live.
+
+- **2026-05-11 — Session 3 direction set: highlight_on_globe.** Planning decided to prioritize closing the chat-visual gap before adding more tools or more data. The product right now has chat and globe as two unrelated surfaces; this session makes them one. After this ships, ordering is: more satellites (live TLE, ~500-2000 rendered, instanced meshes + web worker for propagation), then more tools (find_satellites_overhead, get_satellite_info), then polish (hero image, demo GIF, blog post, mobile responsive). Total remaining sessions estimated at ~5 to reach portfolio-defining state.
 
 - **2026-05-11 — Three deploy fixes to `api/chat.ts` and root `package.json`.** Hit during Railway + Vercel deploy. (1) **Edge runtime incompatible with Anthropic SDK** — the SDK references `node:fs` and `node:path` which don't exist in Vercel Edge runtime. Fix: removed `export const config = { runtime: 'edge' }` entirely; Node is the default and needs no config. (2) **Root `package.json` missing `"type": "module"`** — ES module imports in `chat.ts` failed at runtime with "Failed to load the ES module". Fix: added `"type": "module"` to root `package.json`. (3) **Node runtime uses VercelRequest/VercelResponse, not Web Request** — `req.json is not a function` crashed the handler because the Edge Web Request API isn't available in Node runtime. Fix: rewrote handler to import `VercelRequest`/`VercelResponse` from `@vercel/node`, read body via `req.body` (Vercel pre-parses JSON), stream output with `res.write()` / `res.end()`. Removed `ReadableStream` construction and removed prompt caching (cache_control typing was fragile in this context — add back in V1). Installed `@vercel/node` as a dependency.
 
