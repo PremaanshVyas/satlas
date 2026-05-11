@@ -17,7 +17,8 @@ export class Globe {
   private rafId: number | null = null
 
   mount(canvas: HTMLCanvasElement): void {
-    const { clientWidth: w, clientHeight: h } = canvas
+    const w = canvas.clientWidth || canvas.width || 800
+    const h = canvas.clientHeight || canvas.height || 600
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
     this.renderer.setSize(w, h, false)

@@ -7,10 +7,11 @@ export class SatelliteMesh {
   private halo: THREE.Mesh
   private arc: THREE.LineLoop
   private satrec: satellite.SatRec
-  private lastArcDate: Date | null = null
+  private lastArcDate: Date
 
   constructor(tle1: string, tle2: string) {
     this.satrec = satellite.twoline2satrec(tle1, tle2)
+    this.lastArcDate = new Date()
     this.group = new THREE.Group()
 
     this.dot = new THREE.Mesh(
@@ -70,9 +71,7 @@ export class SatelliteMesh {
       this.halo.position.copy(pos)
     }
 
-    const shouldRecompute =
-      this.lastArcDate === null ||
-      date.getTime() - this.lastArcDate.getTime() > 60_000
+    const shouldRecompute = date.getTime() - this.lastArcDate.getTime() > 60_000
     if (shouldRecompute) {
       this.lastArcDate = date
       this.arc.geometry.setFromPoints(this.computeArcPoints(date))

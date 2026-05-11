@@ -5,15 +5,19 @@ import fragmentShader from './shaders/earth.frag.glsl?raw'
 export class EarthMesh {
   readonly mesh: THREE.Mesh
   private material: THREE.ShaderMaterial
+  private dayTex: THREE.Texture
+  private nightTex: THREE.Texture
 
   constructor() {
     const geometry = new THREE.SphereGeometry(1, 64, 64)
     const loader = new THREE.TextureLoader()
+    this.dayTex = loader.load('/textures/earth-day.jpg')
+    this.nightTex = loader.load('/textures/earth-night.jpg')
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
-        dayTexture: { value: loader.load('/textures/earth-day.jpg') },
-        nightTexture: { value: loader.load('/textures/earth-night.jpg') },
+        dayTexture: { value: this.dayTex },
+        nightTexture: { value: this.nightTex },
         sunDirection: { value: new THREE.Vector3(1, 0, 0) },
       },
       vertexShader,
@@ -30,5 +34,7 @@ export class EarthMesh {
   dispose(): void {
     this.mesh.geometry.dispose()
     this.material.dispose()
+    this.dayTex.dispose()
+    this.nightTex.dispose()
   }
 }
