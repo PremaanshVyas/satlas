@@ -122,11 +122,11 @@ aussie-sky/
 - [x] Install Claude Code + Superpowers locally
 - [x] Scaffold `apps/web` with Vite + React + TypeScript + Tailwind
 - [x] Get a basic Three.js globe rendering with a single satellite (the ISS, hardcoded TLE)
-- [ ] Deploy to Vercel (vercel.json is ready — run `vercel` at repo root)
+- [x] Deploy to Vercel — live at https://aussie-sky.vercel.app
 
 **Blockers:** None.
 
-**Last session ended at:** Frontend scaffold complete, on GitHub at PremaanshVyas/aussie-sky, dev server confirmed working, ready for Vercel deploy and agent integration next session.
+**Last session ended at:** Frontend scaffold complete and live at https://aussie-sky.vercel.app. Ready for session 2: agent panel + first tool.
 
 ---
 
@@ -141,6 +141,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-10 — Defer Go gateway until V1.** Frontend talks directly to FastAPI for MVP. Simplifies scaffolding. Add Go for production hardening later.
 
 - **2026-05-11 — Frontend scaffold shipped.** `apps/web` built with Vite 8 + React 19 + TypeScript + Tailwind v4 + Vitest. 65/35 split layout (Three.js globe left, agent panel right). Globe renders with a custom GLSL ShaderMaterial blending NASA Blue Marble (day) and Black Marble (night) textures via a real-time sun direction uniform computed from Meeus low-precision formulae. ISS rendered as a glowing yellow dot with a full-period orbit arc, propagated each frame via satellite.js v4 SGP4. OrbitControls for mouse drag + scroll zoom. 7 passing unit tests. `vercel.json` committed and ready to deploy. Note: ISS position is symbolic (hardcoded March 2024 TLE) — live TLE fetch from CelesTrak is a V1 requirement.
+
+- **2026-05-11 — Deployed to Vercel.** Live at https://aussie-sky.vercel.app. Auto-deploys on push to main. Free tier sufficient for portfolio traffic.
 
 ---
 
