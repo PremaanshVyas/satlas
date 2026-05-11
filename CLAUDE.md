@@ -114,19 +114,19 @@ aussie-sky/
 
 **Current phase:** Pre-MVP / scaffolding.
 
-**Next milestone:** MVP demo — 3D Earth, ~5,000 satellites, deployed live, basic agent that calls one tool (pass prediction).
+**Next milestone:** Agent panel wired to Claude API with one tool (pass prediction) — user can ask "when does the ISS pass over Melbourne?" and get a real answer.
 
 **This week's task (week 1):**
-- [ ] Create GitHub repo (private to start, public on MVP)
-- [ ] Drop in `README.md` and `CLAUDE.md`
-- [ ] Install Claude Code + Superpowers locally
-- [ ] Scaffold `apps/web` with Vite + React + TypeScript + Tailwind
-- [ ] Get a basic Three.js globe rendering with a single satellite (the ISS, hardcoded TLE)
-- [ ] First commit, deploy to Vercel or similar (free tier)
+- [x] Create GitHub repo (private to start, public on MVP)
+- [x] Drop in `README.md` and `CLAUDE.md`
+- [x] Install Claude Code + Superpowers locally
+- [x] Scaffold `apps/web` with Vite + React + TypeScript + Tailwind
+- [x] Get a basic Three.js globe rendering with a single satellite (the ISS, hardcoded TLE)
+- [ ] Deploy to Vercel (vercel.json is ready — run `vercel` at repo root)
 
-**Blockers:** None yet.
+**Blockers:** None.
 
-**Last session ended at:** _to be updated by Claude at end of each working session_
+**Last session ended at:** Frontend scaffold complete, on GitHub at PremaanshVyas/aussie-sky, dev server confirmed working, ready for Vercel deploy and agent integration next session.
 
 ---
 
@@ -139,6 +139,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-10 — AI agent is the primary interface, not a side feature.** Every user query goes through Claude with tool use. Avoids the "AI bolted on" pattern that dominates current portfolio projects.
 
 - **2026-05-10 — Defer Go gateway until V1.** Frontend talks directly to FastAPI for MVP. Simplifies scaffolding. Add Go for production hardening later.
+
+- **2026-05-11 — Frontend scaffold shipped.** `apps/web` built with Vite 8 + React 19 + TypeScript + Tailwind v4 + Vitest. 65/35 split layout (Three.js globe left, agent panel right). Globe renders with a custom GLSL ShaderMaterial blending NASA Blue Marble (day) and Black Marble (night) textures via a real-time sun direction uniform computed from Meeus low-precision formulae. ISS rendered as a glowing yellow dot with a full-period orbit arc, propagated each frame via satellite.js v4 SGP4. OrbitControls for mouse drag + scroll zoom. 7 passing unit tests. `vercel.json` committed and ready to deploy. Note: ISS position is symbolic (hardcoded March 2024 TLE) — live TLE fetch from CelesTrak is a V1 requirement.
 
 ---
 
@@ -154,6 +156,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 ---
 
 ## How to bootstrap a new chat
+
+**Note on tooling:** From this point forward, sessions are conducted via claude.ai chat rather than Claude Code. Code produced in the session is copy-pasted into the repo manually by mickey. The workflow (brainstorm → plan → implement → review → commit) is the same; the mechanism is paste-not-CLI.
 
 When mickey opens a new conversation about this project:
 
