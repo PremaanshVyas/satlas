@@ -88,7 +88,11 @@ export default async function handler(req: Request): Promise<Response> {
         if (response1.stop_reason === 'tool_use') {
           const toolBlock = response1.content.find(
             (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-          )!
+          )
+          if (!toolBlock) {
+            controller.enqueue(enc.encode('Error: expected tool use block not found'))
+            return
+          }
 
           const toolResult = await callOrbitalService(toolBlock.input as ToolInput)
 
@@ -127,7 +131,11 @@ export default async function handler(req: Request): Promise<Response> {
           const textBlock = response1.content.find(
             (b): b is Anthropic.TextBlock => b.type === 'text',
           )
-          if (textBlock) controller.enqueue(enc.encode(textBlock.text))
+          if (textBlock) {
+            controller.enqueue(enc.encode(textBlock.text))
+          } else {
+            controller.enqueue(enc.encode(`Error: no text in response (stop_reason: ${response1.stop_reason})`))
+          }
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error'
