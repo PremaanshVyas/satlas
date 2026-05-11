@@ -23,7 +23,7 @@ async def get_passes(
     latitude: float = Query(..., ge=-90, le=90, description='Decimal degrees, south negative'),
     longitude: float = Query(..., ge=-180, le=180, description='Decimal degrees, west negative'),
     hours_ahead: int = Query(24, ge=1, le=168, description='Search window in hours (max 7 days)'),
-) -> dict[str, list]:
+) -> dict[str, list[dict]]:
     try:
         passes = predict_passes(latitude, longitude, hours_ahead)
         return {'passes': passes}
