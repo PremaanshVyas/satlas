@@ -4,7 +4,7 @@
 
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
-**Live demo:** _coming soon_  
+**Live demo:** [aussie-sky.vercel.app](https://aussie-sky.vercel.app) 
 **Status:** early development — MVP in progress
 
 ---
