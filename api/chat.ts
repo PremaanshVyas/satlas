@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL!
-const MODEL = 'claude-sonnet-4-5'
+const MODEL = 'claude-sonnet-4-6'
 
 function buildSystemPrompt(): string {
   return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
@@ -132,6 +132,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             type: 'tool_result',
             tool_use_id: block.id,
             content: 'ok',
+          })
+        } else {
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: 'error: unknown tool',
+            is_error: true,
           })
         }
       }
