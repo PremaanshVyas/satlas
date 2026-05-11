@@ -41,7 +41,7 @@ describe('useGlobe', () => {
     const { rerender } = renderHook(
       ({ highlight }: { highlight: HighlightDirective | null }) =>
         useGlobe(containerRef as React.RefObject<HTMLDivElement>, highlight),
-      { initialProps: { highlight: null } },
+      { initialProps: { highlight: null as HighlightDirective | null } },
     )
 
     const globeInstance = vi.mocked(Globe).mock.results[0]?.value
@@ -59,7 +59,7 @@ describe('useGlobe', () => {
     renderHook(
       ({ highlight }: { highlight: HighlightDirective | null }) =>
         useGlobe(containerRef as React.RefObject<HTMLDivElement>, highlight),
-      { initialProps: { highlight: null } },
+      { initialProps: { highlight: null as HighlightDirective | null } },
     )
 
     const globeInstance = vi.mocked(Globe).mock.results[0]?.value
