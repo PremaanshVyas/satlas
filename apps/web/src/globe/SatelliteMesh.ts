@@ -1,0 +1,90 @@
+import * as THREE from 'three'
+import * as satellite from 'satellite.js'
+
+export class SatelliteMesh {
+  readonly group: THREE.Group
+  private dot: THREE.Mesh
+  private halo: THREE.Mesh
+  private arc: THREE.LineLoop
+  private satrec: satellite.SatRec
+  private lastArcDate: Date | null = null
+
+  constructor(tle1: string, tle2: string) {
+    this.satrec = satellite.twoline2satrec(tle1, tle2)
+    this.group = new THREE.Group()
+
+    this.dot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.008, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15 }),
+    )
+
+    this.halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.014, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.2 }),
+    )
+
+    this.arc = new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(this.computeArcPoints(new Date())),
+      new THREE.LineBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.5 }),
+    )
+
+    this.group.add(this.dot, this.halo, this.arc)
+  }
+
+  private toThreePosition(date: Date): THREE.Vector3 | null {
+    const posVel = satellite.propagate(this.satrec, date)
+    if (typeof posVel.position === 'boolean') return null
+
+    const gmst = satellite.gstime(date)
+    const geo = satellite.eciToGeodetic(
+      posVel.position as satellite.EciVec3<number>,
+      gmst,
+    )
+
+    const lat = geo.latitude  // radians
+    const lon = geo.longitude // radians
+    const r = 1.06            // slightly above unit sphere surface
+
+    return new THREE.Vector3(
+      -r * Math.cos(lat) * Math.sin(lon),
+       r * Math.sin(lat),
+       r * Math.cos(lat) * Math.cos(lon),
+    )
+  }
+
+  private computeArcPoints(date: Date): THREE.Vector3[] {
+    const periodMs = (2 * Math.PI / this.satrec.no) * 60 * 1000
+    const points: THREE.Vector3[] = []
+    for (let i = 0; i <= 90; i++) {
+      const t = new Date(date.getTime() + (i / 90) * periodMs)
+      const pos = this.toThreePosition(t)
+      if (pos) points.push(pos)
+    }
+    return points
+  }
+
+  update(date: Date): void {
+    const pos = this.toThreePosition(date)
+    if (pos) {
+      this.dot.position.copy(pos)
+      this.halo.position.copy(pos)
+    }
+
+    const shouldRecompute =
+      this.lastArcDate === null ||
+      date.getTime() - this.lastArcDate.getTime() > 60_000
+    if (shouldRecompute) {
+      this.lastArcDate = date
+      this.arc.geometry.setFromPoints(this.computeArcPoints(date))
+    }
+  }
+
+  dispose(): void {
+    this.dot.geometry.dispose()
+    this.halo.geometry.dispose()
+    this.arc.geometry.dispose()
+    ;(this.dot.material as THREE.Material).dispose()
+    ;(this.halo.material as THREE.Material).dispose()
+    ;(this.arc.material as THREE.Material).dispose()
+  }
+}
