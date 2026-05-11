@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from passes import predict_passes
+from satellites import get_satellites
 
 app = FastAPI(title='Aussie Sky Orbital Service')
 
@@ -29,3 +30,11 @@ async def get_passes(
         return {'passes': passes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get('/satellites')
+async def get_satellite_catalog() -> list[dict]:
+    try:
+        return await get_satellites()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f'CelesTrak fetch failed: {e}')

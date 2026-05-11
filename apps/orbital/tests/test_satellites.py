@@ -2,7 +2,10 @@ import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from fastapi.testclient import TestClient
+
 import satellites
+from main import app
 
 
 SAMPLE_API_RESPONSE = [
@@ -108,3 +111,19 @@ class TestGetSatellites:
             result = asyncio.run(satellites.get_satellites())
 
         assert len(result) == satellites.LIMIT
+
+
+class TestSatellitesEndpoint:
+    def test_returns_200_with_list(self):
+        mock_tles = [{'name': 'ISS', 'norad_id': '25544', 'tle1': 'a', 'tle2': 'b'}]
+        with patch('main.get_satellites', AsyncMock(return_value=mock_tles)):
+            client = TestClient(app)
+            response = client.get('/satellites')
+        assert response.status_code == 200
+        assert response.json() == mock_tles
+
+    def test_returns_503_on_fetch_failure(self):
+        with patch('main.get_satellites', AsyncMock(side_effect=Exception('network error'))):
+            client = TestClient(app)
+            response = client.get('/satellites')
+        assert response.status_code == 503
