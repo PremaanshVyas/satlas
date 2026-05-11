@@ -9,6 +9,8 @@ function buildSystemPrompt(): string {
   return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
 Help users track satellites and understand orbital mechanics. \
 When asked about ISS passes, sightings, or visibility from any location, call predict_iss_passes. \
+Whenever your response is about a specific satellite (e.g. the ISS), also call highlight_on_globe — \
+this signals the 3D globe to focus on and animate that satellite. Do not mention the highlight in your text. \
 Format pass times in the user's likely local timezone (Melbourne queries → AEST/AEDT). \
 Be concise: list each pass on one line with local time, max elevation, and compass direction. \
 Current UTC time: ${new Date().toISOString()}`
@@ -38,13 +40,40 @@ const PREDICT_PASSES_TOOL: Anthropic.Tool = {
   },
 }
 
-interface ToolInput {
+const HIGHLIGHT_TOOL: Anthropic.Tool = {
+  name: 'highlight_on_globe',
+  description:
+    'Signal the 3D globe to focus the camera on a satellite and animate a pulse around it. Call this whenever the user is asking about a specific satellite — always include it alongside your text response about that satellite. The ISS NORAD ID is 25544. This does not affect your text response.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      norad_id: {
+        type: 'string',
+        description: 'NORAD catalog number of the satellite. The ISS is "25544".',
+      },
+      satellite_name: {
+        type: 'string',
+        description: 'Human-readable name, e.g. "ISS".',
+      },
+    },
+    required: ['norad_id', 'satellite_name'],
+  },
+}
+
+const TOOLS = [PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL]
+
+interface PassesInput {
   latitude: number
   longitude: number
   hours_ahead?: number
 }
 
-async function callOrbitalService(input: ToolInput): Promise<unknown> {
+interface HighlightInput {
+  norad_id: string
+  satellite_name: string
+}
+
+async function callOrbitalService(input: PassesInput): Promise<unknown> {
   const params = new URLSearchParams({
     latitude: String(input.latitude),
     longitude: String(input.longitude),
@@ -61,7 +90,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  // On Node runtime, req.body is already parsed when Content-Type is application/json
   const { message } = req.body as { message: string }
   const systemPrompt = buildSystemPrompt()
 
@@ -69,43 +97,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 'no-cache')
 
   try {
-    // First call: non-streaming, detect whether Claude wants to call a tool
+    // First call: non-streaming — detects whether Claude wants to call tools
     const response1 = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: systemPrompt,
-      tools: [PREDICT_PASSES_TOOL],
+      tools: TOOLS,
       messages: [{ role: 'user', content: message }],
     })
 
+    let pendingHighlight: HighlightInput | null = null
+
     if (response1.stop_reason === 'tool_use') {
-      const toolBlock = response1.content.find(
-        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-      )!
-
-      const toolResult = await callOrbitalService(toolBlock.input as ToolInput)
-
       const messages: Anthropic.MessageParam[] = [
         { role: 'user', content: message },
         { role: 'assistant', content: response1.content },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: toolBlock.id,
-              content: JSON.stringify(toolResult),
-            },
-          ],
-        },
       ]
 
-      // Second call: stream the final answer
+      const toolResults: Anthropic.ToolResultBlockParam[] = []
+
+      for (const block of response1.content) {
+        if (block.type !== 'tool_use') continue
+
+        if (block.name === 'predict_iss_passes') {
+          const result = await callOrbitalService(block.input as PassesInput)
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
+        } else if (block.name === 'highlight_on_globe') {
+          pendingHighlight = block.input as HighlightInput
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: 'ok',
+          })
+        }
+      }
+
+      messages.push({ role: 'user', content: toolResults })
+
+      // Stream the final answer
       const stream2 = client.messages.stream({
         model: MODEL,
         max_tokens: 1024,
         system: systemPrompt,
-        tools: [PREDICT_PASSES_TOOL],
+        tools: TOOLS,
         messages,
       })
 
@@ -115,11 +153,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
     } else {
-      // No tool use — return text directly
-      const textBlock = response1.content.find(
-        (b): b is Anthropic.TextBlock => b.type === 'text',
-      )
-      if (textBlock) res.write(textBlock.text)
+      // No tool use — write text directly
+      for (const block of response1.content) {
+        if (block.type === 'text') res.write(block.text)
+      }
+    }
+
+    // Emit highlight directive after text (frontend strips this from displayed content)
+    if (pendingHighlight) {
+      res.write(`\n__HIGHLIGHT__:${JSON.stringify(pendingHighlight)}\n`)
     }
 
     res.end()
