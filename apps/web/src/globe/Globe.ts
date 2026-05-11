@@ -6,6 +6,13 @@ import { getSunDirection } from '../lib/solar'
 
 const ISS_TLE1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
 const ISS_TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
+const ISS_NORAD = '25544'
+const FLY_DURATION_MS = 1500
+const CAMERA_DISTANCE = 2.5
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+}
 
 export class Globe {
   private renderer!: THREE.WebGLRenderer
@@ -16,6 +23,10 @@ export class Globe {
   private iss!: SatelliteMesh
   private rafId: number | null = null
 
+  private flyFromPos: THREE.Vector3 | null = null
+  private flyToPos: THREE.Vector3 | null = null
+  private flyStartTime: number | null = null
+
   mount(canvas: HTMLCanvasElement): void {
     const w = canvas.clientWidth || canvas.width || 800
     const h = canvas.clientHeight || canvas.height || 600
@@ -25,7 +36,7 @@ export class Globe {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
     this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100)
-    this.camera.position.set(0, 0, 2.5)
+    this.camera.position.set(0, 0, CAMERA_DISTANCE)
 
     this.scene = new THREE.Scene()
 
@@ -45,11 +56,42 @@ export class Globe {
     this.tick()
   }
 
+  highlightSatellite(noradId: string): void {
+    if (noradId !== ISS_NORAD) return
+
+    const issPos = this.iss.getCurrentPosition()
+    if (!issPos) return
+
+    // Position camera 2.5 units away in the direction of the ISS from Earth center
+    const dir = issPos.clone().normalize()
+    this.flyFromPos = this.camera.position.clone()
+    this.flyToPos = dir.multiplyScalar(CAMERA_DISTANCE)
+    this.flyStartTime = performance.now()
+
+    this.iss.startPulse()
+  }
+
   private tick(): void {
     this.rafId = requestAnimationFrame(() => this.tick())
     const now = new Date()
     this.earth.update(getSunDirection(now))
     this.iss.update(now)
+
+    // Camera fly-to animation
+    if (this.flyFromPos && this.flyToPos && this.flyStartTime !== null) {
+      const elapsed = performance.now() - this.flyStartTime
+      const t = Math.min(elapsed / FLY_DURATION_MS, 1)
+      const eased = easeInOutCubic(t)
+
+      this.camera.position.lerpVectors(this.flyFromPos, this.flyToPos, eased)
+
+      if (t >= 1) {
+        this.flyFromPos = null
+        this.flyToPos = null
+        this.flyStartTime = null
+      }
+    }
+
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
   }
