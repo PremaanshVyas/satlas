@@ -3,7 +3,12 @@ import App from './App'
 
 vi.mock('./hooks/useGlobe', () => ({ useGlobe: vi.fn() }))
 vi.mock('./hooks/useChat', () => ({
-  useChat: vi.fn(() => ({ messages: [], isLoading: false, sendMessage: vi.fn() })),
+  useChat: vi.fn(() => ({
+    messages: [],
+    isLoading: false,
+    sendMessage: vi.fn(),
+    highlight: null,
+  })),
 }))
 
 window.HTMLElement.prototype.scrollIntoView = vi.fn()
