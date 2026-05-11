@@ -114,7 +114,7 @@ aussie-sky/
 
 **Current phase:** Pre-MVP / scaffolding.
 
-**Next milestone:** Agent panel wired to Claude API with one tool (pass prediction) — user can ask "when does the ISS pass over Melbourne?" and get a real answer.
+**Next milestone:** Highlight satellites on the globe in response to chat — when the user asks "show me X", the agent calls a tool that focuses the camera and pulses the target satellite.
 
 **This week's task (week 1):**
 - [x] Create GitHub repo (private to start, public on MVP)
@@ -124,9 +124,19 @@ aussie-sky/
 - [x] Get a basic Three.js globe rendering with a single satellite (the ISS, hardcoded TLE)
 - [x] Deploy to Vercel — live at https://aussie-sky.vercel.app
 
+**Agent + first tool (week 2):**
+- [x] `apps/orbital/passes.py` — skyfield-based ISS pass prediction + pytest suite
+- [x] `apps/orbital/main.py` — FastAPI service with `/health` and `/predict-passes`
+- [x] `apps/orbital/Dockerfile` — containerised for Railway deploy
+- [x] `api/chat.ts` — Vercel Edge Function: Claude tool-use loop + streaming response
+- [x] `apps/web/src/hooks/useChat.ts` — streaming fetch hook, fully tested
+- [x] `apps/web/src/components/AgentPanel.tsx` — real streaming chat UI (replaces placeholder)
+- [ ] Deploy orbital service to Railway
+- [ ] Add `ANTHROPIC_API_KEY` + `ORBITAL_SERVICE_URL` to Vercel env vars → redeploy
+
 **Blockers:** None.
 
-**Last session ended at:** Frontend scaffold complete and live at https://aussie-sky.vercel.app. Ready for session 2: agent panel + first tool.
+**Last session ended at:** Agent + first tool code complete and pushed to GitHub. Railway deploy + Vercel env vars pending — once those are done, live chat with real ISS pass prediction works end-to-end.
 
 ---
 
@@ -143,6 +153,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-11 — Frontend scaffold shipped.** `apps/web` built with Vite 8 + React 19 + TypeScript + Tailwind v4 + Vitest. 65/35 split layout (Three.js globe left, agent panel right). Globe renders with a custom GLSL ShaderMaterial blending NASA Blue Marble (day) and Black Marble (night) textures via a real-time sun direction uniform computed from Meeus low-precision formulae. ISS rendered as a glowing yellow dot with a full-period orbit arc, propagated each frame via satellite.js v4 SGP4. OrbitControls for mouse drag + scroll zoom. 7 passing unit tests. `vercel.json` committed and ready to deploy. Note: ISS position is symbolic (hardcoded March 2024 TLE) — live TLE fetch from CelesTrak is a V1 requirement.
 
 - **2026-05-11 — Deployed to Vercel.** Live at https://aussie-sky.vercel.app. Auto-deploys on push to main. Free tier sufficient for portfolio traffic.
+
+- **2026-05-11 — Agent + first tool shipped.** Wired the full agent-tool loop end-to-end. `apps/orbital/passes.py` uses skyfield `find_events` (altitude_degrees=10°, builtin timescale) to predict ISS passes, returning start/end UTC, max elevation, and compass direction. `apps/orbital/main.py` is a FastAPI service exposing `GET /predict-passes` with lat/lon/hours_ahead query params, containerised in a Dockerfile for Railway. `api/chat.ts` is a Vercel Edge Function that runs a two-turn Claude tool-use loop: first call (non-streaming) detects whether to invoke `predict_iss_passes`, executes the tool against the Railway service, then streams Claude's final answer back to the browser via `ReadableStream`. Prompt caching applied to the system prompt on both turns. `useChat` hook manages message state and streams chunks into the assistant bubble in real time. `AgentPanel` replaces the static placeholder with a full chat UI: scrollable history, animated bouncing dots while streaming, Enter-to-send, disabled input while loading. 11 passing Vitest tests. Railway deploy + Vercel env vars are the only remaining manual steps before the feature is live.
 
 ---
 
