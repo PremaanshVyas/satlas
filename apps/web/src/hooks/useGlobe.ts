@@ -1,8 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import { Globe } from '../globe/Globe'
+import type { HighlightDirective } from '../types/chat'
 
-export function useGlobe(containerRef: RefObject<HTMLDivElement | null>): void {
+export function useGlobe(
+  containerRef: RefObject<HTMLDivElement | null>,
+  highlight: HighlightDirective | null,
+): void {
+  const globeRef = useRef<Globe | null>(null)
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -13,6 +19,7 @@ export function useGlobe(containerRef: RefObject<HTMLDivElement | null>): void {
 
     const globe = new Globe()
     globe.mount(canvas)
+    globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect
@@ -23,7 +30,14 @@ export function useGlobe(containerRef: RefObject<HTMLDivElement | null>): void {
     return () => {
       observer.disconnect()
       globe.unmount()
+      globeRef.current = null
       canvas.remove()
     }
   }, [])
+
+  useEffect(() => {
+    if (highlight && globeRef.current) {
+      globeRef.current.highlightSatellite(highlight.norad_id)
+    }
+  }, [highlight])
 }
