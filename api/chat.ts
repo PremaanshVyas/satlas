@@ -1,8 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
+import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL!
-const MODEL = 'claude-sonnet-4-6'
+const MODEL = 'claude-sonnet-4-5'
 
 function buildSystemPrompt(): string {
   return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
@@ -22,18 +23,15 @@ const PREDICT_PASSES_TOOL: Anthropic.Tool = {
     properties: {
       latitude: {
         type: 'number',
-        description:
-          'Observer latitude in decimal degrees. South is negative. Melbourne is -37.8136.',
+        description: 'Observer latitude in decimal degrees. South is negative. Melbourne is -37.8136.',
       },
       longitude: {
         type: 'number',
-        description:
-          'Observer longitude in decimal degrees. West is negative. Melbourne is 144.9631.',
+        description: 'Observer longitude in decimal degrees. West is negative. Melbourne is 144.9631.',
       },
       hours_ahead: {
         type: 'number',
-        description:
-          'Hours ahead to search for passes. Default 24. Use 48 for "this week" or multi-day queries.',
+        description: 'Hours ahead to search for passes. Default 24. Use 48 for "this week" or multi-day queries.',
       },
     },
     required: ['latitude', 'longitude'],
@@ -57,97 +55,77 @@ async function callOrbitalService(input: ToolInput): Promise<unknown> {
   return res.json()
 }
 
-type CachedTextBlock = Anthropic.TextBlockParam & { cache_control: { type: 'ephemeral' } }
-
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
+    res.status(405).send('Method not allowed')
+    return
   }
 
-  const { message } = (await req.json()) as { message: string }
+  // On Node runtime, req.body is already parsed when Content-Type is application/json
+  const { message } = req.body as { message: string }
   const systemPrompt = buildSystemPrompt()
-  const systemContent: CachedTextBlock[] = [
-    { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
-  ]
 
-  const response1 = await client.messages.create({
-    model: MODEL,
-    max_tokens: 1024,
-    system: systemContent as Anthropic.TextBlockParam[],
-    tools: [PREDICT_PASSES_TOOL],
-    messages: [{ role: 'user', content: message }],
-  })
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-cache')
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const enc = new TextEncoder()
+  try {
+    // First call: non-streaming, detect whether Claude wants to call a tool
+    const response1 = await client.messages.create({
+      model: MODEL,
+      max_tokens: 1024,
+      system: systemPrompt,
+      tools: [PREDICT_PASSES_TOOL],
+      messages: [{ role: 'user', content: message }],
+    })
 
-      try {
-        if (response1.stop_reason === 'tool_use') {
-          const toolBlock = response1.content.find(
-            (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-          )
-          if (!toolBlock) {
-            controller.enqueue(enc.encode('Error: expected tool use block not found'))
-            return
-          }
+    if (response1.stop_reason === 'tool_use') {
+      const toolBlock = response1.content.find(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+      )!
 
-          const toolResult = await callOrbitalService(toolBlock.input as ToolInput)
+      const toolResult = await callOrbitalService(toolBlock.input as ToolInput)
 
-          const messages: Anthropic.MessageParam[] = [
-            { role: 'user', content: message },
-            { role: 'assistant', content: response1.content },
+      const messages: Anthropic.MessageParam[] = [
+        { role: 'user', content: message },
+        { role: 'assistant', content: response1.content },
+        {
+          role: 'user',
+          content: [
             {
-              role: 'user',
-              content: [
-                {
-                  type: 'tool_result',
-                  tool_use_id: toolBlock.id,
-                  content: JSON.stringify(toolResult),
-                },
-              ],
+              type: 'tool_result',
+              tool_use_id: toolBlock.id,
+              content: JSON.stringify(toolResult),
             },
-          ]
+          ],
+        },
+      ]
 
-          const stream2 = client.messages.stream({
-            model: MODEL,
-            max_tokens: 1024,
-            system: systemContent as Anthropic.TextBlockParam[],
-            tools: [PREDICT_PASSES_TOOL],
-            messages,
-          })
+      // Second call: stream the final answer
+      const stream2 = client.messages.stream({
+        model: MODEL,
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: [PREDICT_PASSES_TOOL],
+        messages,
+      })
 
-          for await (const event of stream2) {
-            if (
-              event.type === 'content_block_delta' &&
-              event.delta.type === 'text_delta'
-            ) {
-              controller.enqueue(enc.encode(event.delta.text))
-            }
-          }
-        } else {
-          const textBlock = response1.content.find(
-            (b): b is Anthropic.TextBlock => b.type === 'text',
-          )
-          if (textBlock) {
-            controller.enqueue(enc.encode(textBlock.text))
-          } else {
-            controller.enqueue(enc.encode(`Error: no text in response (stop_reason: ${response1.stop_reason})`))
-          }
+      for await (const event of stream2) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          res.write(event.delta.text)
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error'
-        controller.enqueue(enc.encode(`Error: ${msg}`))
-      } finally {
-        controller.close()
       }
-    },
-  })
+    } else {
+      // No tool use — return text directly
+      const textBlock = response1.content.find(
+        (b): b is Anthropic.TextBlock => b.type === 'text',
+      )
+      if (textBlock) res.write(textBlock.text)
+    }
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'no-cache',
-    },
-  })
+    res.end()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    res.write(`Error: ${msg}`)
+    res.end()
+  }
 }

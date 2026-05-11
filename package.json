@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.95.1"
+    "@anthropic-ai/sdk": "^0.95.1",
+    "@vercel/node": "^5.7.17"
   },
   "devDependencies": {
     "@types/node": "^25.6.2",
