@@ -78,3 +78,75 @@ describe('useChat', () => {
     expect(result.current.isLoading).toBe(false)
   })
 })
+
+describe('useChat highlight parsing', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  test('strips __HIGHLIGHT__ directive and sets highlight state', async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      mockStream([
+        'The ISS is currently over the Pacific Ocean.',
+        '\n__HIGHLIGHT__:{"norad_id":"25544","satellite_name":"ISS"}\n',
+      ])
+    )
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('Where is the ISS?')
+    })
+
+    await waitFor(() => {
+      expect(result.current.messages[1]).toMatchObject({
+        role: 'assistant',
+        content: 'The ISS is currently over the Pacific Ocean.',
+        streaming: false,
+      })
+      expect(result.current.highlight).toEqual({
+        norad_id: '25544',
+        satellite_name: 'ISS',
+      })
+    })
+  })
+
+  test('does not set highlight when no directive in stream', async () => {
+    vi.mocked(fetch).mockReturnValueOnce(mockStream(['Just a normal text response.']))
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('Hello')
+    })
+
+    await waitFor(() => {
+      expect(result.current.highlight).toBeNull()
+    })
+  })
+
+  test('handles directive split across chunks', async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      mockStream([
+        'Some text.',
+        '\n__HIGHLIGHT__:{"norad_id":"25544",',
+        '"satellite_name":"ISS"}\n',
+      ])
+    )
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('Show me the ISS')
+    })
+
+    await waitFor(() => {
+      expect(result.current.messages[1].content).toBe('Some text.')
+      expect(result.current.highlight).toEqual({
+        norad_id: '25544',
+        satellite_name: 'ISS',
+      })
+    })
+  })
+})

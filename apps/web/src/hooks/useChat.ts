@@ -1,9 +1,28 @@
 import { useState, useCallback } from 'react'
-import type { ChatMessage } from '../types/chat'
+import type { ChatMessage, HighlightDirective } from '../types/chat'
+
+const HIGHLIGHT_MARKER = '\n__HIGHLIGHT__:'
+
+function parseChunkForHighlight(
+  accumulated: string,
+): { text: string; highlight: HighlightDirective | null } {
+  const idx = accumulated.indexOf(HIGHLIGHT_MARKER)
+  if (idx === -1) return { text: accumulated, highlight: null }
+
+  const text = accumulated.slice(0, idx)
+  const jsonStr = accumulated.slice(idx + HIGHLIGHT_MARKER.length).replace(/\n$/, '')
+  try {
+    const highlight = JSON.parse(jsonStr) as HighlightDirective
+    return { text, highlight }
+  } catch {
+    return { text: accumulated, highlight: null }
+  }
+}
 
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [highlight, setHighlight] = useState<HighlightDirective | null>(null)
 
   const sendMessage = useCallback(async (content: string) => {
     const userMsg: ChatMessage = {
@@ -30,17 +49,27 @@ export function useChat() {
 
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
+      let rawAccumulated = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
         const chunk = decoder.decode(value, { stream: true })
+        rawAccumulated += chunk
+
+        // Strip any directive from displayed content in real time
+        const { text } = parseChunkForHighlight(rawAccumulated)
         setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantId ? { ...m, content: m.content + chunk } : m,
-          ),
+          prev.map(m => (m.id === assistantId ? { ...m, content: text } : m)),
         )
       }
+
+      // Final parse: extract highlight if present
+      const { text, highlight: newHighlight } = parseChunkForHighlight(rawAccumulated)
+      setMessages(prev =>
+        prev.map(m => (m.id === assistantId ? { ...m, content: text } : m)),
+      )
+      if (newHighlight) setHighlight(newHighlight)
     } catch {
       setMessages(prev =>
         prev.map(m =>
@@ -57,5 +86,5 @@ export function useChat() {
     }
   }, [])
 
-  return { messages, isLoading, sendMessage }
+  return { messages, isLoading, sendMessage, highlight }
 }
