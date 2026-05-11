@@ -114,7 +114,7 @@ aussie-sky/
 
 **Current phase:** Pre-MVP / scaffolding.
 
-**Next milestone:** Live TLE catalog — fetch ~500-2000 TLEs from CelesTrak, propagate in a web worker, render via instanced meshes so the main thread stays smooth.
+**Next milestone:** more tools — find_satellites_overhead(lat, lon, radius_km) and get_satellite_info(name_or_norad_id). The agent can now answer 'what's over me right now' and 'tell me about Hubble', querying the live catalog from session 4.
 
 **This week's task (week 1):**
 - [x] Create GitHub repo (private to start, public on MVP)
@@ -144,6 +144,16 @@ aussie-sky/
 - [x] Manual deploy verify on aussie-sky.vercel.app
 - [x] Update README.md and CLAUDE.md at end of session
 
+**Session 4 tasks (live TLE catalog + thousands of satellites):**
+- [ ] Add CelesTrak fetch + cache to apps/orbital (new /satellites endpoint, 4-6 hour cache)
+- [ ] Frontend loads the catalog on app start
+- [ ] Web worker propagates ~1000 satellite positions per frame off the main thread
+- [ ] Render satellites via Three.js InstancedMesh (one draw call, position buffer updated per frame)
+- [ ] ISS retains its 'selected' treatment (orbit arc, larger dot, pulse on highlight); other satellites are just dots
+- [ ] Verify main thread stays at 60fps with 1000 satellites
+- [ ] Manual deploy verify on aussie-sky.vercel.app
+- [ ] Update README.md and CLAUDE.md at end of session
+
 **Blockers:** None.
 
 **Last session ended at:** Session 3 complete. highlight_on_globe tool shipped — chat and globe are now one surface. Asking "show me where the ISS is" drives a camera fly-to + 3× halo pulse. 17/17 tests passing. Deployed at https://aussie-sky.vercel.app.
@@ -170,6 +180,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 
 - **2026-05-11 — highlight_on_globe shipped.** Backend: added `HIGHLIGHT_TOOL` alongside `PREDICT_PASSES_TOOL`; both processed in the same first non-streaming turn; `pendingHighlight` recorded when Claude calls it; directive emitted as `\n__HIGHLIGHT__:{"norad_id":"...","satellite_name":"..."}\n` after text stream. Unknown tool names now get a `is_error: true` fallback result to prevent Anthropic API validation errors. Model updated to `claude-sonnet-4-6`. Frontend: `parseChunkForHighlight` accumulates the full raw stream and splits on `\n__HIGHLIGHT__:`; on parse success strips directive from displayed text and sets `highlight` state; on JSON failure returns the full accumulated string so no content is lost. `useChat` lifted to `App` so `highlight` can flow sideways to `GlobeView`. `Globe.ts`: cubic ease-in-out fly-to over 1500ms targeting camera 2.5 units in ISS direction; `SatelliteMesh.ts`: sin-curve halo pulse for 3 × 1000ms cycles. Only NORAD 25544 (ISS) accepted — other IDs silently ignored. No external animation library used. Known limitation: `highlight` state persists across messages (no reset) — invisible now with one satellite, needs `setHighlight(null)` at `sendMessage` start once session 4 adds more satellites. Known limitation: ISS TLE is hardcoded to March 2024, so camera flies to a symbolically correct position not the real current location — live TLE fetch from CelesTrak essential in session 4.
 
+- **2026-05-12 — Session 4 direction set: live TLE catalog + thousands of satellites.** Architectural calls: (A) Backend fetches CelesTrak and caches for 4-6h — frontend never talks to CelesTrak directly. Reasons: own the endpoint, can cache, can rate limit, production-correct pattern. (B) Target ~1000 satellites for the catalog. Reason: large enough to look dramatically different from the single-ISS demo; small enough that mid-tier hardware doesn't choke. (C) Web worker from the start, not main-thread first. Reason: 1000 SGP4 propagations per frame on main thread risks frame drops on weaker hardware; adding a worker later is more work than building it right once. (D) InstancedMesh for rendering — one Three.js draw call for all 1000 satellites, position buffer updated per frame from worker output. (E) ISS keeps its special treatment (orbit arc, larger dot, highlight pulse); other satellites are dots only. Out of scope this session: click-to-select, filter UI beyond a stub, conjunction analysis, tooltips, mobile performance.
+
 - **2026-05-11 — Three deploy fixes to `api/chat.ts` and root `package.json`.** Hit during Railway + Vercel deploy. (1) **Edge runtime incompatible with Anthropic SDK** — the SDK references `node:fs` and `node:path` which don't exist in Vercel Edge runtime. Fix: removed `export const config = { runtime: 'edge' }` entirely; Node is the default and needs no config. (2) **Root `package.json` missing `"type": "module"`** — ES module imports in `chat.ts` failed at runtime with "Failed to load the ES module". Fix: added `"type": "module"` to root `package.json`. (3) **Node runtime uses VercelRequest/VercelResponse, not Web Request** — `req.json is not a function` crashed the handler because the Edge Web Request API isn't available in Node runtime. Fix: rewrote handler to import `VercelRequest`/`VercelResponse` from `@vercel/node`, read body via `req.body` (Vercel pre-parses JSON), stream output with `res.write()` / `res.end()`. Removed `ReadableStream` construction and removed prompt caching (cache_control typing was fragile in this context — add back in V1). Installed `@vercel/node` as a dependency.
 
 ---
@@ -187,7 +199,7 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 
 ## How to bootstrap a new chat
 
-**Note on tooling:** From this point forward, sessions are conducted via claude.ai chat rather than Claude Code. Code produced in the session is copy-pasted into the repo manually by mickey. The workflow (brainstorm → plan → implement → review → commit) is the same; the mechanism is paste-not-CLI.
+**Note on tooling:** Sessions use a two-tool workflow. Planning, strategy, and review happen in claude.ai chat (the user's advisor). Execution happens in Claude Code with Superpowers. CLAUDE.md is the shared brain — both contexts read it at session start and update it at session end. The user is the engineer in charge; both AI contexts implement his judgment.
 
 When mickey opens a new conversation about this project:
 
