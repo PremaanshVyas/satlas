@@ -1,6 +1,10 @@
 import * as THREE from 'three'
 import * as satellite from 'satellite.js'
 
+const PULSE_DURATION_MS = 1000
+const PULSE_SCALE = 1.6
+const PULSE_REPEATS = 3
+
 export class SatelliteMesh {
   readonly group: THREE.Group
   private dot: THREE.Mesh
@@ -8,6 +12,7 @@ export class SatelliteMesh {
   private arc: THREE.LineLoop
   private satrec: satellite.SatRec
   private lastArcDate: Date
+  private pulseStartTime: number | null = null
 
   constructor(tle1: string, tle2: string) {
     this.satrec = satellite.twoline2satrec(tle1, tle2)
@@ -64,6 +69,14 @@ export class SatelliteMesh {
     return points
   }
 
+  getCurrentPosition(): THREE.Vector3 | null {
+    return this.toThreePosition(new Date())
+  }
+
+  startPulse(): void {
+    this.pulseStartTime = performance.now()
+  }
+
   update(date: Date): void {
     const pos = this.toThreePosition(date)
     if (pos) {
@@ -75,6 +88,21 @@ export class SatelliteMesh {
     if (shouldRecompute) {
       this.lastArcDate = date
       this.arc.geometry.setFromPoints(this.computeArcPoints(date))
+    }
+
+    // Pulse animation: scale halo 1.0 → PULSE_SCALE → 1.0 for PULSE_REPEATS cycles
+    if (this.pulseStartTime !== null) {
+      const elapsed = performance.now() - this.pulseStartTime
+      const cycleIndex = Math.floor(elapsed / PULSE_DURATION_MS)
+
+      if (cycleIndex >= PULSE_REPEATS) {
+        this.pulseStartTime = null
+        this.halo.scale.setScalar(1)
+      } else {
+        const t = (elapsed % PULSE_DURATION_MS) / PULSE_DURATION_MS
+        const scale = 1 + (PULSE_SCALE - 1) * Math.sin(t * Math.PI)
+        this.halo.scale.setScalar(scale)
+      }
     }
   }
 
