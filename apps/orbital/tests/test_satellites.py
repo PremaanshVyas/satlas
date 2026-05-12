@@ -2,6 +2,7 @@ import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 import satellites
@@ -23,6 +24,8 @@ SAMPLE_API_RESPONSE = [
     },
 ]
 
+ENV_VARS = {'SPACETRACK_USER': 'user@example.com', 'SPACETRACK_PASS': 'secret'}
+
 
 def _make_mock_client(response_data):
     mock_resp = MagicMock()
@@ -30,6 +33,7 @@ def _make_mock_client(response_data):
     mock_resp.raise_for_status = MagicMock()
 
     mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=MagicMock(raise_for_status=MagicMock()))
     mock_client.get = AsyncMock(return_value=mock_resp)
     return mock_client
 
@@ -41,7 +45,7 @@ class TestGetSatellites:
 
     def test_returns_list_of_tle_records(self):
         mock_client = _make_mock_client(SAMPLE_API_RESPONSE)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
+        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
             MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
             result = asyncio.run(satellites.get_satellites())
@@ -51,7 +55,7 @@ class TestGetSatellites:
 
     def test_record_has_required_fields(self):
         mock_client = _make_mock_client(SAMPLE_API_RESPONSE)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
+        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
             MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
             result = asyncio.run(satellites.get_satellites())
@@ -64,7 +68,7 @@ class TestGetSatellites:
 
     def test_norad_id_is_string(self):
         mock_client = _make_mock_client(SAMPLE_API_RESPONSE)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
+        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
             MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
             result = asyncio.run(satellites.get_satellites())
@@ -87,7 +91,7 @@ class TestGetSatellites:
         satellites._cache['fetched_at'] = time.time() - (4 * 3600 + 1)
 
         mock_client = _make_mock_client(SAMPLE_API_RESPONSE)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
+        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
             MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
             result = asyncio.run(satellites.get_satellites())
@@ -98,19 +102,36 @@ class TestGetSatellites:
         many_sats = [
             {
                 'OBJECT_NAME': f'SAT-{i}',
-                'NORAD_CAT_ID': str(i),
+                'NORAD_CAT_ID': i,
                 'TLE_LINE1': '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993',
                 'TLE_LINE2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
             }
             for i in range(satellites.LIMIT + 100)
         ]
         mock_client = _make_mock_client(many_sats)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
+        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
             MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
             result = asyncio.run(satellites.get_satellites())
 
         assert len(result) == satellites.LIMIT
+
+    def test_raises_if_credentials_missing(self):
+        with patch.dict('os.environ', {}, clear=True):
+            with pytest.raises(ValueError, match='SPACETRACK_USER and SPACETRACK_PASS'):
+                asyncio.run(satellites.get_satellites())
+
+    def test_posts_credentials_to_login_url(self):
+        mock_client = _make_mock_client(SAMPLE_API_RESPONSE)
+        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
+            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+            asyncio.run(satellites.get_satellites())
+
+        mock_client.post.assert_called_once_with(
+            satellites.SPACETRACK_LOGIN_URL,
+            data={'identity': ENV_VARS['SPACETRACK_USER'], 'password': ENV_VARS['SPACETRACK_PASS']},
+        )
 
 
 class TestSatellitesEndpoint:

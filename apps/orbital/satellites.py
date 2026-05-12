@@ -1,11 +1,16 @@
+import os
 import time
 
 import httpx
 
-CELESTRAK_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json'
+SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
+SPACETRACK_QUERY_URL = (
+    'https://www.space-track.org/basicspacedata/query/class/gp'
+    '/EPOCH/%3Enow-30/MEAN_MOTION/%3E11.25/ECCENTRICITY/%3C0.25'
+    '/orderby/NORAD_CAT_ID/limit/1000/format/json'
+)
 CACHE_TTL_SECONDS = 4 * 3600
-# CelesTrak active group returns ~11k objects. Cap at 1000 for MVP; increase to 2000+
-# in the polish session once main-thread frame budget is confirmed acceptable.
+# Query already limits to 1000; LIMIT is a safety net
 LIMIT = 1000
 
 _cache: dict = {'tles': [], 'fetched_at': 0.0}
@@ -16,11 +21,20 @@ async def get_satellites() -> list[dict]:
     if _cache['tles'] and now - _cache['fetched_at'] < CACHE_TTL_SECONDS:
         return _cache['tles']
 
-    headers = {'User-Agent': 'aussie-sky-portfolio/1.0 (github.com/PremaanshVyas/aussie-sky)'}
-    async with httpx.AsyncClient(timeout=30, headers=headers) as client:
-        response = await client.get(CELESTRAK_URL)
-        response.raise_for_status()
-        data = response.json()
+    user = os.environ.get('SPACETRACK_USER')
+    password = os.environ.get('SPACETRACK_PASS')
+    if not user or not password:
+        raise ValueError('SPACETRACK_USER and SPACETRACK_PASS environment variables must be set')
+
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        login_resp = await client.post(
+            SPACETRACK_LOGIN_URL,
+            data={'identity': user, 'password': password},
+        )
+        login_resp.raise_for_status()
+        data_resp = await client.get(SPACETRACK_QUERY_URL)
+        data_resp.raise_for_status()
+        data = data_resp.json()
 
     tles = [
         {
