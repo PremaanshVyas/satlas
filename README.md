@@ -5,9 +5,10 @@
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
 **Live demo:** [aussie-sky.vercel.app](https://aussie-sky.vercel.app)  
+Open the site — ~1000 live satellites orbit Earth in real time, fetched from the US Space Force catalog and propagated in a web worker.  
 Ask the agent: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
-**Status:** Agent drives the globe — chat and visualization are one surface
+**Status:** MVP shipped — live satellite catalog, AI agent, orbital mechanics all working
 
 ---
 
@@ -94,7 +95,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 
 ### MVP (weeks 1–4)
 - [x] Project scaffolding
-- [ ] Live TLE catalog (~500–2000 satellites, instanced meshes + web worker propagation)
+- [x] Live TLE catalog (~1000 satellites, InstancedMesh + web worker)
 - [ ] More agent tools: find_satellites_overhead, get_satellite_info
 - [ ] Click satellite → details
 - [ ] Filter by category (Starlink, ISS, debris, etc.)

@@ -114,7 +114,7 @@ aussie-sky/
 
 **Current phase:** Pre-MVP / scaffolding.
 
-**Next milestone:** more tools — find_satellites_overhead(lat, lon, radius_km) and get_satellite_info(name_or_norad_id). The agent can now answer 'what's over me right now' and 'tell me about Hubble', querying the live catalog from session 4.
+**Next milestone:** Session 5 — find_satellites_overhead and get_satellite_info agent tools. Click-to-select satellite. highlight state reset on new message.
 
 **This week's task (week 1):**
 - [x] Create GitHub repo (private to start, public on MVP)
@@ -145,18 +145,18 @@ aussie-sky/
 - [x] Update README.md and CLAUDE.md at end of session
 
 **Session 4 tasks (live TLE catalog + thousands of satellites):**
-- [ ] Add CelesTrak fetch + cache to apps/orbital (new /satellites endpoint, 4-6 hour cache)
-- [ ] Frontend loads the catalog on app start
-- [ ] Web worker propagates ~1000 satellite positions per frame off the main thread
-- [ ] Render satellites via Three.js InstancedMesh (one draw call, position buffer updated per frame)
-- [ ] ISS retains its 'selected' treatment (orbit arc, larger dot, pulse on highlight); other satellites are just dots
-- [ ] Verify main thread stays at 60fps with 1000 satellites
-- [ ] Manual deploy verify on aussie-sky.vercel.app
-- [ ] Update README.md and CLAUDE.md at end of session
+- [x] Add CelesTrak fetch + cache to apps/orbital (new /satellites endpoint, 4-6 hour cache)
+- [x] Frontend loads the catalog on app start
+- [x] Web worker propagates ~1000 satellite positions per frame off the main thread
+- [x] Render satellites via Three.js InstancedMesh (one draw call, position buffer updated per frame)
+- [x] ISS retains its 'selected' treatment (orbit arc, larger dot, pulse on highlight); other satellites are just dots
+- [x] Verify main thread stays at 60fps with 1000 satellites
+- [x] Manual deploy verify on aussie-sky.vercel.app
+- [x] Update README.md and CLAUDE.md at end of session
 
 **Blockers:** None.
 
-**Last session ended at:** Session 3 complete. highlight_on_globe tool shipped — chat and globe are now one surface. Asking "show me where the ISS is" drives a camera fly-to + 3× halo pulse. 17/17 tests passing. Deployed at https://aussie-sky.vercel.app.
+**Last session ended at:** Session 4 complete. ~1000 live satellites rendering via InstancedMesh + web worker at aussie-sky.vercel.app. Data source: space-track.org (switched from CelesTrak due to IP blocking). All three sessions' features confirmed working: globe, agent, pass prediction, highlight, full satellite catalog.
 
 ---
 
@@ -183,6 +183,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-12 — Session 4 direction set: live TLE catalog + thousands of satellites.** Architectural calls: (A) Backend fetches CelesTrak and caches for 4-6h — frontend never talks to CelesTrak directly. Reasons: own the endpoint, can cache, can rate limit, production-correct pattern. (B) Target ~1000 satellites for the catalog. Reason: large enough to look dramatically different from the single-ISS demo; small enough that mid-tier hardware doesn't choke. (C) Web worker from the start, not main-thread first. Reason: 1000 SGP4 propagations per frame on main thread risks frame drops on weaker hardware; adding a worker later is more work than building it right once. (D) InstancedMesh for rendering — one Three.js draw call for all 1000 satellites, position buffer updated per frame from worker output. (E) ISS keeps its special treatment (orbit arc, larger dot, highlight pulse); other satellites are dots only. Out of scope this session: click-to-select, filter UI beyond a stub, conjunction analysis, tooltips, mobile performance.
 
 - **2026-05-12 — CelesTrak IP block — switched to space-track.org.** After deploying the session 4 live catalog feature, Railway's cloud IP range was blocked by CelesTrak with 403 Forbidden on all domains (celestrak.org, celestrak.com). Residential IPs work fine; the block is IP-based, not header-based, so no workaround exists on Railway. Decision: switch data source to space-track.org (free account, no elevated access needed for public TLE data). Auth pattern: POST credentials to `/ajaxauth/login` → session cookie maintained by `httpx.AsyncClient` context → GET LEO query (MEAN_MOTION > 11.25, ECCENTRICITY < 0.25, EPOCH > now-30, limit 1000). No frontend or worker changes needed — same `/satellites` endpoint, same JSON shape. Credentials injected as `SPACETRACK_USER` / `SPACETRACK_PASS` Railway env vars. Note: "Anything requiring Space-Track.org elevated access" remains out of scope — this uses only the free public data tier.
+
+- **2026-05-12 — CelesTrak IP block resolved by switching to space-track.org.** CelesTrak actively blocks cloud provider IP ranges (Railway uses AWS infrastructure). space-track.org is the authoritative source (CelesTrak mirrors it), has no IP restrictions, free account, session-based auth. Credentials stored as `SPACETRACK_USER` and `SPACETRACK_PASS` in Railway env vars. `VITE_ORBITAL_SERVICE_URL` must be set in Vercel before build — it is a build-time variable baked in by Vite, not a runtime variable. Redeploy with cleared build cache required after adding the env var.
 
 - **2026-05-11 — Three deploy fixes to `api/chat.ts` and root `package.json`.** Hit during Railway + Vercel deploy. (1) **Edge runtime incompatible with Anthropic SDK** — the SDK references `node:fs` and `node:path` which don't exist in Vercel Edge runtime. Fix: removed `export const config = { runtime: 'edge' }` entirely; Node is the default and needs no config. (2) **Root `package.json` missing `"type": "module"`** — ES module imports in `chat.ts` failed at runtime with "Failed to load the ES module". Fix: added `"type": "module"` to root `package.json`. (3) **Node runtime uses VercelRequest/VercelResponse, not Web Request** — `req.json is not a function` crashed the handler because the Edge Web Request API isn't available in Node runtime. Fix: rewrote handler to import `VercelRequest`/`VercelResponse` from `@vercel/node`, read body via `req.body` (Vercel pre-parses JSON), stream output with `res.write()` / `res.end()`. Removed `ReadableStream` construction and removed prompt caching (cache_control typing was fragile in this context — add back in V1). Installed `@vercel/node` as a dependency.
 
