@@ -16,7 +16,8 @@ async def get_satellites() -> list[dict]:
     if _cache['tles'] and now - _cache['fetched_at'] < CACHE_TTL_SECONDS:
         return _cache['tles']
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    headers = {'User-Agent': 'aussie-sky-portfolio/1.0 (github.com/PremaanshVyas/aussie-sky)'}
+    async with httpx.AsyncClient(timeout=30, headers=headers) as client:
         response = await client.get(CELESTRAK_URL)
         response.raise_for_status()
         data = response.json()
