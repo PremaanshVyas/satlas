@@ -75,6 +75,11 @@ interface HighlightInput {
   satellite_name: string
 }
 
+interface HistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 async function callOrbitalService(input: PassesInput): Promise<unknown> {
   const params = new URLSearchParams({
     latitude: String(input.latitude),
@@ -92,27 +97,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const { message } = req.body as { message: string }
+  const { message, history = [] } = req.body as { message: string; history?: HistoryMessage[] }
   const systemPrompt = buildSystemPrompt()
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache')
 
   try {
+    const historyMessages: Anthropic.MessageParam[] = history.map(m => ({
+      role: m.role,
+      // Strip __HIGHLIGHT__ directives from assistant entries — Claude doesn't need to see those
+      content:
+        m.role === 'assistant' && m.content.includes('__HIGHLIGHT__')
+          ? m.content.split('\n__HIGHLIGHT__:')[0]
+          : m.content,
+    }))
+
+    const currentMessages: Anthropic.MessageParam[] = [
+      ...historyMessages,
+      { role: 'user', content: message },
+    ]
+
     // First call: non-streaming — detects whether Claude wants to call tools
     const response1 = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: systemPrompt,
       tools: TOOLS,
-      messages: [{ role: 'user', content: message }],
+      messages: currentMessages,
     })
 
     let pendingHighlight: HighlightInput | null = null
 
     if (response1.stop_reason === 'tool_use') {
       const messages: Anthropic.MessageParam[] = [
-        { role: 'user', content: message },
+        ...currentMessages,
         { role: 'assistant', content: response1.content },
       ]
 
