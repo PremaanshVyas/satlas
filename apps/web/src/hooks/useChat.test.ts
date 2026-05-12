@@ -63,7 +63,7 @@ describe('useChat', () => {
     expect(fetch).toHaveBeenCalledWith('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'test message' }),
+      body: JSON.stringify({ message: 'test message', history: [] }),
     })
   })
 
@@ -165,6 +165,80 @@ describe('useChat highlight parsing', () => {
         norad_id: '25544',
         satellite_name: 'ISS',
       })
+    })
+  })
+})
+
+describe('useChat conversation history', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  test('sends empty history on first message', async () => {
+    vi.mocked(fetch).mockReturnValueOnce(mockStream(['hello']))
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('first message')
+    })
+
+    const body = JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body)
+    expect(body.history).toEqual([])
+  })
+
+  test('sends prior messages as history on second request', async () => {
+    vi.mocked(fetch)
+      .mockReturnValueOnce(mockStream(['assistant reply']))
+      .mockReturnValueOnce(mockStream(['second reply']))
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('first')
+    })
+    await act(async () => {
+      await result.current.sendMessage('second')
+    })
+
+    const secondCallBody = JSON.parse(
+      (fetch as ReturnType<typeof vi.fn>).mock.calls[1][1].body
+    )
+    expect(secondCallBody.message).toBe('second')
+    expect(secondCallBody.history).toEqual([
+      { role: 'user', content: 'first' },
+      { role: 'assistant', content: 'assistant reply' },
+    ])
+  })
+
+  test('resets highlight to null at start of each sendMessage', async () => {
+    vi.mocked(fetch)
+      .mockReturnValueOnce(
+        mockStream(['text\n__HIGHLIGHT__:{"norad_id":"25544","satellite_name":"ISS"}\n'])
+      )
+      .mockReturnValueOnce(mockStream(['new response']))
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('where is the ISS?')
+    })
+
+    await waitFor(() => {
+      expect(result.current.highlight).not.toBeNull()
+    })
+
+    await act(async () => {
+      await result.current.sendMessage('something else')
+    })
+
+    // Highlight should be null again immediately when sendMessage starts
+    // (and stays null unless new directive arrives)
+    await waitFor(() => {
+      expect(result.current.highlight).toBeNull()
     })
   })
 })

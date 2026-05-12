@@ -25,6 +25,15 @@ export function useChat() {
   const [highlight, setHighlight] = useState<HighlightDirective | null>(null)
 
   const sendMessage = useCallback(async (content: string) => {
+    // Reset highlight at the start of every new message
+    setHighlight(null)
+
+    // Snapshot history from messages currently in state (before adding new user message).
+    // Filter out any still-streaming message (shouldn't exist at this point, but defensive).
+    const history = messages
+      .filter(m => !m.streaming)
+      .map(m => ({ role: m.role, content: m.content }))
+
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -44,7 +53,7 @@ export function useChat() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({ message: content, history }),
       })
 
       const reader = response.body!.getReader()
@@ -84,7 +93,7 @@ export function useChat() {
       )
       setIsLoading(false)
     }
-  }, [])
+  }, [messages])
 
   return { messages, isLoading, sendMessage, highlight }
 }
