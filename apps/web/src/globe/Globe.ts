@@ -89,6 +89,10 @@ export class Globe {
           this.field.update(msg.buffer)
         }
       }
+      this.worker.onerror = (e: ErrorEvent) => {
+        console.warn('[Globe] Propagator worker error, running ISS-only:', e.message)
+        if (this.mounted) onReady?.()
+      }
       this.worker.postMessage({ type: 'init', tles: others })
     } catch (err) {
       console.warn('[Globe] Catalog unavailable, running ISS-only:', err)
