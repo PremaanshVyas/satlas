@@ -114,7 +114,7 @@ aussie-sky/
 
 **Current phase:** Pre-MVP / scaffolding.
 
-**Next milestone:** Session 5 — find_satellites_overhead and get_satellite_info agent tools. Click-to-select satellite. highlight state reset on new message.
+**Next milestone:** Session 6 — click-to-select on catalog satellites, filter UI stub, mobile performance baseline.
 
 **This week's task (week 1):**
 - [x] Create GitHub repo (private to start, public on MVP)
@@ -154,6 +154,18 @@ aussie-sky/
 - [x] Manual deploy verify on aussie-sky.vercel.app
 - [x] Update README.md and CLAUDE.md at end of session
 
+**Session 5 tasks (conversation history + two new tools):**
+- [ ] Fix BUG 1: conversation history — frontend sends full history with each request; backend builds Claude messages array from history + new user message; strip `__HIGHLIGHT__` directives from assistant history before sending to Claude
+- [ ] Fix BUG 2: Hubble hallucination — update system prompt to state `highlight_on_globe` only works for the ISS (NORAD 25544); Claude must not claim the globe highlighted any other satellite
+- [ ] New endpoint: `GET /satellites-overhead?latitude=X&longitude=Y&radius_km=Z` — propagates catalog to now, great-circle filter, returns top 20 by elevation
+- [ ] New endpoint: `GET /satellite-info?query=hubble` — name/NORAD-ID search, propagates to now, returns full orbital snapshot
+- [ ] Wire `find_satellites_overhead` tool into agent (`api/chat.ts` system prompt + tool loop)
+- [ ] Wire `get_satellite_info` tool into agent; update `highlight_on_globe` logic to highlight any NORAD ID returned by the catalog (not ISS-only)
+- [ ] Highlight state reset to null at start of each new `sendMessage` call
+- [ ] pytest tests for both new endpoints
+- [ ] Manual deploy verify on aussie-sky.vercel.app
+- [ ] Update README.md and CLAUDE.md at end of session
+
 **Blockers:** None.
 
 **Last session ended at:** Session 4 complete. ~1000 live satellites rendering via InstancedMesh + web worker at aussie-sky.vercel.app. Data source: space-track.org (switched from CelesTrak due to IP blocking). All three sessions' features confirmed working: globe, agent, pass prediction, highlight, full satellite catalog.
@@ -185,6 +197,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-12 — CelesTrak IP block — switched to space-track.org.** After deploying the session 4 live catalog feature, Railway's cloud IP range was blocked by CelesTrak with 403 Forbidden on all domains (celestrak.org, celestrak.com). Residential IPs work fine; the block is IP-based, not header-based, so no workaround exists on Railway. Decision: switch data source to space-track.org (free account, no elevated access needed for public TLE data). Auth pattern: POST credentials to `/ajaxauth/login` → session cookie maintained by `httpx.AsyncClient` context → GET LEO query (MEAN_MOTION > 11.25, ECCENTRICITY < 0.25, EPOCH > now-30, limit 1000). No frontend or worker changes needed — same `/satellites` endpoint, same JSON shape. Credentials injected as `SPACETRACK_USER` / `SPACETRACK_PASS` Railway env vars. Note: "Anything requiring Space-Track.org elevated access" remains out of scope — this uses only the free public data tier.
 
 - **2026-05-12 — CelesTrak IP block resolved by switching to space-track.org.** CelesTrak actively blocks cloud provider IP ranges (Railway uses AWS infrastructure). space-track.org is the authoritative source (CelesTrak mirrors it), has no IP restrictions, free account, session-based auth. Credentials stored as `SPACETRACK_USER` and `SPACETRACK_PASS` in Railway env vars. `VITE_ORBITAL_SERVICE_URL` must be set in Vercel before build — it is a build-time variable baked in by Vite, not a runtime variable. Redeploy with cleared build cache required after adding the env var.
+
+- **2026-05-13 — Session 5 direction set: conversation history fix + two new agent tools.** Two bugs identified in live testing: (1) no conversation history — each user message sent to Claude as a fresh single-turn, breaking any multi-turn flow (e.g. "where is the ISS from me?" → user says "Melbourne" → Claude has no context). Fix: frontend sends full `{message, history}` body; backend builds messages array from history + new turn; strips `__HIGHLIGHT__` directives from assistant history. (2) Hubble hallucination — agent claimed the globe highlighted Hubble even though only NORAD 25544 (ISS) has special treatment. Fix: system prompt explicitly states `highlight_on_globe` only applies to satellites in the catalog (ISS only for now; extended to full catalog once `get_satellite_info` lands). New tools: `find_satellites_overhead(lat, lon, radius_km)` backed by `/satellites-overhead` FastAPI endpoint (great-circle filter on propagated catalog, top 20 by elevation); `get_satellite_info(norad_id_or_name)` backed by `/satellite-info?query=` endpoint (name/NORAD search, full orbital snapshot). Out of scope: click-to-select, filter UI, mobile, conjunction analysis.
 
 - **2026-05-11 — Three deploy fixes to `api/chat.ts` and root `package.json`.** Hit during Railway + Vercel deploy. (1) **Edge runtime incompatible with Anthropic SDK** — the SDK references `node:fs` and `node:path` which don't exist in Vercel Edge runtime. Fix: removed `export const config = { runtime: 'edge' }` entirely; Node is the default and needs no config. (2) **Root `package.json` missing `"type": "module"`** — ES module imports in `chat.ts` failed at runtime with "Failed to load the ES module". Fix: added `"type": "module"` to root `package.json`. (3) **Node runtime uses VercelRequest/VercelResponse, not Web Request** — `req.json is not a function` crashed the handler because the Edge Web Request API isn't available in Node runtime. Fix: rewrote handler to import `VercelRequest`/`VercelResponse` from `@vercel/node`, read body via `req.body` (Vercel pre-parses JSON), stream output with `res.write()` / `res.end()`. Removed `ReadableStream` construction and removed prompt caching (cache_control typing was fragile in this context — add back in V1). Installed `@vercel/node` as a dependency.
 
