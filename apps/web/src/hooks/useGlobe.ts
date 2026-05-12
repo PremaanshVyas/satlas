@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { Globe } from '../globe/Globe'
 import type { HighlightDirective } from '../types/chat'
@@ -6,7 +6,8 @@ import type { HighlightDirective } from '../types/chat'
 export function useGlobe(
   containerRef: RefObject<HTMLDivElement | null>,
   highlight: HighlightDirective | null,
-): void {
+): { isLoading: boolean } {
+  const [isLoading, setIsLoading] = useState(true)
   const globeRef = useRef<Globe | null>(null)
 
   useEffect(() => {
@@ -18,7 +19,7 @@ export function useGlobe(
     container.appendChild(canvas)
 
     const globe = new Globe()
-    globe.mount(canvas)
+    globe.mount(canvas, () => setIsLoading(false))
     globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {
@@ -40,4 +41,6 @@ export function useGlobe(
       globeRef.current.highlightSatellite(highlight.norad_id)
     }
   }, [highlight])
+
+  return { isLoading }
 }

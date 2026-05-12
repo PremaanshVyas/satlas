@@ -1,7 +1,9 @@
 import { render } from '@testing-library/react'
 import App from './App'
 
-vi.mock('./hooks/useGlobe', () => ({ useGlobe: vi.fn() }))
+vi.mock('./hooks/useGlobe', () => ({
+  useGlobe: vi.fn(() => ({ isLoading: true })),
+}))
 vi.mock('./hooks/useChat', () => ({
   useChat: vi.fn(() => ({
     messages: [],
