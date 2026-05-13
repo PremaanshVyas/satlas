@@ -335,3 +335,12 @@ class TestIssTleEndpoint:
             client = TestClient(app)
             resp = client.get('/tle/iss')
         assert resp.status_code == 503
+
+
+class TestCacheTTL:
+    def test_cache_ttl_is_at_most_thirty_minutes(self):
+        from satellites import CACHE_TTL_SECONDS
+        assert CACHE_TTL_SECONDS <= 1800, (
+            f"Cache TTL is {CACHE_TTL_SECONDS}s — must be ≤ 30 min (1800s) "
+            "for live tracking accuracy"
+        )

@@ -29,6 +29,7 @@ export class Globe {
   private lastFieldTickMs = 0
   private mounted = false
   private rafId: number | null = null
+  private catalogRefreshInterval: ReturnType<typeof setInterval> | null = null
 
   private flyFromPos: THREE.Vector3 | null = null
   private flyToPos: THREE.Vector3 | null = null
@@ -65,6 +66,9 @@ export class Globe {
 
     this.tick()
     void this.initCatalog(onReady)
+    this.catalogRefreshInterval = setInterval(() => {
+      void this.initCatalog()
+    }, 30 * 60 * 1000)
   }
 
   private async initCatalog(onReady?: () => void): Promise<void> {
@@ -167,6 +171,10 @@ export class Globe {
   unmount(): void {
     this.mounted = false
     if (this.rafId !== null) cancelAnimationFrame(this.rafId)
+    if (this.catalogRefreshInterval !== null) {
+      clearInterval(this.catalogRefreshInterval)
+      this.catalogRefreshInterval = null
+    }
     this.worker?.terminate()
     this.worker = null
     this.controls.dispose()
