@@ -5,6 +5,7 @@ const PULSE_DURATION_MS = 1000
 const PULSE_SCALE = 1.6
 const PULSE_REPEATS = 3
 const R_EARTH_KM = 6371.0
+const ARC_RECOMPUTE_MS = 60 * 1000
 
 export class SatelliteMesh {
   readonly group: THREE.Group
@@ -13,6 +14,7 @@ export class SatelliteMesh {
   private arc: THREE.LineLoop
   private satrec: satellite.SatRec
   private pulseStartTime: number | null = null
+  private lastArcRecompute = 0
 
   constructor(tle1: string, tle2: string) {
     this.satrec = satellite.twoline2satrec(tle1, tle2)
@@ -58,14 +60,21 @@ export class SatelliteMesh {
     )
   }
 
-  // Orbital ring: ECI (inertial) space — a closed ellipse fixed relative to the stars.
-  // We intentionally skip GMST rotation here. ECEF ground tracks are open curves
-  // because the Earth rotates ~22.9° per ISS orbital period. ECI orbits are always
-  // closed. The dot (ECEF) and ring (ECI) are in different frames by design:
-  // the ring shows the orbital plane; the dot shows the current ground position.
+  // Orbital ring: ECI positions rotated by the current GMST so the ring appears at
+  // the correct geographic longitude on the globe. GMST (Greenwich Mean Sidereal Time)
+  // is the angle between the ECI vernal equinox and Earth's prime meridian (+X in
+  // Three.js). Without this correction the ring is a correct closed ellipse but
+  // appears rotated by GMST from the satellite's actual geographic position.
+  // Using a single GMST for all 180 points keeps the ring geometrically closed
+  // (it is still the same ECI ellipse, just rotated). The per-point GMST error
+  // accumulates to ~22.9° over one orbital period — we correct this by recomputing
+  // the arc every 60 s so the ring stays aligned with the dot.
   private computeArcPoints(): THREE.Vector3[] {
     const periodMs = (2 * Math.PI / this.satrec.no) * 60 * 1000
     const now = new Date()
+    const gmst = satellite.gstime(now)
+    const cosG = Math.cos(gmst)
+    const sinG = Math.sin(gmst)
     const points: THREE.Vector3[] = []
 
     for (let i = 0; i < 180; i++) {
@@ -77,14 +86,14 @@ export class SatelliteMesh {
       const mag = Math.sqrt(pos.x ** 2 + pos.y ** 2 + pos.z ** 2)
       if (mag < 1) continue
 
-      // ECI → Three.js: X stays, Z (north celestial pole) → Y, Y → −Z
-      // Radius in Earth-radii units (ISS ≈ 1.064), preserving true orbital altitude
+      // Rotate ECI by GMST to align with the ECEF frame (same rotation that
+      // eciToGeodetic applies). Z (north pole) is unchanged by this rotation.
       const r = mag / R_EARTH_KM
-      points.push(new THREE.Vector3(
-         (pos.x / mag) * r,
-         (pos.z / mag) * r,
-        -(pos.y / mag) * r,
-      ))
+      const ex = (pos.x * cosG + pos.y * sinG) / mag
+      const ey = (-pos.x * sinG + pos.y * cosG) / mag
+      const ez = pos.z / mag
+      // ECEF → Three.js: prime meridian → +X, north → +Y, 90°E → −Z
+      points.push(new THREE.Vector3(ex * r, ez * r, -ey * r))
     }
     return points
   }
@@ -108,6 +117,14 @@ export class SatelliteMesh {
     if (pos) {
       this.dot.position.copy(pos)
       this.halo.position.copy(pos)
+    }
+
+    // GMST changes ~15°/hour, so recompute the arc every 60 s to keep the ring
+    // aligned with the satellite's geographic position on the globe.
+    const nowMs = date.getTime()
+    if (nowMs - this.lastArcRecompute >= ARC_RECOMPUTE_MS) {
+      this.lastArcRecompute = nowMs
+      this.arc.geometry.setFromPoints(this.computeArcPoints())
     }
 
     // Pulse animation: scale halo 1.0 → PULSE_SCALE → 1.0 for PULSE_REPEATS cycles
