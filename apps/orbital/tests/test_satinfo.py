@@ -1,4 +1,5 @@
 import math
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -86,3 +87,44 @@ class TestSatelliteInfo:
         result = satellite_info(SAMPLE_CATALOG, '25544')
         assert result is not None
         assert result['norad_id'] == '25544'
+
+
+class TestSatelliteInfoEndpoint:
+    def test_returns_200_with_result(self):
+        mock_result = {
+            'name': 'ISS (ZARYA)', 'norad_id': '25544',
+            'latitude': -37.5, 'longitude': 145.0, 'altitude_km': 420.0,
+            'velocity_kmps': 7.66, 'orbital_period_min': 92.9, 'inclination_deg': 51.64,
+        }
+        with patch('main.satellite_info', return_value=mock_result), \
+             patch('main.get_satellites', AsyncMock(return_value=[])):
+            from fastapi.testclient import TestClient
+            from main import app
+            client = TestClient(app)
+            resp = client.get('/satellite-info?query=25544')
+        assert resp.status_code == 200
+        assert resp.json() == mock_result
+
+    def test_returns_404_when_not_found(self):
+        with patch('main.satellite_info', return_value=None), \
+             patch('main.get_satellites', AsyncMock(return_value=[])):
+            from fastapi.testclient import TestClient
+            from main import app
+            client = TestClient(app)
+            resp = client.get('/satellite-info?query=NONEXISTENT')
+        assert resp.status_code == 404
+
+    def test_returns_503_on_catalog_failure(self):
+        with patch('main.get_satellites', AsyncMock(side_effect=Exception('fetch failed'))):
+            from fastapi.testclient import TestClient
+            from main import app
+            client = TestClient(app)
+            resp = client.get('/satellite-info?query=hubble')
+        assert resp.status_code == 503
+
+    def test_query_param_required(self):
+        from fastapi.testclient import TestClient
+        from main import app
+        client = TestClient(app)
+        resp = client.get('/satellite-info')
+        assert resp.status_code == 422

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from overhead import satellites_overhead
 from passes import predict_passes
 from satellites import get_satellites
+from satinfo import satellite_info
 
 app = FastAPI(title='Aussie Sky Orbital Service')
 
@@ -52,3 +53,19 @@ async def get_satellites_overhead(
         return satellites_overhead(catalog, latitude, longitude, radius_km)
     except Exception as e:
         raise HTTPException(status_code=503, detail=f'Overhead query failed: {e}')
+
+
+@app.get('/satellite-info')
+async def get_satellite_info(
+    query: str = Query(..., description='Satellite name (substring) or NORAD catalog ID'),
+) -> dict:
+    try:
+        catalog = await get_satellites()
+        result = satellite_info(catalog, query)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f'Satellite not found: {query}')
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f'Satellite info query failed: {e}')
