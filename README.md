@@ -130,6 +130,18 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 
 ---
 
+## Engineering Notes
+
+Full debugging history is in [`CHANGELOG.md`](CHANGELOG.md). A few highlights:
+
+**Vercel Edge Runtime vs Node.js** — Deployed the AI agent endpoint with `runtime: 'edge'` for lower latency. Every request returned 500. Root cause: the Anthropic SDK references `node:fs` and `node:path` internally, which don't exist in V8 edge isolates. Fix was removing the edge config and running as a standard Node.js function. Lesson: edge runtimes are not Node.js — check SDK compatibility before choosing a runtime.
+
+**The CelesTrak double-bug** — The satellite catalog went through three data source changes in two days. First, CelesTrak's `GROUP=active` endpoint blocks Railway's cloud IP range (403). Switched to space-track.org, which worked but its orbital parameter filters (`MEAN_MOTION > 11.25`) intermittently excluded the ISS at certain orbital epochs. Added a dedicated per-satellite CATNR fetch as a guarantee — but the CATNR JSON endpoint returns GP orbital elements, not TLE lines, causing a silent `KeyError` swallowed by a `except: pass`. Final fix: `FORMAT=TLE` for the CATNR endpoint, which returns parseable three-line plain text. Three separate bugs, same symptom ("ISS not in catalog").
+
+**TLE age and position accuracy** — The ISS was visually rendering at the wrong position because the prototype used a hardcoded March 2024 TLE baked into source code. The live catalog was fetched for the 1000-satellite field but never applied to the dedicated ISS mesh. Added `SatelliteMesh.updateTle()` to reinitialise the SGP4 propagator from the live catalog on startup. Position now matches major tracking sites within visual margin.
+
+---
+
 ## Local development
 
 _Setup instructions will land alongside the first scaffolded code._

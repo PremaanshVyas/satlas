@@ -1,0 +1,150 @@
+# Aussie Sky — Engineering Changelog
+
+A record of significant problems encountered during development, how they were diagnosed, and what actually fixed them. Written for two audiences: reviewers who want to understand the depth of engineering involved, and future contributors who need to understand why the code is shaped the way it is.
+
+---
+
+## [Session 2] — Vercel Edge Runtime incompatible with Anthropic SDK (2026-05-11)
+
+### Problem
+After deploying the AI agent endpoint (`api/chat.ts`) to Vercel, every request returned a 500 error. Locally it worked fine.
+
+### Root Cause
+The Vercel function was configured with `export const config = { runtime: 'edge' }`, which runs the function in Cloudflare Workers-style V8 isolates. The Anthropic Node.js SDK internally references `node:fs` and `node:path` — Node built-ins that don't exist in the Edge runtime. The function crashed at import time, before handling any request.
+
+### What We Tried
+Adding polyfills for the missing modules. This failed because the imports were deep inside the SDK bundle and the edge runtime sandbox rejects them at a lower level.
+
+### Fix
+Removed the Edge runtime config entirely. Vercel's default runtime is Node.js, which the Anthropic SDK supports without modification. The function became a standard Node.js serverless function using `VercelRequest`/`VercelResponse` from `@vercel/node`, reading the body via `req.body` (Vercel pre-parses JSON) and streaming output with `res.write()` / `res.end()`.
+
+### Lesson
+Serverless "edge" runtimes are not Node.js. When a library does anything beyond pure computation — file I/O, native modules, Node-specific APIs — it will not work in edge runtimes. Check runtime compatibility before committing to a deployment target.
+
+---
+
+## [Session 4] — VITE_ORBITAL_SERVICE_URL build-time variable not baking in (2026-05-12)
+
+### Problem
+After deploying the live TLE catalog feature, the frontend Globe component couldn't reach the Railway orbital service. `fetchSatelliteCatalog` was hitting `undefined` instead of the Railway URL. The env var was set in Vercel's dashboard.
+
+### Root Cause
+Vite treats environment variables differently from Next.js. Variables prefixed with `VITE_` are substituted at **build time** — they are literally inlined into the JavaScript bundle during `vite build`. They are not read at runtime from `process.env`. Setting them in the Vercel dashboard after a build has no effect until the project is rebuilt. The build had run before the env var was added, so the bundle contained `undefined`.
+
+### What We Tried
+Checking that the env var name was correct (it was). Checking that the Railway service was reachable (it was). Triggering a regular redeploy without clearing build cache — this reused the old bundle and the problem persisted.
+
+### Fix
+Added `VITE_ORBITAL_SERVICE_URL` to Vercel's dashboard, then triggered a fresh deploy with build cache cleared. The new build inlined the correct URL into the bundle.
+
+### Lesson
+Vite build-time env vars (`VITE_*`) must be present **before** the build runs. They are not runtime configuration. Always add them to the deployment environment before the first build, and redeploy from scratch (not from cache) if they change.
+
+---
+
+## [Session 4/6] — CelesTrak GROUP=active blocked on Railway cloud IPs (2026-05-12 → 2026-05-13)
+
+### Problem
+The orbital service successfully returned satellite data from a residential machine during development. After deploying to Railway, every request to `GET /satellites` returned an empty catalog or an error. Users saw the globe with no satellites.
+
+### Root Cause
+CelesTrak actively rate-limits and blocks requests originating from cloud provider IP ranges (AWS, GCP, Railway's infrastructure). The block is at the IP level — not detectable by response headers. `GET https://celestrak.org/NORAD/elements/gp.php?GROUP=active` returned HTTP 403 from Railway's servers while returning 200 from a residential connection.
+
+A previous attempt to add a `User-Agent` header fixed a different CelesTrak block (their bot detection), but had no effect on the IP-range block.
+
+### What We Tried
+1. Added `User-Agent: aussie-sky/1.0` header — fixed bot detection 403, but not the IP-range block.
+2. Switched to space-track.org as the primary data source — worked, but introduced credential management and strict orbital filters that caused a different bug (see next entry).
+3. Switched back to CelesTrak as primary with space-track fallback — 403 still fires from Railway, so fallback always activates.
+
+### Fix
+Two-part fix: (1) Keep CelesTrak GROUP=active as primary so residential/dev environments work without credentials. (2) Use space-track.org as fallback for cloud deployments. (3) Add a dedicated `_fetch_iss_tle()` that hits `CATNR=25544&FORMAT=TLE` — a single-satellite endpoint that is NOT IP-blocked on Railway, used to guarantee the ISS is always in the catalog regardless of which bulk source is active.
+
+### Lesson
+Cloud provider IP ranges are commonly blocked by public data sources that want to prevent bulk scraping. Design data pipelines with a fallback source from the start, and test the fallback path explicitly from a cloud IP (not just locally).
+
+---
+
+## [Session 6] — Space-track orbital filters excluding ISS from catalog (2026-05-13)
+
+### Problem
+After switching to space-track.org as the fallback source, `/tle/iss` returned 404 ("ISS not found in catalog") even though space-track had ISS data. Users asking "show me where the ISS is" got no globe highlight.
+
+### Root Cause
+The space-track query included `MEAN_MOTION > 11.25` and `ECCENTRICITY < 0.25` — intended to filter for circular LEO orbits. The query also used `orderby/NORAD_CAT_ID` with `limit/1000`. At certain orbital epochs, the ISS's mean motion or eccentricity values sit right at the filter boundary and it gets excluded. The filter was a premature optimization: it was trying to exclude GEO and highly elliptical satellites, but orbital parameters vary continuously and a static filter is unreliable for specific satellites.
+
+### What We Tried
+Widening the MEAN_MOTION threshold. This helped intermittently but the ISS still dropped out at some epochs.
+
+### Fix
+Removed the orbital parameter filters entirely from the space-track URL. The query now fetches 1000 satellites by NORAD_CAT_ID ordering with only an EPOCH freshness filter (`EPOCH > now-30`). ISS (NORAD 25544) has a mid-range ID and reliably appears in the result. Added the `_fetch_iss_tle()` CATNR fallback as a belt-and-suspenders guarantee.
+
+### Lesson
+Never use continuously-varying orbital parameters as hard inclusion/exclusion filters for specific satellites you need to guarantee. Fetch named satellites directly by NORAD ID.
+
+---
+
+## [Session 6] — CelesTrak CATNR endpoint returns GP elements, not TLE lines (2026-05-13)
+
+### Problem
+The `_fetch_iss_tle()` function was written to call `CATNR=25544&FORMAT=json` and read `TLE_LINE1`/`TLE_LINE2` from the JSON response. In production, `_fetch_iss_tle()` silently raised a `KeyError` and the ISS was never added to the catalog. The ISS guarantee logic appeared to work (no exception propagated) but was doing nothing.
+
+### Root Cause
+CelesTrak's `FORMAT=json` endpoint returns **GP (General Perturbations) orbital elements**: `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, etc. It does **not** include `TLE_LINE1` or `TLE_LINE2`. The GP format is the underlying mathematical representation; TLE is a serialised encoding of those elements. They are related but different formats. The code assumed JSON would contain TLE lines because the bulk `GROUP=active` JSON response does include them — but that endpoint uses a different schema.
+
+The `KeyError` was caught by the outer `except Exception: pass` in `get_satellites()`, which silently skipped the ISS merge.
+
+### What We Tried
+Checked response headers — the content-type was `application/json`, which looked correct. Checked that the URL was reachable from Railway — it was (200 response). The bug was invisible until we logged the actual response body.
+
+### Fix
+Changed the CATNR endpoint to `FORMAT=TLE` which returns the classic three-line TLE plain text:
+```
+ISS (ZARYA)
+1 25544U 98067A   ...
+2 25544  51.6412  ...
+```
+Rewrote `_fetch_iss_tle()` to parse `resp.text` by splitting on newlines, extracting the name from line 0, TLE lines from lines 1–2, and the NORAD ID from bytes 2–7 of the first TLE line (standard TLE field position).
+
+### Lesson
+Silent `except: pass` blocks hide bugs. The `KeyError` should have propagated or at least been logged. When writing best-effort fallbacks, distinguish between "expected failure" (network error, timeout) and "unexpected failure" (data shape mismatch) — only swallow the former.
+
+---
+
+## [Session 6] — ISS globe position two years stale (2026-05-13)
+
+### Problem
+The ISS rendered on the 3D globe was showing the correct general orbit but its position was hundreds of kilometres off compared to real tracking sites like heavens-above.com. Users noticing the discrepancy would lose confidence in the tool.
+
+### Root Cause
+`Globe.ts` initialised `SatelliteMesh` with a hardcoded TLE from March 2024 — baked into the source code from the initial ISS prototype. The live TLE catalog was fetched and used for the 1000-satellite `InstancedMesh` field, but the dedicated ISS `SatelliteMesh` was never updated to use the live data. SGP4 propagation error grows with TLE age: a TLE that is 14 months old can produce position errors of hundreds of kilometres.
+
+### What We Tried
+Considered fetching the ISS TLE separately from `/tle/iss` before mounting the globe. This would require an extra HTTP round-trip and a more complex mount sequence.
+
+### Fix
+`Globe.initCatalog()` already fetches the full satellite catalog. Added a `SatelliteMesh.updateTle(tle1, tle2)` method that reinitialises the internal SGP4 `SatRec` object. In `initCatalog`, before filtering the ISS out of the `others` array, find it by NORAD ID and call `updateTle`. The hardcoded TLE is only used for the ~1–2 seconds before the catalog loads. `lastArcDate` is reset to `new Date(0)` so the orbit arc is recomputed from the live TLE on the next render tick.
+
+### Lesson
+Hardcoded TLEs in source code will always drift. Any satellite position that needs to be "correct" must come from the live catalog. Treat hardcoded TLEs as a loading placeholder only, never as a persistent data source.
+
+---
+
+## [Session 5] — Conversation history not persisting between messages (2026-05-13)
+
+### Problem
+Every message to the AI agent was answered as if it were the first message in the conversation. Follow-up questions like "what about from Sydney?" after "when does the ISS pass over Melbourne?" produced generic responses because Claude had no context from the previous turn.
+
+### Root Cause
+`useChat.ts` sent only `{ message: content }` to `/api/chat`. The backend built the Anthropic `messages` array from just the single new user message. Each request was a fresh single-turn conversation. The chat UI showed message history, but it was purely visual — no history was sent to the model.
+
+### What We Tried
+Nothing had been tried — the feature was never implemented. The bug was discovered during manual testing when a user tried a natural follow-up question.
+
+### Fix
+Frontend: `useChat.sendMessage` snapshots the message history (excluding any still-streaming message) before adding the new user message, then sends `{ message, history }` to the API. Backend: `handler` maps the `history` array into `Anthropic.MessageParam[]`, stripping `__HIGHLIGHT__` directives from assistant entries (Claude doesn't need to see them), and prepends them before the new user turn. `useCallback` keeps `messages` in its dependency array so the closure always captures the latest state — removing it would mean the history snapshot is always empty.
+
+### Lesson
+Multi-turn conversation requires the full message history to be sent on every request. Stateless serverless functions have no memory between invocations. The client must be the source of truth for conversation state and must transmit it explicitly with each request.
+
+---
