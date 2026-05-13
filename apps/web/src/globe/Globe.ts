@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { EarthMesh } from './EarthMesh'
 import { AtmosphereMesh } from './AtmosphereMesh'
+import { StarField } from './StarField'
 import { SatelliteMesh } from './SatelliteMesh'
 import { SatelliteField } from './SatelliteField'
 import { getSunDirection } from '../lib/solar'
@@ -25,6 +26,7 @@ export class Globe {
   private controls!: OrbitControls
   private earth!: EarthMesh
   private atmosphere!: AtmosphereMesh
+  private stars!: StarField
   private iss!: SatelliteMesh
   private field: SatelliteField | null = null
   private worker: Worker | null = null
@@ -55,6 +57,9 @@ export class Globe {
     this.camera.position.set(0, 0, CAMERA_DISTANCE)
 
     this.scene = new THREE.Scene()
+
+    this.stars = new StarField()
+    this.scene.add(this.stars.points)
 
     this.earth = new EarthMesh(this.renderer)
     this.scene.add(this.earth.mesh)
@@ -239,6 +244,7 @@ export class Globe {
     this.controls.dispose()
     this.earth.dispose()
     this.atmosphere.dispose()
+    this.stars.dispose()
     this.iss.dispose()
     this.field?.dispose()
     this.renderer.dispose()
