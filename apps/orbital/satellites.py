@@ -15,10 +15,12 @@ SPACETRACK_QUERY_URL = (
 )
 
 CACHE_TTL_SECONDS = 30 * 60
+ISS_TLE_TTL_SECONDS = 5 * 60   # ISS moves 7.66 km/s — 5-min cache ≤ 2,300 km error
 LIMIT = 1000
 ISS_NORAD = '25544'
 
 _cache: dict = {'tles': [], 'fetched_at': 0.0}
+_iss_cache: dict = {'tle': None, 'fetched_at': 0.0}
 
 
 def _parse_gp(items: list) -> list:
@@ -93,3 +95,14 @@ async def get_satellites() -> list:
     _cache['tles'] = tles
     _cache['fetched_at'] = now
     return tles
+
+
+async def get_iss_tle() -> dict:
+    """Return a fresh ISS TLE dict {tle1, tle2}, cached for ISS_TLE_TTL_SECONDS (5 min)."""
+    now = time.time()
+    if _iss_cache['tle'] and now - _iss_cache['fetched_at'] < ISS_TLE_TTL_SECONDS:
+        return _iss_cache['tle']
+    tle = await _fetch_iss_tle()
+    _iss_cache['tle'] = {'tle1': tle['tle1'], 'tle2': tle['tle2']}
+    _iss_cache['fetched_at'] = now
+    return _iss_cache['tle']

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from overhead import satellites_overhead
 from passes import predict_passes
-from satellites import get_satellites
+from satellites import get_satellites, get_iss_tle
 from satinfo import satellite_info
 
 app = FastAPI(title='Aussie Sky Orbital Service')
@@ -45,15 +45,9 @@ async def get_satellite_catalog() -> list[dict]:
 
 
 @app.get('/tle/iss')
-async def get_iss_tle() -> dict[str, str]:
+async def get_iss_tle_endpoint() -> dict[str, str]:
     try:
-        catalog = await get_satellites()
-        for sat in catalog:
-            if sat['norad_id'] == ISS_NORAD_ID:
-                return {'tle1': sat['tle1'], 'tle2': sat['tle2']}
-        raise HTTPException(status_code=404, detail='ISS not found in catalog')
-    except HTTPException:
-        raise
+        return await get_iss_tle()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f'ISS TLE fetch failed: {e}')
 

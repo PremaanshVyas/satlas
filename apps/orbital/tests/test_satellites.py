@@ -311,11 +311,8 @@ class TestSatellitesEndpoint:
 
 class TestIssTleEndpoint:
     def test_returns_200_with_tle_lines(self):
-        mock_catalog = [
-            {'name': 'ISS (ZARYA)', 'norad_id': '25544', 'tle1': 'line1', 'tle2': 'line2'},
-            {'name': 'OTHER', 'norad_id': '99999', 'tle1': 'a', 'tle2': 'b'},
-        ]
-        with patch('main.get_satellites', AsyncMock(return_value=mock_catalog)):
+        mock_tle = {'tle1': 'line1', 'tle2': 'line2'}
+        with patch('main.get_iss_tle', AsyncMock(return_value=mock_tle)):
             client = TestClient(app)
             resp = client.get('/tle/iss')
         assert resp.status_code == 200
@@ -323,18 +320,71 @@ class TestIssTleEndpoint:
         assert body['tle1'] == 'line1'
         assert body['tle2'] == 'line2'
 
-    def test_returns_404_when_iss_not_in_catalog(self):
-        mock_catalog = [{'name': 'OTHER', 'norad_id': '99999', 'tle1': 'a', 'tle2': 'b'}]
-        with patch('main.get_satellites', AsyncMock(return_value=mock_catalog)):
-            client = TestClient(app)
-            resp = client.get('/tle/iss')
-        assert resp.status_code == 404
-
-    def test_returns_503_on_catalog_failure(self):
-        with patch('main.get_satellites', AsyncMock(side_effect=Exception('network'))):
+    def test_returns_503_on_fetch_failure(self):
+        with patch('main.get_iss_tle', AsyncMock(side_effect=Exception('CelesTrak unreachable'))):
             client = TestClient(app)
             resp = client.get('/tle/iss')
         assert resp.status_code == 503
+
+
+class TestGetIssTle:
+    def setup_method(self):
+        import satellites as s
+        s._iss_cache['tle'] = None
+        s._iss_cache['fetched_at'] = 0.0
+
+    def test_returns_tle1_and_tle2(self):
+        fresh_text = (
+            'ISS (ZARYA)\n'
+            '1 25544U 98067A   26133.54791667  .00016717  00000-0  10270-3 0  9993\n'
+            '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522\n'
+        )
+        mock_resp = MagicMock()
+        mock_resp.text = fresh_text
+        mock_resp.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        with patch('satellites.httpx.AsyncClient') as MockClient:
+            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = asyncio.run(satellites.get_iss_tle())
+        assert result['tle1'].startswith('1 25544')
+        assert result['tle2'].startswith('2 25544')
+
+    def test_uses_cache_within_ttl(self):
+        cached = {
+            'tle1': '1 25544U 98067A   26133.00000000  .00016717  00000-0  10270-3 0  9993',
+            'tle2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
+        }
+        satellites._iss_cache['tle'] = cached
+        satellites._iss_cache['fetched_at'] = time.time()
+        with patch('satellites.httpx.AsyncClient') as MockClient:
+            result = asyncio.run(satellites.get_iss_tle())
+            MockClient.assert_not_called()
+        assert result['tle1'] == cached['tle1']
+
+    def test_refetches_after_ttl(self):
+        satellites._iss_cache['tle'] = {
+            'tle1': '1 25544U 98067A   26133.00000000  .00016717  00000-0  10270-3 0  9993',
+            'tle2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
+        }
+        satellites._iss_cache['fetched_at'] = time.time() - (satellites.ISS_TLE_TTL_SECONDS + 1)
+        fresh_text = (
+            'ISS (ZARYA)\n'
+            '1 25544U 98067A   26133.99999999  .00016717  00000-0  10270-3 0  9993\n'
+            '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522\n'
+        )
+        mock_resp = MagicMock()
+        mock_resp.text = fresh_text
+        mock_resp.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        with patch('satellites.httpx.AsyncClient') as MockClient:
+            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = asyncio.run(satellites.get_iss_tle())
+            MockClient.assert_called_once()
+        assert '99999999' in result['tle1']
 
 
 class TestCacheTTL:
