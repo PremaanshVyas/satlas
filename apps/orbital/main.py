@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from overhead import satellites_overhead
 from passes import predict_passes
 from satellites import get_satellites
 
@@ -38,3 +39,16 @@ async def get_satellite_catalog() -> list[dict]:
         return await get_satellites()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f'CelesTrak fetch failed: {e}')
+
+
+@app.get('/satellites-overhead')
+async def get_satellites_overhead(
+    latitude: float = Query(..., ge=-90, le=90, description='Observer latitude, decimal degrees'),
+    longitude: float = Query(..., ge=-180, le=180, description='Observer longitude, decimal degrees'),
+    radius_km: float = Query(2000.0, ge=0, le=20000, description='Search radius in km'),
+) -> list[dict]:
+    try:
+        catalog = await get_satellites()
+        return satellites_overhead(catalog, latitude, longitude, radius_km)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f'Overhead query failed: {e}')

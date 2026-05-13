@@ -72,3 +72,51 @@ class TestSatellitesOverhead:
         # Should not raise — just skip the bad one
         result = satellites_overhead(catalog_with_bad, -37.8136, 144.9631, 10000)
         assert isinstance(result, list)
+
+
+from unittest.mock import AsyncMock, patch
+
+from fastapi.testclient import TestClient
+
+from main import app
+
+
+class TestSatellitesOverheadEndpoint:
+    def test_returns_200_with_list(self):
+        mock_result = [
+            {'name': 'ISS (ZARYA)', 'norad_id': '25544',
+             'altitude_km': 420.0, 'azimuth_deg': 45.0, 'elevation_deg': 30.0}
+        ]
+        with patch('main.satellites_overhead', return_value=mock_result), \
+             patch('main.get_satellites', AsyncMock(return_value=[])):
+            client = TestClient(app)
+            resp = client.get('/satellites-overhead?latitude=-37.8&longitude=144.9&radius_km=2000')
+        assert resp.status_code == 200
+        assert resp.json() == mock_result
+
+    def test_uses_default_radius_of_2000(self):
+        called_with = {}
+
+        def capture(catalog, lat, lon, radius):
+            called_with['radius'] = radius
+            return []
+
+        with patch('main.satellites_overhead', side_effect=capture), \
+             patch('main.get_satellites', AsyncMock(return_value=[])):
+            client = TestClient(app)
+            client.get('/satellites-overhead?latitude=-37.8&longitude=144.9')
+
+        assert called_with.get('radius') == 2000.0
+
+    def test_returns_503_on_catalog_failure(self):
+        with patch('main.get_satellites', AsyncMock(side_effect=Exception('fetch failed'))):
+            client = TestClient(app)
+            resp = client.get('/satellites-overhead?latitude=-37.8&longitude=144.9')
+        assert resp.status_code == 503
+
+    def test_validates_latitude_range(self):
+        with patch('main.get_satellites', AsyncMock(return_value=[])), \
+             patch('main.satellites_overhead', return_value=[]):
+            client = TestClient(app)
+            resp = client.get('/satellites-overhead?latitude=200&longitude=144.9')
+        assert resp.status_code == 422
