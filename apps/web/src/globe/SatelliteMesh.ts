@@ -73,6 +73,12 @@ export class SatelliteMesh {
     return this.toThreePosition(new Date())
   }
 
+  updateTle(tle1: string, tle2: string): void {
+    this.satrec = satellite.twoline2satrec(tle1, tle2)
+    // Force arc recompute on next tick — arc was built from stale TLE and must be regenerated
+    this.lastArcDate = new Date(0)
+  }
+
   startPulse(): void {
     this.pulseStartTime = performance.now()
   }

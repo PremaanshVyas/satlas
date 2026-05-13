@@ -72,6 +72,8 @@ export class Globe {
     try {
       const tles = await fetchSatelliteCatalog(baseUrl)
       if (!this.mounted) return
+      const issTle = tles.find(t => t.norad_id === ISS_NORAD)
+      if (issTle) this.iss.updateTle(issTle.tle1, issTle.tle2)
       const others = tles.filter(t => t.norad_id !== ISS_NORAD)
 
       this.field = new SatelliteField(others.length)
