@@ -23,3 +23,46 @@ describe('ISS TLE propagation', () => {
     expect(radiusKm).toBeLessThan(6900)
   })
 })
+
+describe('satellite coordinate transform', () => {
+  function geoToThreeJs(latRad: number, lonRad: number, r = 1) {
+    return {
+      x:  r * Math.cos(latRad) * Math.cos(lonRad),
+      y:  r * Math.sin(latRad),
+      z: -r * Math.cos(latRad) * Math.sin(lonRad),
+    }
+  }
+
+  test('prime meridian (lon=0°, lat=0°) maps to +X', () => {
+    const pos = geoToThreeJs(0, 0)
+    expect(pos.x).toBeCloseTo(1, 5)
+    expect(pos.y).toBeCloseTo(0, 5)
+    expect(pos.z).toBeCloseTo(0, 5)
+  })
+
+  test('90°E (lon=90°, lat=0°) maps to −Z', () => {
+    const pos = geoToThreeJs(0, Math.PI / 2)
+    expect(pos.x).toBeCloseTo(0, 5)
+    expect(pos.y).toBeCloseTo(0, 5)
+    expect(pos.z).toBeCloseTo(-1, 5)
+  })
+
+  test('90°W (lon=−90°, lat=0°) maps to +Z', () => {
+    const pos = geoToThreeJs(0, -Math.PI / 2)
+    expect(pos.x).toBeCloseTo(0, 5)
+    expect(pos.z).toBeCloseTo(1, 5)
+  })
+
+  test('north pole (lat=90°) maps to +Y', () => {
+    const pos = geoToThreeJs(Math.PI / 2, 0)
+    expect(pos.x).toBeCloseTo(0, 5)
+    expect(pos.y).toBeCloseTo(1, 5)
+    expect(pos.z).toBeCloseTo(0, 5)
+  })
+
+  test('date line (lon=180°, lat=0°) maps to −X', () => {
+    const pos = geoToThreeJs(0, Math.PI)
+    expect(pos.x).toBeCloseTo(-1, 5)
+    expect(pos.z).toBeCloseTo(0, 5)
+  })
+})

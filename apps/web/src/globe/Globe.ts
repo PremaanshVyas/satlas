@@ -110,9 +110,9 @@ export class Globe {
       const lat = latDeg * (Math.PI / 180)
       const lon = lonDeg * (Math.PI / 180)
       targetPos = new THREE.Vector3(
-        -CAMERA_DISTANCE * Math.cos(lat) * Math.sin(lon),
-         CAMERA_DISTANCE * Math.sin(lat),
          CAMERA_DISTANCE * Math.cos(lat) * Math.cos(lon),
+         CAMERA_DISTANCE * Math.sin(lat),
+        -CAMERA_DISTANCE * Math.cos(lat) * Math.sin(lon),
       )
     } else if (noradId === ISS_NORAD) {
       const issPos = this.iss.getCurrentPosition()

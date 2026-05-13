@@ -52,9 +52,9 @@ export class SatelliteMesh {
     const r = 1.06            // slightly above unit sphere surface
 
     return new THREE.Vector3(
-      -r * Math.cos(lat) * Math.sin(lon),
-       r * Math.sin(lat),
        r * Math.cos(lat) * Math.cos(lon),
+       r * Math.sin(lat),
+      -r * Math.cos(lat) * Math.sin(lon),
     )
   }
 

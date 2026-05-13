@@ -46,9 +46,9 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
       // 1.02 < ISS at 1.06 — field satellites sit closer to surface so ISS stays visually dominant
       const r = 1.02
 
-      buffer[i * 3] = -r * Math.cos(lat) * Math.sin(lon)
-      buffer[i * 3 + 1] = r * Math.sin(lat)
-      buffer[i * 3 + 2] = r * Math.cos(lat) * Math.cos(lon)
+      buffer[i * 3]     =  r * Math.cos(lat) * Math.cos(lon)
+      buffer[i * 3 + 1] =  r * Math.sin(lat)
+      buffer[i * 3 + 2] = -r * Math.cos(lat) * Math.sin(lon)
     })
 
     self.postMessage({ type: 'positions', buffer }, [buffer.buffer])
