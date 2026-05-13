@@ -114,7 +114,7 @@ aussie-sky/
 
 **Current phase:** Pre-MVP / scaffolding.
 
-**Next milestone:** Session 6 — click-to-select on catalog satellites, filter UI stub, mobile performance baseline.
+**Next milestone:** Session 7 — click-to-select on catalog satellites (click any dot → agent panel pre-filled with satellite name), filter UI stub (layer toggles: ISS / Starlink / all), mobile performance baseline.
 
 **This week's task (week 1):**
 - [x] Create GitHub repo (private to start, public on MVP)
@@ -167,7 +167,15 @@ aussie-sky/
 
 **Blockers:** None.
 
-**Last session ended at:** Session 5 complete. Multi-turn conversation history working (frontend sends full history; backend strips `__HIGHLIGHT__` directives and builds Anthropic messages array). Two new agent tools live: `find_satellites_overhead` and `get_satellite_info`. Globe now flies to any catalog satellite via lat/lon from satinfo enrichment, not just the ISS. 49 orbital + 22 web tests passing.
+**Session 6 tasks (catalog fix + live ISS TLE):**
+- [x] Switch catalog source to CelesTrak GROUP=active (no orbital filters) with space-track.org fallback
+- [x] Add GET /tle/iss endpoint to FastAPI
+- [x] Add SatelliteMesh.updateTle() — reinitialises satrec and forces arc recompute on next tick
+- [x] Globe.initCatalog extracts live ISS TLE from catalog and calls updateTle before filtering
+- [x] 59 orbital tests + 22 web tests — all green
+- [x] Update CLAUDE.md
+
+**Last session ended at:** Session 6 complete. Multi-turn conversation history working (frontend sends full history; backend strips `__HIGHLIGHT__` directives and builds Anthropic messages array). Two new agent tools live: `find_satellites_overhead` and `get_satellite_info`. Globe now flies to any catalog satellite via lat/lon from satinfo enrichment, not just the ISS. 49 orbital + 22 web tests passing.
 
 ---
 
@@ -198,6 +206,10 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-12 — CelesTrak IP block resolved by switching to space-track.org.** CelesTrak actively blocks cloud provider IP ranges (Railway uses AWS infrastructure). space-track.org is the authoritative source (CelesTrak mirrors it), has no IP restrictions, free account, session-based auth. Credentials stored as `SPACETRACK_USER` and `SPACETRACK_PASS` in Railway env vars. `VITE_ORBITAL_SERVICE_URL` must be set in Vercel before build — it is a build-time variable baked in by Vite, not a runtime variable. Redeploy with cleared build cache required after adding the env var.
 
 - **2026-05-13 — Session 5 direction set: conversation history fix + two new agent tools.** Two bugs identified in live testing: (1) no conversation history — each user message sent to Claude as a fresh single-turn, breaking any multi-turn flow (e.g. "where is the ISS from me?" → user says "Melbourne" → Claude has no context). Fix: frontend sends full `{message, history}` body; backend builds messages array from history + new turn; strips `__HIGHLIGHT__` directives from assistant history. (2) Hubble hallucination — agent claimed the globe highlighted Hubble even though only NORAD 25544 (ISS) has special treatment. Fix: system prompt explicitly states `highlight_on_globe` only applies to satellites in the catalog (ISS only for now; extended to full catalog once `get_satellite_info` lands). New tools: `find_satellites_overhead(lat, lon, radius_km)` backed by `/satellites-overhead` FastAPI endpoint (great-circle filter on propagated catalog, top 20 by elevation); `get_satellite_info(norad_id_or_name)` backed by `/satellite-info?query=` endpoint (name/NORAD search, full orbital snapshot). Out of scope: click-to-select, filter UI, mobile, conjunction analysis.
+
+- **2026-05-13 — Session 6: switched catalog to CelesTrak primary.** Root cause of missing ISS/Hubble: space-track.org query filtered by `MEAN_MOTION > 11.25` and `ECCENTRICITY < 0.25` combined with `limit/1000/orderby/NORAD_CAT_ID` was producing a slice that excluded Hubble (NORAD 20580) and intermittently the ISS (NORAD 25544) depending on catalog churn. Fix: CelesTrak `GROUP=active` has no orbital filters and includes all operational satellites. User-Agent header (`aussie-sky/1.0`) resolves the Railway IP concern — confirmed 200 from local and cloud. space-track.org kept as fallback. Refactored `satellites.py` into `_fetch_celestrak()`, `_fetch_spacetrack()`, and `_parse_gp()` helpers. ISS now gets a live TLE on frontend startup: `Globe.initCatalog` finds the ISS entry in the catalog result and calls `SatelliteMesh.updateTle(tle1, tle2)`; hardcoded March 2024 TLE only lasts the few seconds before catalog loads. `updateTle` resets `lastArcDate = new Date(0)` to force arc recompute on next tick. New `GET /tle/iss` endpoint added for external consumers.
+
+- **2026-05-13 — Long-term vision logged (V2 scope, do not implement yet).** Target state resembles satellitetracker3d.com but with the AI agent as the primary interface. Planned future sessions: (1) Satellite layers — render catalog by category (ISS, Starlink constellation, weather sats, debris) with globe toggles; agent can say "show me all Starlink satellites" and the globe highlights them. (2) Click-to-select — clicking any catalog dot pre-fills the agent chat with the satellite's name so the user can ask about it immediately. (3) Real-time TLE refresh — re-fetch catalog every 10s or on-demand rather than the 4h cache TTL. (4) More agent tools — conjunction analysis, debris proximity alerts, satellite manoeuvre history where data is public. Do not start any of this until Session 7 scope is shipped.
 
 - **2026-05-13 — Session 5 shipped.** Conversation history: `useChat` snapshots history before adding new user msg, sends `{message, history}` to `/api/chat`; backend builds `historyMessages` from the array (stripping `__HIGHLIGHT__` directives from assistant entries) and prepends them before the new user turn. Highlight reset: `setHighlight(null)` at `sendMessage` start. `HighlightDirective` type extended with optional `latitude`/`longitude`; `Globe.highlightSatellite` accepts lat/lon directly and converts to Three.js position via geodetic formula (`x = -r*cos(lat)*sin(lon), y = r*sin(lat), z = r*cos(lat)*cos(lon)`); falls back to ISS live TLE if no coords supplied. `overhead.py`: great-circle distance filter + skyfield altaz per observer, elevation > -5° filter, top 20 by elevation. `satinfo.py`: NORAD ID (all-digit) search first, then case-insensitive name substring; returns lat/lon/alt/velocity/period/inclination. Backend highlight enrichment: `satInfoPositions` Map accumulates norad_id → {lat, lon} from `get_satellite_info` results; after tool loop, enriches `pendingHighlight` with position so globe can fly to any catalog satellite. 49 orbital pytest + 22 Vitest — all green.
 
