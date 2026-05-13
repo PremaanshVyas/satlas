@@ -24,6 +24,6 @@ export function getSunDirection(date: Date): THREE.Vector3 {
   const yECEF = -xECI * sinG + yECI * cosG
   const zECEF = zECI
 
-  // ECEF → Three.js world space (Y-up, prime meridian at +Z)
-  return new THREE.Vector3(-yECEF, zECEF, xECEF).normalize()
+  // ECEF → Three.js: xECEF (prime meridian) → +X, zECEF (north pole) → +Y, -yECEF → +Z
+  return new THREE.Vector3(xECEF, zECEF, -yECEF).normalize()
 }
