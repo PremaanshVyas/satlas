@@ -368,5 +368,13 @@ SESSION 9 GOALS (priority order — each is independently shippable, stop if tim
 3. Category filter toggles: classify catalog by name pattern (STARLINK, GPS, IRIDIUM, ISS, debris) → UI buttons → show/hide InstancedMesh subsets
 4. Agent group-highlight tool: highlight_catalog_group(category) so agent can say "show me all Starlink satellites"
 
-Start with click-to-select. The raycaster needs to hit test against InstancedMesh — use THREE.Raycaster.intersectObject() which supports instanced meshes and returns instanceId. Map instanceId back to the satellite TLE name via the array passed to the worker. Pre-fill the agent chat input (lift state or use a callback prop from GlobeView to AgentPanel).
+KNOWN ISSUE — satellites disappeared from globe after last push. Globe shows no dots. The /satellites endpoint and all rendering code were NOT changed in the last commit (only /satellite-info was changed). Before starting Session 9 work, debug this first:
+1. Hit https://<railway-url>/health — is Railway up?
+2. Hit https://<railway-url>/satellites — does it return a JSON array or an error?
+3. Check Railway deploy logs for any startup crash (import error, etc.)
+4. Open browser devtools on aussie-sky.vercel.app → Network tab — is the /satellites fetch failing?
+5. Check Globe.ts initCatalog() and SatelliteField.ts — confirm no frontend regressions
+The most likely causes: Railway deploy failed silently, CelesTrak/space-track returning errors, or a cold-start race condition on the catalog fetch.
+
+Start with click-to-select ONLY after satellites are confirmed working again. The raycaster needs to hit test against InstancedMesh — use THREE.Raycaster.intersectObject() which supports instanced meshes and returns instanceId. Map instanceId back to the satellite TLE name via the array passed to the worker. Pre-fill the agent chat input (lift state or use a callback prop from GlobeView to AgentPanel).
 ```
