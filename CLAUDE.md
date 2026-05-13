@@ -114,7 +114,16 @@ aussie-sky/
 
 **Current phase:** MVP shipped. ISS accuracy fixed (5-min TLE cache), NASA 8K textures, atmosphere + stars live.
 
-**Next milestone:** Session 9 — click-to-select on catalog satellites, category filter toggles.
+**Next milestone:** Session 9 — click-to-select + category filters + hover tooltip. Goal: interactive globe that rivals satellitetracker3d.com's UX.
+
+**Session 9 plan (brainstormed 2026-05-13):**
+- Click-to-select: raycaster on canvas click → find nearest InstancedMesh instance → pre-fill agent chat with satellite name (e.g. "Tell me about STARLINK-1234")
+- Category filter toggles: classify catalog by name pattern (STARLINK, GPS, IRIDIUM, ISS, debris) → UI toggle buttons above the globe → show/hide InstancedMesh subsets by updating instance visibility
+- Hover tooltip: raycaster on mousemove → show satellite name + altitude in a floating div when cursor is within ~0.01 units of a dot
+- Agent tool: `highlight_catalog_group(category)` — agent can say "show me all Starlink satellites" and the globe highlights them with a different colour
+- Ground track for selected satellite: when a catalog dot is selected via click, show its orbit arc (same as ISS arc logic, triggered on demand)
+
+**Priority order for Session 9:** click-to-select first (highest UX impact, proves interactivity), then hover tooltip, then category filters, then agent group-highlight tool. Stop if time runs short — each is independently shippable.
 
 **Session 8 tasks (ISS accuracy + Earth visual quality):**
 - [x] Backend: separate 5-min ISS TLE cache; /tle/iss bypasses 30-min catalog cache
@@ -125,6 +134,8 @@ aussie-sky/
 - [x] Improve earth fragment shader (wider twilight, bluer city lights)
 - [x] Add atmospheric rim glow (Fresnel shader, additive blend)
 - [x] Add star field (8,000 points, colour variation)
+- [x] Fix ISS orbit arc closing segment: LineLoop → Line (no false closing line)
+- [x] Smooth arc from 91 to 181 points; raise satellite catalog limit to 10,000
 - [x] Update CLAUDE.md + 67 backend + 31 frontend tests all passing
 
 **Session 7 tasks (position accuracy + live tracker foundation + chatbot reliability):**
@@ -256,6 +267,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-13 — Globe camera highlight broken: tools in streaming turn caused silent drop.** Second streaming Claude call had `tools: TOOLS` in the request. Haiku called `highlight_on_globe` as a tool in the streaming turn; streaming loop only writes `text_delta` events so the tool call was silently dropped and `pendingHighlight` was never set. Fix: removed `tools` from second call (answer turn must produce text only), updated system prompt to say "IN THE SAME TURN (in parallel)" for `highlight_on_globe`, increased first-turn `max_tokens` 512→1024. Rule: never include tools in a streaming-answer turn unless you handle `tool_use` stop reason in the stream.
 
 - **2026-05-13 — Session 7 chatbot reliability fix: haiku/sonnet split + Railway keepalive.** Vercel Hobby hard-caps at 10s; `maxDuration: 60` is silently ignored. Previous approach used `claude-sonnet-4-6` for both turns — tool-detection consumed 3–5s, leaving no headroom for Railway's 2–8s cold-start recovery. Fix: tool-detection turn now uses `claude-haiku-4-5-20251001` (~1s); streaming answer keeps sonnet. Orbital fetch timeout tightened from 8s → 5s. Globe.ts pings `/health` on mount and every 4 minutes to prevent Railway free-tier sleep (cold start: 20–30s). Rule: always use the fastest model capable of the task; tool-detection is a routing decision, not reasoning.
+
+- **2026-05-13 — Session 8 post-ship fixes: arc closing segment + catalog limit.** `THREE.LineLoop` automatically closes the arc by drawing a line from the last point back to the first. Over one ISS orbital period the Earth rotates ~22.5°, so start/end geographic positions differ and the closing segment is visibly wrong. Fix: `THREE.Line` (open path). Also increased arc resolution from 91 to 181 points for a smoother curve. Catalog limit raised from 1,000 to 10,000 in `satellites.py` (`LIMIT = 10000`) and in the SpaceTrack fallback URL (`limit/10000`). CelesTrak GROUP=active returns ~9,000–10,000 active satellites; SpaceTrack fallback now fetches the same count. Worker and InstancedMesh scale to 10k with no code changes — only the buffer size grows.
 
 - **2026-05-13 — On "averaging algorithms" used by major trackers.** Major trackers achieve accuracy through fresh TLEs (< 2h for ISS) and correct coordinate transforms. The "averaging" some sites do is position smoothing across 5–30 seconds when a new TLE epoch arrives — prevents visual discontinuities but does not improve scientific accuracy. Our 30-minute cache and correct coordinate formula are sufficient to match any public tracker at our zoom level.
 
