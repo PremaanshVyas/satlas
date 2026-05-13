@@ -222,20 +222,17 @@ class TestGetSatellitesCache:
         assert result[0]['name'] == 'ISS (ZARYA)'
 
 
-ISS_CATNR_RESPONSE = [
-    {
-        'OBJECT_NAME': 'ISS (ZARYA)',
-        'NORAD_CAT_ID': 25544,
-        'TLE_LINE1': '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993',
-        'TLE_LINE2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
-    }
-]
+ISS_TLE_TEXT = (
+    'ISS (ZARYA)\n'
+    '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993\n'
+    '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522\n'
+)
 
 
 class TestFetchIssTle:
     def test_returns_single_iss_record(self):
         mock_resp = MagicMock()
-        mock_resp.json.return_value = ISS_CATNR_RESPONSE
+        mock_resp.text = ISS_TLE_TEXT
         mock_resp.raise_for_status = MagicMock()
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
@@ -245,12 +242,12 @@ class TestFetchIssTle:
             result = asyncio.run(satellites._fetch_iss_tle())
         assert result['norad_id'] == '25544'
         assert result['name'] == 'ISS (ZARYA)'
-        assert 'tle1' in result
-        assert 'tle2' in result
+        assert result['tle1'].startswith('1 25544')
+        assert result['tle2'].startswith('2 25544')
 
     def test_sends_user_agent_header(self):
         mock_resp = MagicMock()
-        mock_resp.json.return_value = ISS_CATNR_RESPONSE
+        mock_resp.text = ISS_TLE_TEXT
         mock_resp.raise_for_status = MagicMock()
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)

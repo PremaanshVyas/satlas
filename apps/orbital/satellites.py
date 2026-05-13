@@ -4,7 +4,7 @@ import time
 import httpx
 
 CELESTRAK_ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json'
-CELESTRAK_ISS_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=json'
+CELESTRAK_ISS_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
 CELESTRAK_HEADERS = {'User-Agent': 'aussie-sky/1.0 (portfolio project; https://aussie-sky.vercel.app)'}
 
 SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
@@ -45,10 +45,14 @@ async def _fetch_iss_tle() -> dict:
     async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
         resp = await client.get(CELESTRAK_ISS_URL, headers=CELESTRAK_HEADERS)
         resp.raise_for_status()
-        items = resp.json()
-        if not items:
-            raise ValueError('Empty response from CelesTrak ISS endpoint')
-        return _parse_gp(items)[0]
+        lines = resp.text.strip().splitlines()
+        if len(lines) < 3:
+            raise ValueError(f'Unexpected TLE response: {resp.text[:100]}')
+        name = lines[0].strip()
+        tle1 = lines[1].strip()
+        tle2 = lines[2].strip()
+        norad_id = tle1[2:7].strip()
+        return {'name': name, 'norad_id': norad_id, 'tle1': tle1, 'tle2': tle2}
 
 
 async def _fetch_spacetrack() -> list:
