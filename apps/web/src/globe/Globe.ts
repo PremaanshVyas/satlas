@@ -4,7 +4,7 @@ import { EarthMesh } from './EarthMesh'
 import { SatelliteMesh } from './SatelliteMesh'
 import { SatelliteField } from './SatelliteField'
 import { getSunDirection } from '../lib/solar'
-import { fetchSatelliteCatalog } from '../lib/celestrak'
+import { fetchSatelliteCatalog, fetchIssTle } from '../lib/celestrak'
 
 const ISS_TLE1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
 const ISS_TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
@@ -36,6 +36,7 @@ export class Globe {
   private flyStartTime: number | null = null
   private catalogCount = 0
   private keepaliveInterval: ReturnType<typeof setInterval> | null = null
+  private issTleInterval: ReturnType<typeof setInterval> | null = null
   private visibilityHandler: (() => void) | null = null
   onCatalogRefresh: ((count: number) => void) | null = null
 
@@ -69,6 +70,8 @@ export class Globe {
     this.controls.autoRotate = false
 
     this.tick()
+    void this.refreshIssTle()
+    this.issTleInterval = setInterval(() => void this.refreshIssTle(), 2 * 60 * 1000)
     void this.initCatalog(onReady)
     this.catalogRefreshInterval = setInterval(() => {
       void this.initCatalog()
@@ -82,6 +85,16 @@ export class Globe {
     // Re-ping when the tab becomes visible (catches re-opens and tab switches).
     this.visibilityHandler = () => { if (!document.hidden) void ping() }
     document.addEventListener('visibilitychange', this.visibilityHandler)
+  }
+
+  private async refreshIssTle(): Promise<void> {
+    const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
+    try {
+      const { tle1, tle2 } = await fetchIssTle(baseUrl)
+      if (this.mounted) this.iss.updateTle(tle1, tle2)
+    } catch {
+      // silent — ISS keeps its current TLE
+    }
   }
 
   private async initCatalog(onReady?: () => void): Promise<void> {
@@ -207,6 +220,10 @@ export class Globe {
     if (this.keepaliveInterval !== null) {
       clearInterval(this.keepaliveInterval)
       this.keepaliveInterval = null
+    }
+    if (this.issTleInterval !== null) {
+      clearInterval(this.issTleInterval)
+      this.issTleInterval = null
     }
     if (this.visibilityHandler !== null) {
       document.removeEventListener('visibilitychange', this.visibilityHandler)
