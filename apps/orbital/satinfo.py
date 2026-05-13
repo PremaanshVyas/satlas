@@ -30,19 +30,22 @@ def satellite_info(catalog: list, query: str) -> Optional[dict]:
     if sat_data is None:
         return None
 
-    sat = EarthSatellite(sat_data['tle1'], sat_data['tle2'], sat_data['name'], _ts)
-    t = _ts.now()
-    pos = sat.at(t)
-    subpoint = wgs84.subpoint(pos)
+    try:
+        sat = EarthSatellite(sat_data['tle1'], sat_data['tle2'], sat_data['name'], _ts)
+        t = _ts.now()
+        pos = sat.at(t)
+        subpoint = wgs84.subpoint(pos)
 
-    vel = pos.velocity.km_per_s
-    velocity_kmps = round(math.sqrt(vel[0] ** 2 + vel[1] ** 2 + vel[2] ** 2), 2)
+        vel = pos.velocity.km_per_s
+        velocity_kmps = round(math.sqrt(vel[0] ** 2 + vel[1] ** 2 + vel[2] ** 2), 2)
 
-    # no_kozai is mean motion in radians/minute; period = 2π / no_kozai (minutes)
-    period_min = round(2 * math.pi / sat.model.no_kozai, 1)
+        # no_kozai is mean motion in radians/minute; period = 2π / no_kozai (minutes)
+        period_min = round(2 * math.pi / sat.model.no_kozai, 1)
 
-    # inclo is inclination in radians
-    inclination_deg = round(sat.model.inclo * 180 / math.pi, 2)
+        # inclo is inclination in radians
+        inclination_deg = round(sat.model.inclo * 180 / math.pi, 2)
+    except Exception:
+        return None
 
     return {
         'name': sat_data['name'],
