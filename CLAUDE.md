@@ -112,7 +112,7 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** MVP shipped. ISS accuracy fixed (5-min TLE cache), NASA 8K textures, atmosphere + stars live.
+**Current phase:** Post-Session-8 (+ arc GMST fix). ISS accuracy fixed (5-min TLE cache), NASA 8K textures, atmosphere + stars live, ISS dot now sits on the orbital ring.
 
 **Next milestone:** Session 9 — click-to-select + category filters + hover tooltip. Goal: interactive globe that rivals satellitetracker3d.com's UX.
 
@@ -136,6 +136,7 @@ aussie-sky/
 - [x] Add star field (8,000 points, colour variation)
 - [x] Fix ISS orbit arc: three-attempt journey. Attempt 1: LineLoop → Line (no false closing line). Attempt 2: discovered ECEF ground tracks are open curves (Earth's rotation); Line exposed the 22.9° gap. Final fix: ECI orbital ring — propagate without GMST, closed ellipse, LineLoop correct again.
 - [x] Raise satellite catalog limit to 10,000
+- [x] Fix arc GMST alignment: ECI ring was correct shape but wrong longitude (rotated by GMST from the dot). Applied GMST rotation to all arc points so dot sits on the ring. Ring recomputes every 60 s as GMST drifts ~15°/hr.
 - [x] Update CLAUDE.md + 67 backend + 31 frontend tests all passing
 
 **Session 7 tasks (position accuracy + live tracker foundation + chatbot reliability):**
@@ -309,3 +310,44 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 - When a problem is genuinely outside scope, say so directly and offer to log it for V3.
 - Keep responses concise. Prose over bullets unless listing genuinely parallel things.
 - If asked to write code, follow the conventions section above.
+
+---
+
+## Session 9 bootstrap prompt
+
+> Copy-paste this at the start of the next session to restore full context instantly.
+
+```
+We're working on Aussie Sky — a real-time 3D satellite tracker with an AI agent chat interface. Portfolio project for landing a SWE internship in Australia. Read CLAUDE.md fully before doing anything.
+
+Where we left off (end of Session 8 + arc fix):
+
+WHAT'S LIVE at https://aussie-sky.vercel.app:
+- 3D Earth globe (Three.js, NASA 8K day + 3.6K night textures, GLSL day/night shader)
+- Atmospheric rim glow (Fresnel shader), 8,000-star background
+- ~9,000–10,000 live satellites from CelesTrak/space-track (30-min cache)
+- ISS: separate 5-min TLE cache via /tle/iss, frontend refreshes every 2 min
+- ISS rendered as yellow dot + orbital ring + pulse animation on agent highlight
+- ISS dot now sits ON the orbital ring (GMST alignment fixed — this was the last bug)
+- Catalog satellites as blue InstancedMesh (propagator web worker, 100ms tick)
+- AI agent chat (Claude API, tool use, multi-turn history)
+- 4 agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info
+- UTC clock overlay + satellite count overlay
+- Backend: Python FastAPI on Railway; frontend: Vite+React on Vercel
+- Tests: 31 Vitest + 67 pytest — all green
+
+KEY TECHNICAL STATE:
+- Coordinate system: prime meridian → +X, north → +Y, 90°E → −Z (Three.js SphereGeometry UV convention)
+- ISS arc: ECI positions rotated by current GMST → closed ring at correct geographic longitude. Recomputes every 60 s.
+- SatelliteMesh.ts: dot/halo in ECEF, arc in ECI+GMST. lastArcRecompute tracks 60-s interval.
+- Globe.ts: mounts ISS with hardcoded TLE, immediately kicks off refreshIssTle() + 2-min interval
+- propagator.worker.ts + SatelliteField.ts: InstancedMesh, positions updated from worker buffer every 100ms
+
+SESSION 9 GOALS (priority order — each is independently shippable, stop if time runs short):
+1. Click-to-select: raycaster on canvas click → find nearest InstancedMesh instance → pre-fill agent chat with satellite name ("Tell me about STARLINK-1234")
+2. Hover tooltip: raycaster on mousemove → show satellite name + altitude in a floating div when cursor is near a dot
+3. Category filter toggles: classify catalog by name pattern (STARLINK, GPS, IRIDIUM, ISS, debris) → UI buttons → show/hide InstancedMesh subsets
+4. Agent group-highlight tool: highlight_catalog_group(category) so agent can say "show me all Starlink satellites"
+
+Start with click-to-select. The raycaster needs to hit test against InstancedMesh — use THREE.Raycaster.intersectObject() which supports instanced meshes and returns instanceId. Map instanceId back to the satellite TLE name via the array passed to the worker. Pre-fill the agent chat input (lift state or use a callback prop from GlobeView to AgentPanel).
+```
