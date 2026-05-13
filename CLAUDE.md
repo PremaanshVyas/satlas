@@ -112,9 +112,20 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** MVP shipped. Position accuracy and live tracker foundation complete.
+**Current phase:** MVP shipped. ISS accuracy fixed (5-min TLE cache), NASA 8K textures, atmosphere + stars live.
 
-**Next milestone:** Session 8 — click-to-select on catalog satellites, category filter toggles.
+**Next milestone:** Session 9 — click-to-select on catalog satellites, category filter toggles.
+
+**Session 8 tasks (ISS accuracy + Earth visual quality):**
+- [x] Backend: separate 5-min ISS TLE cache; /tle/iss bypasses 30-min catalog cache
+- [x] Frontend: fetchIssTle() on mount + every 2 min independent of catalog refresh
+- [x] Replace 501KB textures with NASA 8192×4096 Blue Marble day + 3600×1800 Black Marble night
+- [x] Enable anisotropic filtering + trilinear mipmaps on Earth textures
+- [x] Raise sphere tessellation to 128×64
+- [x] Improve earth fragment shader (wider twilight, bluer city lights)
+- [x] Add atmospheric rim glow (Fresnel shader, additive blend)
+- [x] Add star field (8,000 points, colour variation)
+- [x] Update CLAUDE.md + 67 backend + 31 frontend tests all passing
 
 **Session 7 tasks (position accuracy + live tracker foundation + chatbot reliability):**
 - [x] Fix coordinate transform bug in propagator.worker.ts and SatelliteMesh.ts
@@ -235,6 +246,12 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-13 — TLE cache reduced to 30 minutes.** ISS moves at 7.66 km/s; 4-hour TLE age → 4–40 km position error. 30-minute cache → < 3 km error, matching public tracker accuracy at our globe's zoom level. Frontend also refreshes the worker every 30 min so long-running sessions stay accurate.
 
 - **2026-05-13 — Session 7 long-term vision: toward satellitetracker3d quality.** Next sessions: (1) Click-to-select — click any catalog dot → agent panel pre-fills with satellite name. (2) Category filters — layer toggles (ISS, Starlink, GPS, weather, debris). (3) Hover tooltip — satellite name/altitude on hover. (4) Ground track for selected catalog satellite (not just ISS). (5) Position smoothing — interpolate 5–10 frames when new TLEs arrive to prevent visual "jump". These are Session 8+ work, do not start until current fixes are deployed.
+
+- **2026-05-13 — Session 8: ISS accuracy root cause and fix.** Root cause: `/tle/iss` called `get_satellites()` which served data from the 30-min catalog cache. ISS velocity 7.66 km/s × 1800 s = 13,788 km drift = nearly 1/3 orbit error at worst. Fix: `get_iss_tle()` with a separate `_iss_cache` with 5-min TTL that calls `_fetch_iss_tle()` (CelesTrak CATNR, confirmed not IP-blocked on Railway). Frontend calls `fetchIssTle()` via `/tle/iss` on Globe mount and every 2 minutes, independent of the 30-min catalog refresh cycle. Position error is now ≤ 2,300 km (5 min × 7.66 km/s × 60s). Rule: never share cache TTL between real-time position data and bulk catalog; they have different accuracy requirements.
+
+- **2026-05-13 — Session 8: Earth texture upgrade.** Replaced 501KB / 186KB textures (2048×1024) with NASA Blue Marble `land_shallow_topo_8192.tif` converted to JPEG (8192×4096, 5.7MB) and NASA Black Marble 2012 at 3600×1800 (1.1MB). Downloaded from `eoimages.gsfc.nasa.gov` — the old `/imagerecords/74000/74117/` paths return 404; working paths are `/imagerecords/57000/57752/` for day and `/imagerecords/79000/79765/` for night. Three.js configured with `anisotropy = maxAnisotropy` (typically 16×), `LinearMipmapLinearFilter`, and `SRGBColorSpace`. Sphere tessellation raised to 128×64.
+
+- **2026-05-13 — Session 8: Atmosphere + star field.** Atmosphere: separate `AtmosphereMesh` at radius 1.015 using a Fresnel rim shader (additive blending, depthWrite false). Star field: 8,000 `THREE.Points` uniformly distributed on a sphere of radius 50, white/blue-white/warm colour variation. Both purely visual with no effect on satellite propagation or chat.
 
 - **2026-05-13 — Globe camera highlight broken: tools in streaming turn caused silent drop.** Second streaming Claude call had `tools: TOOLS` in the request. Haiku called `highlight_on_globe` as a tool in the streaming turn; streaming loop only writes `text_delta` events so the tool call was silently dropped and `pendingHighlight` was never set. Fix: removed `tools` from second call (answer turn must produce text only), updated system prompt to say "IN THE SAME TURN (in parallel)" for `highlight_on_globe`, increased first-turn `max_tokens` 512→1024. Rule: never include tools in a streaming-answer turn unless you handle `tool_use` stop reason in the stream.
 
