@@ -9,7 +9,7 @@ export class SatelliteMesh {
   readonly group: THREE.Group
   private dot: THREE.Mesh
   private halo: THREE.Mesh
-  private arc: THREE.LineLoop
+  private arc: THREE.Line
   private satrec: satellite.SatRec
   private lastArcDate: Date
   private pulseStartTime: number | null = null
