@@ -146,8 +146,14 @@ async function callOrbitalService(input: PassesInput): Promise<unknown> {
     longitude: String(input.longitude),
     hours_ahead: String(input.hours_ahead ?? 24),
   })
-  const res = await fetchWithTimeout(`${ORBITAL_SERVICE_URL}/predict-passes?${params}`, ORBITAL_FETCH_TIMEOUT_MS)
-  if (!res.ok) throw new Error(`Orbital service returned ${res.status}`)
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${ORBITAL_SERVICE_URL}/predict-passes?${params}`, ORBITAL_FETCH_TIMEOUT_MS)
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') return { error: 'Orbital service timed out — it may be waking up. Try again in a moment.' }
+    throw err
+  }
+  if (!res.ok) return { error: `Orbital service returned ${res.status}` }
   return res.json()
 }
 
@@ -167,8 +173,14 @@ async function callOverheadService(input: OverheadInput): Promise<unknown> {
     longitude: String(input.longitude),
     radius_km: String(input.radius_km ?? 2000),
   })
-  const res = await fetchWithTimeout(`${ORBITAL_SERVICE_URL}/satellites-overhead?${params}`, ORBITAL_FETCH_TIMEOUT_MS)
-  if (!res.ok) throw new Error(`Orbital service returned ${res.status}`)
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${ORBITAL_SERVICE_URL}/satellites-overhead?${params}`, ORBITAL_FETCH_TIMEOUT_MS)
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') return { error: 'Orbital service timed out — it may be waking up. Try again in a moment.' }
+    throw err
+  }
+  if (!res.ok) return { error: `Orbital service returned ${res.status}` }
   return res.json()
 }
 
@@ -217,7 +229,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // First call: non-streaming — detects whether Claude wants to call tools
     const response1 = await client.messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 512,
       system: systemPrompt,
       tools: TOOLS,
       messages: currentMessages,

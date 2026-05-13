@@ -56,6 +56,10 @@ export function useChat() {
         body: JSON.stringify({ message: content, history }),
       })
 
+      if (!response.ok) {
+        throw new Error(`Agent returned ${response.status}`)
+      }
+
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
       let rawAccumulated = ''
@@ -75,8 +79,9 @@ export function useChat() {
 
       // Final parse: extract highlight if present
       const { text, highlight: newHighlight } = parseChunkForHighlight(rawAccumulated)
+      const displayText = text.trim() ? text : 'No response — please try again.'
       setMessages(prev =>
-        prev.map(m => (m.id === assistantId ? { ...m, content: text } : m)),
+        prev.map(m => (m.id === assistantId ? { ...m, content: displayText } : m)),
       )
       if (newHighlight) setHighlight(newHighlight)
     } catch {
