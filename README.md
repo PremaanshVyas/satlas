@@ -8,7 +8,10 @@ A live, open platform that lets anyone explore what's happening in Earth orbit �
 Open the site — ~1000 live satellites orbit Earth in real time, fetched from the US Space Force catalog and propagated in a web worker.  
 Ask the agent: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
-**Status:** MVP shipped — live satellite catalog, AI agent, orbital mechanics all working
+Ask: _"What satellites are overhead right now from Sydney?"_ — it queries the catalog and tells you what's up there.  
+Ask: _"Where is Hubble?"_ — it looks up the orbital snapshot and flies the globe camera to Hubble's actual position.  
+The agent remembers conversation context — follow-up questions work.  
+**Status:** MVP shipped — live satellite catalog, AI agent with 4 tools, multi-turn conversation history all working
 
 ---
 
@@ -89,14 +92,17 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 ### What's working now
 - [x] 3D Earth with ISS rendered in real time (TLE propagation via satellite.js)
 - [x] AI agent answers questions with real orbital mechanics (skyfield pass prediction)
-- [x] Agent-driven globe interaction — asking about a satellite focuses the camera and pulses it
+- [x] Agent-driven globe interaction — asking about a satellite focuses the camera and flies to its actual position
 - [x] Streaming chat UI with typing indicator
+- [x] Multi-turn conversation history (follow-up questions work)
+- [x] Find satellites overhead from any location
+- [x] Look up any satellite by name or NORAD ID — get orbital snapshot and globe highlight
 - [x] Deployed and auto-deploying at [aussie-sky.vercel.app](https://aussie-sky.vercel.app)
 
 ### MVP (weeks 1–4)
 - [x] Project scaffolding
 - [x] Live TLE catalog (~1000 satellites, InstancedMesh + web worker)
-- [ ] More agent tools: find_satellites_overhead, get_satellite_info
+- [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info
 - [ ] Click satellite → details
 - [ ] Filter by category (Starlink, ISS, debris, etc.)
 - [ ] CI/CD wired up
