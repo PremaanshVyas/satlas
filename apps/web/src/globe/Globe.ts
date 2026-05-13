@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { EarthMesh } from './EarthMesh'
+import { AtmosphereMesh } from './AtmosphereMesh'
 import { SatelliteMesh } from './SatelliteMesh'
 import { SatelliteField } from './SatelliteField'
 import { getSunDirection } from '../lib/solar'
@@ -23,6 +24,7 @@ export class Globe {
   private scene!: THREE.Scene
   private controls!: OrbitControls
   private earth!: EarthMesh
+  private atmosphere!: AtmosphereMesh
   private iss!: SatelliteMesh
   private field: SatelliteField | null = null
   private worker: Worker | null = null
@@ -56,6 +58,9 @@ export class Globe {
 
     this.earth = new EarthMesh(this.renderer)
     this.scene.add(this.earth.mesh)
+
+    this.atmosphere = new AtmosphereMesh()
+    this.scene.add(this.atmosphere.mesh)
 
     // ISS always initialised with hardcoded TLE so tick() never crashes
     // before the catalog arrives.
@@ -233,6 +238,7 @@ export class Globe {
     this.worker = null
     this.controls.dispose()
     this.earth.dispose()
+    this.atmosphere.dispose()
     this.iss.dispose()
     this.field?.dispose()
     this.renderer.dispose()
