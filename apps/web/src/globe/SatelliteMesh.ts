@@ -4,19 +4,18 @@ import * as satellite from 'satellite.js'
 const PULSE_DURATION_MS = 1000
 const PULSE_SCALE = 1.6
 const PULSE_REPEATS = 3
+const R_EARTH_KM = 6371.0
 
 export class SatelliteMesh {
   readonly group: THREE.Group
   private dot: THREE.Mesh
   private halo: THREE.Mesh
-  private arc: THREE.Line
+  private arc: THREE.LineLoop
   private satrec: satellite.SatRec
-  private lastArcDate: Date
   private pulseStartTime: number | null = null
 
   constructor(tle1: string, tle2: string) {
     this.satrec = satellite.twoline2satrec(tle1, tle2)
-    this.lastArcDate = new Date()
     this.group = new THREE.Group()
 
     this.dot = new THREE.Mesh(
@@ -29,14 +28,15 @@ export class SatelliteMesh {
       new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.2 }),
     )
 
-    this.arc = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(this.computeArcPoints(new Date())),
+    this.arc = new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(this.computeArcPoints()),
       new THREE.LineBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.5 }),
     )
 
     this.group.add(this.dot, this.halo, this.arc)
   }
 
+  // Dot position: ECEF (Earth-fixed) so it appears over the correct geography.
   private toThreePosition(date: Date): THREE.Vector3 | null {
     const posVel = satellite.propagate(this.satrec, date)
     if (typeof posVel.position === 'boolean') return null
@@ -49,7 +49,7 @@ export class SatelliteMesh {
 
     const lat = geo.latitude  // radians
     const lon = geo.longitude // radians
-    const r = 1.06            // slightly above unit sphere surface
+    const r = 1.06
 
     return new THREE.Vector3(
        r * Math.cos(lat) * Math.cos(lon),
@@ -58,13 +58,33 @@ export class SatelliteMesh {
     )
   }
 
-  private computeArcPoints(date: Date): THREE.Vector3[] {
+  // Orbital ring: ECI (inertial) space — a closed ellipse fixed relative to the stars.
+  // We intentionally skip GMST rotation here. ECEF ground tracks are open curves
+  // because the Earth rotates ~22.9° per ISS orbital period. ECI orbits are always
+  // closed. The dot (ECEF) and ring (ECI) are in different frames by design:
+  // the ring shows the orbital plane; the dot shows the current ground position.
+  private computeArcPoints(): THREE.Vector3[] {
     const periodMs = (2 * Math.PI / this.satrec.no) * 60 * 1000
+    const now = new Date()
     const points: THREE.Vector3[] = []
-    for (let i = 0; i <= 180; i++) {
-      const t = new Date(date.getTime() + (i / 180) * periodMs)
-      const pos = this.toThreePosition(t)
-      if (pos) points.push(pos)
+
+    for (let i = 0; i < 180; i++) {
+      const t = new Date(now.getTime() + (i / 180) * periodMs)
+      const posVel = satellite.propagate(this.satrec, t)
+      if (typeof posVel.position === 'boolean') continue
+
+      const pos = posVel.position as satellite.EciVec3<number>
+      const mag = Math.sqrt(pos.x ** 2 + pos.y ** 2 + pos.z ** 2)
+      if (mag < 1) continue
+
+      // ECI → Three.js: X stays, Z (north celestial pole) → Y, Y → −Z
+      // Radius in Earth-radii units (ISS ≈ 1.064), preserving true orbital altitude
+      const r = mag / R_EARTH_KM
+      points.push(new THREE.Vector3(
+         (pos.x / mag) * r,
+         (pos.z / mag) * r,
+        -(pos.y / mag) * r,
+      ))
     }
     return points
   }
@@ -75,8 +95,8 @@ export class SatelliteMesh {
 
   updateTle(tle1: string, tle2: string): void {
     this.satrec = satellite.twoline2satrec(tle1, tle2)
-    // Force arc recompute on next tick — arc was built from stale TLE and must be regenerated
-    this.lastArcDate = new Date(0)
+    // Recompute orbital ring immediately — new TLE means new orbital elements
+    this.arc.geometry.setFromPoints(this.computeArcPoints())
   }
 
   startPulse(): void {
@@ -88,12 +108,6 @@ export class SatelliteMesh {
     if (pos) {
       this.dot.position.copy(pos)
       this.halo.position.copy(pos)
-    }
-
-    const shouldRecompute = date.getTime() - this.lastArcDate.getTime() > 60_000
-    if (shouldRecompute) {
-      this.lastArcDate = date
-      this.arc.geometry.setFromPoints(this.computeArcPoints(date))
     }
 
     // Pulse animation: scale halo 1.0 → PULSE_SCALE → 1.0 for PULSE_REPEATS cycles
