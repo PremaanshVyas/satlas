@@ -7,6 +7,8 @@ from satinfo import satellite_info
 
 app = FastAPI(title='Aussie Sky Orbital Service')
 
+ISS_NORAD_ID = '25544'
+
 # TODO: tighten allow_origins to the Vercel domain before V1 production
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +42,20 @@ async def get_satellite_catalog() -> list[dict]:
         return await get_satellites()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f'CelesTrak fetch failed: {e}')
+
+
+@app.get('/tle/iss')
+async def get_iss_tle() -> dict[str, str]:
+    try:
+        catalog = await get_satellites()
+        for sat in catalog:
+            if sat['norad_id'] == ISS_NORAD_ID:
+                return {'tle1': sat['tle1'], 'tle2': sat['tle2']}
+        raise HTTPException(status_code=404, detail='ISS not found in catalog')
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f'ISS TLE fetch failed: {e}')
 
 
 @app.get('/satellites-overhead')

@@ -236,3 +236,31 @@ class TestSatellitesEndpoint:
             client = TestClient(app)
             response = client.get('/satellites')
         assert response.status_code == 503
+
+
+class TestIssTleEndpoint:
+    def test_returns_200_with_tle_lines(self):
+        mock_catalog = [
+            {'name': 'ISS (ZARYA)', 'norad_id': '25544', 'tle1': 'line1', 'tle2': 'line2'},
+            {'name': 'OTHER', 'norad_id': '99999', 'tle1': 'a', 'tle2': 'b'},
+        ]
+        with patch('main.get_satellites', AsyncMock(return_value=mock_catalog)):
+            client = TestClient(app)
+            resp = client.get('/tle/iss')
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body['tle1'] == 'line1'
+        assert body['tle2'] == 'line2'
+
+    def test_returns_404_when_iss_not_in_catalog(self):
+        mock_catalog = [{'name': 'OTHER', 'norad_id': '99999', 'tle1': 'a', 'tle2': 'b'}]
+        with patch('main.get_satellites', AsyncMock(return_value=mock_catalog)):
+            client = TestClient(app)
+            resp = client.get('/tle/iss')
+        assert resp.status_code == 404
+
+    def test_returns_503_on_catalog_failure(self):
+        with patch('main.get_satellites', AsyncMock(side_effect=Exception('network'))):
+            client = TestClient(app)
+            resp = client.get('/tle/iss')
+        assert resp.status_code == 503
