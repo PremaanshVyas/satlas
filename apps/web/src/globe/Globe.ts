@@ -35,6 +35,7 @@ export class Globe {
   private flyToPos: THREE.Vector3 | null = null
   private flyStartTime: number | null = null
   private catalogCount = 0
+  private keepaliveInterval: ReturnType<typeof setInterval> | null = null
   onCatalogRefresh: ((count: number) => void) | null = null
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
@@ -71,6 +72,12 @@ export class Globe {
     this.catalogRefreshInterval = setInterval(() => {
       void this.initCatalog()
     }, 30 * 60 * 1000)
+
+    // Ping the orbital service every 4 minutes to prevent Railway free-tier cold starts.
+    const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
+    const ping = () => fetch(`${baseUrl}/health`).catch(() => undefined)
+    void ping()
+    this.keepaliveInterval = setInterval(ping, 4 * 60 * 1000)
   }
 
   private async initCatalog(onReady?: () => void): Promise<void> {
@@ -192,6 +199,10 @@ export class Globe {
     if (this.catalogRefreshInterval !== null) {
       clearInterval(this.catalogRefreshInterval)
       this.catalogRefreshInterval = null
+    }
+    if (this.keepaliveInterval !== null) {
+      clearInterval(this.keepaliveInterval)
+      this.keepaliveInterval = null
     }
     this.worker?.terminate()
     this.worker = null

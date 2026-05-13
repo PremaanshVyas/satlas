@@ -5,8 +5,9 @@ export const config = { maxDuration: 60 }
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL!
-const MODEL = 'claude-sonnet-4-6'
-const ORBITAL_FETCH_TIMEOUT_MS = 8000
+const MODEL_DETECT = 'claude-haiku-4-5-20251001'  // fast tool-detection turn (fits in Vercel 10s)
+const MODEL_ANSWER  = 'claude-sonnet-4-6'          // final streaming answer
+const ORBITAL_FETCH_TIMEOUT_MS = 5000              // fail fast on Railway cold starts
 
 function buildSystemPrompt(now: Date): string {
   return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
@@ -226,9 +227,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       { role: 'user', content: message },
     ]
 
-    // First call: non-streaming — detects whether Claude wants to call tools
+    // First call: non-streaming — detects whether Claude wants to call tools.
+    // Uses haiku (faster) so tool detection + tool execution + streaming answer fits in Vercel's 10s limit.
     const response1 = await client.messages.create({
-      model: MODEL,
+      model: MODEL_DETECT,
       max_tokens: 512,
       system: systemPrompt,
       tools: TOOLS,
@@ -304,9 +306,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       messages.push({ role: 'user', content: toolResults })
 
-      // Stream the final answer
+      // Stream the final answer — sonnet for quality
       const stream2 = client.messages.stream({
-        model: MODEL,
+        model: MODEL_ANSWER,
         max_tokens: 1024,
         system: systemPrompt,
         tools: TOOLS,
