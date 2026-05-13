@@ -4,6 +4,26 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 7c] — Globe not flying to satellite after agent response (2026-05-13)
+
+### Problem
+The agent would respond with correct satellite info (altitude, position, etc.) but the globe camera never flew to the satellite's location.
+
+### Root Cause
+The second Claude call (answer-streaming turn) had `tools: TOOLS` included. Haiku, seeing the tools available, chose to call `highlight_on_globe` as a tool call in the streaming turn instead of generating text. The streaming loop only listens for `content_block_delta` events with `text_delta` type — any `tool_use` blocks are silently dropped. `pendingHighlight` was never set (because `highlight_on_globe` wasn't called in the first turn), so no `__HIGHLIGHT__` directive was ever emitted.
+
+The system prompt also said "after calling this, also call highlight_on_globe" — the word "after" implied waiting for `get_satellite_info` to return first, which is turn 2 behaviour. But turn 2 is the text-streaming turn where tool calls are dropped.
+
+### Fix
+1. **Removed `tools` from the second streaming call** — forcing haiku to produce only text in the answer turn, eliminating the possibility of silent tool call drops.
+2. **Updated system prompt** to say "IN THE SAME TURN (in parallel)" making it explicit that `highlight_on_globe` must be called in turn 1 alongside `get_satellite_info`, not after.
+3. **Increased first-turn `max_tokens` 512 → 1024** to give haiku enough room to emit both tool calls in a single response.
+
+### Lesson
+When a streaming Claude call has `tools` in the request, the model may call tools instead of streaming text — and the stop reason will be `tool_use`, not `end_turn`. Always remove `tools` from any turn that must produce text output. If you need side-effect tools (like `highlight_on_globe`) that don't feed back into the model, call them all in the non-streaming detection turn, then stream with tools disabled.
+
+---
+
 ## [Session 7b] — Chatbot "No response" failures under Vercel 10s timeout (2026-05-13)
 
 ### Problem

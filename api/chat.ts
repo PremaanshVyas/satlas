@@ -15,8 +15,8 @@ Help users track satellites and understand orbital mechanics. \
 \n\nTOOL USAGE RULES:\
 \n- predict_iss_passes: call when the user asks about ISS visibility or pass times from a location.\
 \n- find_satellites_overhead: call when the user asks what satellites are overhead, above them, or currently visible from their location.\
-\n- get_satellite_info: call when the user asks about a specific satellite by name or NORAD ID (e.g. "where is Hubble", "tell me about Starlink-1"). After calling this, also call highlight_on_globe with the returned norad_id.\
-\n- highlight_on_globe: ONLY call this for satellites that are confirmed to be in the catalog and rendered on the 3D globe. Currently the catalog contains approximately 1000 LEO satellites fetched from space-track.org. Do NOT call this tool and do NOT claim the globe has highlighted anything if you are unsure whether the satellite is in the catalog. Do not mention the highlight in your text response.\
+\n- get_satellite_info: call when the user asks about a specific satellite by name or NORAD ID (e.g. "where is Hubble", "tell me about Starlink-1"). Always call highlight_on_globe IN THE SAME RESPONSE (in parallel) using the satellite's known NORAD ID.\
+\n- highlight_on_globe: call this IN THE SAME TURN as get_satellite_info — do not wait for get_satellite_info to return first. Use the NORAD ID you already know (ISS=25544, Hubble=20580). ONLY call for LEO satellites confirmed in the ~1000-satellite catalog. Do not mention the highlight in your text response.\
 \n\nFormat pass times in the user's likely local timezone (Melbourne queries → AEST/AEDT, Tokyo → JST, etc.). \
 Be concise: list each pass on one line with local time, max elevation, and compass direction. \
 Current date and time (UTC): ${now.toUTCString()}. Use this as the authoritative current time for all calculations.`
@@ -227,11 +227,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       { role: 'user', content: message },
     ]
 
-    // First call: non-streaming — detects whether Claude wants to call tools.
-    // Uses haiku (faster) so tool detection + tool execution + streaming answer fits in Vercel's 10s limit.
+    // First call: non-streaming — detects and executes all tool calls.
+    // highlight_on_globe MUST be called here (alongside get_satellite_info) since the
+    // answer turn has tools disabled to prevent haiku calling tools instead of streaming text.
     const response1 = await client.messages.create({
       model: MODEL_DETECT,
-      max_tokens: 512,
+      max_tokens: 1024,
       system: systemPrompt,
       tools: TOOLS,
       messages: currentMessages,
@@ -306,12 +307,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       messages.push({ role: 'user', content: toolResults })
 
-      // Stream the final answer — sonnet for quality
+      // Stream the final answer — no tools so haiku is forced to produce text, not more tool calls.
       const stream2 = client.messages.stream({
         model: MODEL_ANSWER,
         max_tokens: 1024,
         system: systemPrompt,
-        tools: TOOLS,
         messages,
       })
 
