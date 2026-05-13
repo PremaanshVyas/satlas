@@ -11,12 +11,12 @@ SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
 # No MEAN_MOTION/ECCENTRICITY filters — those excluded ISS at certain orbital epochs
 SPACETRACK_QUERY_URL = (
     'https://www.space-track.org/basicspacedata/query/class/gp'
-    '/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID/limit/1000/format/json'
+    '/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID/limit/10000/format/json'
 )
 
 CACHE_TTL_SECONDS = 30 * 60
 ISS_TLE_TTL_SECONDS = 5 * 60   # ISS moves 7.66 km/s — 5-min cache ≤ 2,300 km error
-LIMIT = 1000
+LIMIT = 10000
 ISS_NORAD = '25544'
 
 _cache: dict = {'tles': [], 'fetched_at': 0.0}

@@ -29,7 +29,7 @@ export class SatelliteMesh {
       new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.2 }),
     )
 
-    this.arc = new THREE.LineLoop(
+    this.arc = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(this.computeArcPoints(new Date())),
       new THREE.LineBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.5 }),
     )
@@ -61,8 +61,8 @@ export class SatelliteMesh {
   private computeArcPoints(date: Date): THREE.Vector3[] {
     const periodMs = (2 * Math.PI / this.satrec.no) * 60 * 1000
     const points: THREE.Vector3[] = []
-    for (let i = 0; i <= 90; i++) {
-      const t = new Date(date.getTime() + (i / 90) * periodMs)
+    for (let i = 0; i <= 180; i++) {
+      const t = new Date(date.getTime() + (i / 180) * periodMs)
       const pos = this.toThreePosition(t)
       if (pos) points.push(pos)
     }
