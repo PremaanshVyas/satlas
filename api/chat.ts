@@ -1,11 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
+export const config = { maxDuration: 60 }
+
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL!
 const MODEL = 'claude-sonnet-4-6'
+const ORBITAL_FETCH_TIMEOUT_MS = 8000
 
-function buildSystemPrompt(): string {
+function buildSystemPrompt(now: Date): string {
   return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
 Help users track satellites and understand orbital mechanics. \
 \n\nTOOL USAGE RULES:\
@@ -15,7 +18,20 @@ Help users track satellites and understand orbital mechanics. \
 \n- highlight_on_globe: ONLY call this for satellites that are confirmed to be in the catalog and rendered on the 3D globe. Currently the catalog contains approximately 1000 LEO satellites fetched from space-track.org. Do NOT call this tool and do NOT claim the globe has highlighted anything if you are unsure whether the satellite is in the catalog. Do not mention the highlight in your text response.\
 \n\nFormat pass times in the user's likely local timezone (Melbourne queries → AEST/AEDT, Tokyo → JST, etc.). \
 Be concise: list each pass on one line with local time, max elevation, and compass direction. \
-Current UTC time: ${new Date().toISOString()}`
+Current date and time (UTC): ${now.toUTCString()}. Use this as the authoritative current time for all calculations.`
+}
+
+async function fetchWithTimeout(url: string, ms: number): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), ms)
+  try {
+    const res = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeout)
+    return res
+  } catch (err) {
+    clearTimeout(timeout)
+    throw err
+  }
 }
 
 const PREDICT_PASSES_TOOL: Anthropic.Tool = {
@@ -130,7 +146,7 @@ async function callOrbitalService(input: PassesInput): Promise<unknown> {
     longitude: String(input.longitude),
     hours_ahead: String(input.hours_ahead ?? 24),
   })
-  const res = await fetch(`${ORBITAL_SERVICE_URL}/predict-passes?${params}`)
+  const res = await fetchWithTimeout(`${ORBITAL_SERVICE_URL}/predict-passes?${params}`, ORBITAL_FETCH_TIMEOUT_MS)
   if (!res.ok) throw new Error(`Orbital service returned ${res.status}`)
   return res.json()
 }
@@ -151,14 +167,20 @@ async function callOverheadService(input: OverheadInput): Promise<unknown> {
     longitude: String(input.longitude),
     radius_km: String(input.radius_km ?? 2000),
   })
-  const res = await fetch(`${ORBITAL_SERVICE_URL}/satellites-overhead?${params}`)
+  const res = await fetchWithTimeout(`${ORBITAL_SERVICE_URL}/satellites-overhead?${params}`, ORBITAL_FETCH_TIMEOUT_MS)
   if (!res.ok) throw new Error(`Orbital service returned ${res.status}`)
   return res.json()
 }
 
 async function callSatInfoService(input: SatInfoInput): Promise<unknown> {
   const params = new URLSearchParams({ query: input.query })
-  const res = await fetch(`${ORBITAL_SERVICE_URL}/satellite-info?${params}`)
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${ORBITAL_SERVICE_URL}/satellite-info?${params}`, ORBITAL_FETCH_TIMEOUT_MS)
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') return { error: 'Service timeout' }
+    throw err
+  }
   if (res.status === 404) return { error: `Satellite not found: ${input.query}` }
   if (!res.ok) throw new Error(`Orbital service returned ${res.status}`)
   return res.json()
@@ -171,7 +193,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { message, history = [] } = req.body as { message: string; history?: HistoryMessage[] }
-  const systemPrompt = buildSystemPrompt()
+  const now = new Date()
+  const systemPrompt = buildSystemPrompt(now)
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache')
