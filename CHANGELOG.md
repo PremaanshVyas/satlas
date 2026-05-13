@@ -4,6 +4,33 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 7b] — Chatbot "No response" failures under Vercel 10s timeout (2026-05-13)
+
+### Problem
+The AI chat panel would frequently display "No response — please try again" even for simple, non-tool queries like "where is the ISS right now?". The failure was intermittent: sometimes the same question returned a full answer, sometimes an empty stream.
+
+### Root Cause
+Two compounding issues:
+
+1. **Vercel Hobby plan hard 10s timeout.** `export const config = { maxDuration: 60 }` is silently ignored on the Hobby tier — the limit is always 10 seconds. The previous handler used `claude-sonnet-4-6` for the first (non-streaming, tool-detection) turn, which takes 3–5 seconds. On top of that, the Railway orbital service can take 2–8 seconds when recovering from sleep. The two added up past 10s, producing an empty HTTP response body which the frontend interpreted as a no-answer stream.
+
+2. **Railway free-tier cold starts.** Railway sleeps containers after ~5 minutes of inactivity. Cold start is 20–30 seconds — far past the Vercel timeout. Even tool-free queries paid this cost because the frontend didn't keep the backend warm.
+
+### Fix
+Split the Claude model selection into two constants:
+```typescript
+const MODEL_DETECT = 'claude-haiku-4-5-20251001'  // tool-detection turn: ~1s
+const MODEL_ANSWER  = 'claude-sonnet-4-6'          // streaming answer: full quality
+```
+First call (non-streaming, decides which tools to call) now uses Haiku — ~1s vs ~4s. Second streaming call keeps Sonnet for answer quality. Orbital fetch timeout tightened from 8s to 5s so Railway cold-start errors surface quickly rather than consuming the entire budget.
+
+`Globe.ts` now pings `/health` immediately on mount and every 4 minutes via `setInterval`, preventing Railway from sleeping during an active session.
+
+### Lesson
+Vercel Hobby `maxDuration` is a no-op. Budget for the total latency across all turns: tool-detection + tool execution + streaming answer must fit inside 10s including network round trips. Use the fastest model capable of the task for each turn independently — tool detection is a routing decision, not a reasoning task, so a small fast model is the right choice.
+
+---
+
 ## [Session 7] — Coordinate system bug displacing all satellites by ~90° longitude (2026-05-13)
 
 ### Problem

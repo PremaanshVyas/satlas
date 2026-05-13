@@ -116,13 +116,15 @@ aussie-sky/
 
 **Next milestone:** Session 8 — click-to-select on catalog satellites, category filter toggles.
 
-**Session 7 tasks (position accuracy + live tracker foundation):**
+**Session 7 tasks (position accuracy + live tracker foundation + chatbot reliability):**
 - [x] Fix coordinate transform bug in propagator.worker.ts and SatelliteMesh.ts
 - [x] Fix coordinate transform in Globe.ts highlightSatellite()
 - [x] Fix solar direction formula in solar.ts
 - [x] Reduce TLE cache from 4h to 30min (backend + frontend periodic refresh)
 - [x] Add UTC clock overlay to globe
 - [x] Add satellite tracking count overlay
+- [x] Fix chatbot "No response" failures: haiku for tool-detection turn + 5s orbital timeout
+- [x] Add Railway keepalive: Globe pings /health on mount and every 4 minutes
 - [x] Update CHANGELOG.md, CLAUDE.md, README.md
 
 **This week's task (week 1):**
@@ -233,6 +235,8 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-13 — TLE cache reduced to 30 minutes.** ISS moves at 7.66 km/s; 4-hour TLE age → 4–40 km position error. 30-minute cache → < 3 km error, matching public tracker accuracy at our globe's zoom level. Frontend also refreshes the worker every 30 min so long-running sessions stay accurate.
 
 - **2026-05-13 — Session 7 long-term vision: toward satellitetracker3d quality.** Next sessions: (1) Click-to-select — click any catalog dot → agent panel pre-fills with satellite name. (2) Category filters — layer toggles (ISS, Starlink, GPS, weather, debris). (3) Hover tooltip — satellite name/altitude on hover. (4) Ground track for selected catalog satellite (not just ISS). (5) Position smoothing — interpolate 5–10 frames when new TLEs arrive to prevent visual "jump". These are Session 8+ work, do not start until current fixes are deployed.
+
+- **2026-05-13 — Session 7 chatbot reliability fix: haiku/sonnet split + Railway keepalive.** Vercel Hobby hard-caps at 10s; `maxDuration: 60` is silently ignored. Previous approach used `claude-sonnet-4-6` for both turns — tool-detection consumed 3–5s, leaving no headroom for Railway's 2–8s cold-start recovery. Fix: tool-detection turn now uses `claude-haiku-4-5-20251001` (~1s); streaming answer keeps sonnet. Orbital fetch timeout tightened from 8s → 5s. Globe.ts pings `/health` on mount and every 4 minutes to prevent Railway free-tier sleep (cold start: 20–30s). Rule: always use the fastest model capable of the task; tool-detection is a routing decision, not reasoning.
 
 - **2026-05-13 — On "averaging algorithms" used by major trackers.** Major trackers achieve accuracy through fresh TLEs (< 2h for ISS) and correct coordinate transforms. The "averaging" some sites do is position smoothing across 5–30 seconds when a new TLE epoch arrives — prevents visual discontinuities but does not improve scientific accuracy. Our 30-minute cache and correct coordinate formula are sufficient to match any public tracker at our zoom level.
 
