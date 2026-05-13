@@ -5,8 +5,8 @@ export const config = { maxDuration: 60 }
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL!
-const MODEL_DETECT = 'claude-haiku-4-5-20251001'  // fast tool-detection turn (fits in Vercel 10s)
-const MODEL_ANSWER  = 'claude-sonnet-4-6'          // final streaming answer
+const MODEL_DETECT = 'claude-haiku-4-5-20251001'  // tool-detection turn
+const MODEL_ANSWER  = 'claude-haiku-4-5-20251001'  // answer turn — haiku TTFT ~0.5s keeps total under Vercel 10s hard cap
 const ORBITAL_FETCH_TIMEOUT_MS = 5000              // fail fast on Railway cold starts
 
 function buildSystemPrompt(now: Date): string {

@@ -36,6 +36,7 @@ export class Globe {
   private flyStartTime: number | null = null
   private catalogCount = 0
   private keepaliveInterval: ReturnType<typeof setInterval> | null = null
+  private visibilityHandler: (() => void) | null = null
   onCatalogRefresh: ((count: number) => void) | null = null
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
@@ -73,11 +74,14 @@ export class Globe {
       void this.initCatalog()
     }, 30 * 60 * 1000)
 
-    // Ping the orbital service every 4 minutes to prevent Railway free-tier cold starts.
+    // Ping the orbital service to prevent Railway free-tier cold starts.
     const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
     const ping = () => fetch(`${baseUrl}/health`).catch(() => undefined)
     void ping()
     this.keepaliveInterval = setInterval(ping, 4 * 60 * 1000)
+    // Re-ping when the tab becomes visible (catches re-opens and tab switches).
+    this.visibilityHandler = () => { if (!document.hidden) void ping() }
+    document.addEventListener('visibilitychange', this.visibilityHandler)
   }
 
   private async initCatalog(onReady?: () => void): Promise<void> {
@@ -203,6 +207,10 @@ export class Globe {
     if (this.keepaliveInterval !== null) {
       clearInterval(this.keepaliveInterval)
       this.keepaliveInterval = null
+    }
+    if (this.visibilityHandler !== null) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler)
+      this.visibilityHandler = null
     }
     this.worker?.terminate()
     this.worker = null
