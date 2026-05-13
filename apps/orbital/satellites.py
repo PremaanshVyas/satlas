@@ -4,17 +4,19 @@ import time
 import httpx
 
 CELESTRAK_ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json'
+CELESTRAK_ISS_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=json'
 CELESTRAK_HEADERS = {'User-Agent': 'aussie-sky/1.0 (portfolio project; https://aussie-sky.vercel.app)'}
 
 SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
+# No MEAN_MOTION/ECCENTRICITY filters — those excluded ISS at certain orbital epochs
 SPACETRACK_QUERY_URL = (
     'https://www.space-track.org/basicspacedata/query/class/gp'
-    '/EPOCH/%3Enow-30/MEAN_MOTION/%3E11.25/ECCENTRICITY/%3C0.25'
-    '/orderby/NORAD_CAT_ID/limit/1000/format/json'
+    '/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID/limit/1000/format/json'
 )
 
 CACHE_TTL_SECONDS = 4 * 3600
 LIMIT = 1000
+ISS_NORAD = '25544'
 
 _cache: dict = {'tles': [], 'fetched_at': 0.0}
 
@@ -36,6 +38,17 @@ async def _fetch_celestrak() -> list:
         resp = await client.get(CELESTRAK_ACTIVE_URL, headers=CELESTRAK_HEADERS)
         resp.raise_for_status()
         return _parse_gp(resp.json())[:LIMIT]
+
+
+async def _fetch_iss_tle() -> dict:
+    """Fetch ISS TLE from CelesTrak CATNR endpoint — not IP-blocked on cloud infrastructure."""
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+        resp = await client.get(CELESTRAK_ISS_URL, headers=CELESTRAK_HEADERS)
+        resp.raise_for_status()
+        items = resp.json()
+        if not items:
+            raise ValueError('Empty response from CelesTrak ISS endpoint')
+        return _parse_gp(items)[0]
 
 
 async def _fetch_spacetrack() -> list:
@@ -64,6 +77,14 @@ async def get_satellites() -> list:
         tles = await _fetch_celestrak()
     except Exception:
         tles = await _fetch_spacetrack()
+
+    # Guarantee ISS is in the catalog regardless of source or filter behavior
+    if not any(t['norad_id'] == ISS_NORAD for t in tles):
+        try:
+            iss = await _fetch_iss_tle()
+            tles = [iss] + tles[:LIMIT - 1]
+        except Exception:
+            pass  # best-effort; return catalog without ISS rather than failing entirely
 
     _cache['tles'] = tles
     _cache['fetched_at'] = now
