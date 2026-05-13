@@ -10,4 +10,6 @@ export interface ChatMessage {
 export interface HighlightDirective {
   norad_id: string
   satellite_name: string
+  latitude?: number   // decimal degrees — present when get_satellite_info was called
+  longitude?: number  // decimal degrees — present when get_satellite_info was called
 }

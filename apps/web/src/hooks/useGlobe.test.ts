@@ -51,7 +51,7 @@ describe('useGlobe', () => {
       rerender({ highlight: { norad_id: '25544', satellite_name: 'ISS' } })
     })
 
-    expect(globeInstance.highlightSatellite).toHaveBeenCalledWith('25544')
+    expect(globeInstance.highlightSatellite).toHaveBeenCalledWith('25544', undefined, undefined)
   })
 
   test('does not call highlightSatellite when highlight is null', () => {

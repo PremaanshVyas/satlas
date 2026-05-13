@@ -38,7 +38,11 @@ export function useGlobe(
 
   useEffect(() => {
     if (highlight && globeRef.current) {
-      globeRef.current.highlightSatellite(highlight.norad_id)
+      globeRef.current.highlightSatellite(
+        highlight.norad_id,
+        highlight.latitude,
+        highlight.longitude,
+      )
     }
   }, [highlight])
 

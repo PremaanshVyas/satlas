@@ -100,18 +100,31 @@ export class Globe {
     }
   }
 
-  highlightSatellite(noradId: string): void {
-    if (noradId !== ISS_NORAD) return
+  highlightSatellite(noradId: string, latDeg?: number, lonDeg?: number): void {
+    let targetPos: THREE.Vector3 | null = null
 
-    const issPos = this.iss.getCurrentPosition()
-    if (!issPos) return
+    if (latDeg !== undefined && lonDeg !== undefined) {
+      // Fly to the satellite's current geodetic position (same coordinate convention as SatelliteMesh)
+      const lat = latDeg * (Math.PI / 180)
+      const lon = lonDeg * (Math.PI / 180)
+      targetPos = new THREE.Vector3(
+        -CAMERA_DISTANCE * Math.cos(lat) * Math.sin(lon),
+         CAMERA_DISTANCE * Math.sin(lat),
+         CAMERA_DISTANCE * Math.cos(lat) * Math.cos(lon),
+      )
+    } else if (noradId === ISS_NORAD) {
+      const issPos = this.iss.getCurrentPosition()
+      if (issPos) targetPos = issPos.clone().normalize().multiplyScalar(CAMERA_DISTANCE)
+    }
 
-    const dir = issPos.clone().normalize()
+    if (!targetPos) return
+
     this.flyFromPos = this.camera.position.clone()
-    this.flyToPos = dir.multiplyScalar(CAMERA_DISTANCE)
+    this.flyToPos = targetPos
     this.flyStartTime = performance.now()
 
-    this.iss.startPulse()
+    // Pulse animation only for the ISS (it has the dedicated SatelliteMesh halo)
+    if (noradId === ISS_NORAD) this.iss.startPulse()
   }
 
   private tick(): void {
