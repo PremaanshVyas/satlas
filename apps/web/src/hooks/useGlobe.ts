@@ -6,8 +6,9 @@ import type { HighlightDirective } from '../types/chat'
 export function useGlobe(
   containerRef: RefObject<HTMLDivElement | null>,
   highlight: HighlightDirective | null,
-): { isLoading: boolean } {
+): { isLoading: boolean; satelliteCount: number } {
   const [isLoading, setIsLoading] = useState(true)
+  const [satelliteCount, setSatelliteCount] = useState(0)
   const globeRef = useRef<Globe | null>(null)
 
   useEffect(() => {
@@ -19,7 +20,10 @@ export function useGlobe(
     container.appendChild(canvas)
 
     const globe = new Globe()
-    globe.mount(canvas, () => setIsLoading(false))
+    globe.mount(canvas, () => {
+      setSatelliteCount(globe.getSatelliteCount())
+      setIsLoading(false)
+    })
     globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {
@@ -46,5 +50,5 @@ export function useGlobe(
     }
   }, [highlight])
 
-  return { isLoading }
+  return { isLoading, satelliteCount }
 }

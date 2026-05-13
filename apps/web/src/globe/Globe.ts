@@ -34,6 +34,7 @@ export class Globe {
   private flyFromPos: THREE.Vector3 | null = null
   private flyToPos: THREE.Vector3 | null = null
   private flyStartTime: number | null = null
+  private catalogCount = 0
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
     this.mounted = true
@@ -79,6 +80,7 @@ export class Globe {
       const issTle = tles.find(t => t.norad_id === ISS_NORAD)
       if (issTle) this.iss.updateTle(issTle.tle1, issTle.tle2)
       const others = tles.filter(t => t.norad_id !== ISS_NORAD)
+      this.catalogCount = others.length + 1  // +1 for ISS
 
       this.field = new SatelliteField(others.length)
       this.scene.add(this.field.mesh)
@@ -131,6 +133,10 @@ export class Globe {
 
     // Pulse animation only for the ISS (it has the dedicated SatelliteMesh halo)
     if (noradId === ISS_NORAD) this.iss.startPulse()
+  }
+
+  getSatelliteCount(): number {
+    return this.catalogCount
   }
 
   private tick(): void {
