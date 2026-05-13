@@ -4,6 +4,35 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 7] — Coordinate system bug displacing all satellites by ~90° longitude (2026-05-13)
+
+### Problem
+Every satellite in the catalog was displayed at the wrong continent. The ISS, when actually over East Africa at lon=20°E, would appear over South America at approximately 110°W. Users comparing with heavens-above.com or N2YO saw a systematic error of roughly one ocean-width.
+
+### Root Cause
+`THREE.SphereGeometry` UV mapping places the prime meridian (lon=0°) at the **+X direction** in world space (u=0.5 → phi=π → x=+radius, z=0). The propagation formula in both `propagator.worker.ts` and `SatelliteMesh.ts` used:
+```
+x = -r·cos(lat)·sin(lon)
+z =  r·cos(lat)·cos(lon)
+```
+This places lon=0° at **+Z** (u=0.25 on the texture → longitude=−90°W). Every satellite was shifted by approximately −90° in longitude — the width of an ocean.
+
+The solar direction formula in `solar.ts` had the same systematic error (mapping prime meridian to +Z instead of +X), so the day/night terminator was also 90° off. Since both errors were identical, satellites appeared in the correct day/night zones relative to each other — the internal coherence masked the geographic error.
+
+### Fix
+Changed both formulas to the correct Three.js+equirectangular convention:
+```
+x =  r·cos(lat)·cos(lon)   // prime meridian → +X
+y =  r·sin(lat)             // north pole → +Y  
+z = -r·cos(lat)·sin(lon)   // 90°E → −Z
+```
+Solar direction: `new THREE.Vector3(-yECEF, zECEF, xECEF)` → `new THREE.Vector3(xECEF, zECEF, -yECEF)`.
+
+### Lesson
+Three.js `SphereGeometry` and standard "spherical coordinates" use different conventions. The common mistake is using the math-textbook formula without accounting for how Three.js UV maps to world space. Always verify: lon=0°, lat=0° must produce the +X axis; 90°E must produce −Z. Write coordinate tests before writing rendering code.
+
+---
+
 ## [Session 2] — Vercel Edge Runtime incompatible with Anthropic SDK (2026-05-11)
 
 ### Problem

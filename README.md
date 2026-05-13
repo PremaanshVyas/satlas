@@ -140,6 +140,8 @@ Full debugging history is in [`CHANGELOG.md`](CHANGELOG.md). A few highlights:
 
 **TLE age and position accuracy** — The ISS was visually rendering at the wrong position because the prototype used a hardcoded March 2024 TLE baked into source code. The live catalog was fetched for the 1000-satellite field but never applied to the dedicated ISS mesh. Added `SatelliteMesh.updateTle()` to reinitialise the SGP4 propagator from the live catalog on startup. Position now matches major tracking sites within visual margin.
 
+**Coordinate system bug — every satellite over the wrong continent** — The 3D globe was rendering all satellites roughly 90° off in longitude, making ISS over East Africa appear over South America. Root cause: `THREE.SphereGeometry` UV mapping places the prime meridian (lon=0°) at the +X axis in world space. Both the satellite propagation formula and the solar lighting formula independently placed it at +Z — an internally-consistent 90° shift that made satellites coherent with day/night but wrong against geography. Fix was changing both formulas to `(r·cos(lat)·cos(lon), r·sin(lat), -r·cos(lat)·sin(lon))` and `(xECEF, zECEF, -yECEF)`. Lesson: write coordinate tests (lon=0° → +X, 90°E → −Z, north pole → +Y) before writing any rendering code, and verify against a known external tracker before shipping.
+
 ---
 
 ## Local development

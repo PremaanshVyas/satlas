@@ -112,9 +112,18 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** Pre-MVP / scaffolding.
+**Current phase:** MVP shipped. Position accuracy and live tracker foundation complete.
 
-**Next milestone:** Session 7 — click-to-select on catalog satellites (click any dot → agent panel pre-filled with satellite name), filter UI stub (layer toggles: ISS / Starlink / all), mobile performance baseline.
+**Next milestone:** Session 8 — click-to-select on catalog satellites, category filter toggles.
+
+**Session 7 tasks (position accuracy + live tracker foundation):**
+- [x] Fix coordinate transform bug in propagator.worker.ts and SatelliteMesh.ts
+- [x] Fix coordinate transform in Globe.ts highlightSatellite()
+- [x] Fix solar direction formula in solar.ts
+- [x] Reduce TLE cache from 4h to 30min (backend + frontend periodic refresh)
+- [x] Add UTC clock overlay to globe
+- [x] Add satellite tracking count overlay
+- [x] Update CHANGELOG.md, CLAUDE.md, README.md
 
 **This week's task (week 1):**
 - [x] Create GitHub repo (private to start, public on MVP)
@@ -218,6 +227,14 @@ Append entries here as decisions get made. Format: date, decision, rationale, al
 - **2026-05-13 — Session 5 shipped.** Conversation history: `useChat` snapshots history before adding new user msg, sends `{message, history}` to `/api/chat`; backend builds `historyMessages` from the array (stripping `__HIGHLIGHT__` directives from assistant entries) and prepends them before the new user turn. Highlight reset: `setHighlight(null)` at `sendMessage` start. `HighlightDirective` type extended with optional `latitude`/`longitude`; `Globe.highlightSatellite` accepts lat/lon directly and converts to Three.js position via geodetic formula (`x = -r*cos(lat)*sin(lon), y = r*sin(lat), z = r*cos(lat)*cos(lon)`); falls back to ISS live TLE if no coords supplied. `overhead.py`: great-circle distance filter + skyfield altaz per observer, elevation > -5° filter, top 20 by elevation. `satinfo.py`: NORAD ID (all-digit) search first, then case-insensitive name substring; returns lat/lon/alt/velocity/period/inclination. Backend highlight enrichment: `satInfoPositions` Map accumulates norad_id → {lat, lon} from `get_satellite_info` results; after tool loop, enriches `pendingHighlight` with position so globe can fly to any catalog satellite. 49 orbital pytest + 22 Vitest — all green.
 
 - **2026-05-11 — Three deploy fixes to `api/chat.ts` and root `package.json`.** Hit during Railway + Vercel deploy. (1) **Edge runtime incompatible with Anthropic SDK** — the SDK references `node:fs` and `node:path` which don't exist in Vercel Edge runtime. Fix: removed `export const config = { runtime: 'edge' }` entirely; Node is the default and needs no config. (2) **Root `package.json` missing `"type": "module"`** — ES module imports in `chat.ts` failed at runtime with "Failed to load the ES module". Fix: added `"type": "module"` to root `package.json`. (3) **Node runtime uses VercelRequest/VercelResponse, not Web Request** — `req.json is not a function` crashed the handler because the Edge Web Request API isn't available in Node runtime. Fix: rewrote handler to import `VercelRequest`/`VercelResponse` from `@vercel/node`, read body via `req.body` (Vercel pre-parses JSON), stream output with `res.write()` / `res.end()`. Removed `ReadableStream` construction and removed prompt caching (cache_control typing was fragile in this context — add back in V1). Installed `@vercel/node` as a dependency.
+
+- **2026-05-13 — Session 7: Coordinate transform bug found and fixed.** Root cause: `THREE.SphereGeometry` UV mapping places prime meridian at +X in world space. Both satellite propagation formula and solar direction formula incorrectly placed it at +Z (a 90° systematic error). Correct formula: `(r·cos(lat)·cos(lon), r·sin(lat), -r·cos(lat)·sin(lon))`. Solar correct: `(xECEF, zECEF, -yECEF)`. Both errors were identical so satellites were coherent with day/night but 90° off from geography. Fixed in propagator.worker.ts, SatelliteMesh.ts, Globe.ts (highlightSatellite), and solar.ts simultaneously.
+
+- **2026-05-13 — TLE cache reduced to 30 minutes.** ISS moves at 7.66 km/s; 4-hour TLE age → 4–40 km position error. 30-minute cache → < 3 km error, matching public tracker accuracy at our globe's zoom level. Frontend also refreshes the worker every 30 min so long-running sessions stay accurate.
+
+- **2026-05-13 — Session 7 long-term vision: toward satellitetracker3d quality.** Next sessions: (1) Click-to-select — click any catalog dot → agent panel pre-fills with satellite name. (2) Category filters — layer toggles (ISS, Starlink, GPS, weather, debris). (3) Hover tooltip — satellite name/altitude on hover. (4) Ground track for selected catalog satellite (not just ISS). (5) Position smoothing — interpolate 5–10 frames when new TLEs arrive to prevent visual "jump". These are Session 8+ work, do not start until current fixes are deployed.
+
+- **2026-05-13 — On "averaging algorithms" used by major trackers.** Major trackers achieve accuracy through fresh TLEs (< 2h for ISS) and correct coordinate transforms. The "averaging" some sites do is position smoothing across 5–30 seconds when a new TLE epoch arrives — prevents visual discontinuities but does not improve scientific accuracy. Our 30-minute cache and correct coordinate formula are sufficient to match any public tracker at our zoom level.
 
 ---
 
