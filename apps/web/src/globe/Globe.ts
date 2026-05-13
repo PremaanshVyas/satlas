@@ -54,7 +54,7 @@ export class Globe {
 
     this.scene = new THREE.Scene()
 
-    this.earth = new EarthMesh()
+    this.earth = new EarthMesh(this.renderer)
     this.scene.add(this.earth.mesh)
 
     // ISS always initialised with hardcoded TLE so tick() never crashes

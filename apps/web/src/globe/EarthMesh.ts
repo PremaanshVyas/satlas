@@ -8,11 +8,23 @@ export class EarthMesh {
   private dayTex: THREE.Texture
   private nightTex: THREE.Texture
 
-  constructor() {
-    const geometry = new THREE.SphereGeometry(1, 64, 64)
+  constructor(renderer: THREE.WebGLRenderer) {
+    // 128×64 segments: smoother limb curve visible at close zoom
+    const geometry = new THREE.SphereGeometry(1, 128, 64)
+    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy()
     const loader = new THREE.TextureLoader()
+
     this.dayTex = loader.load('/textures/earth-day.jpg')
+    this.dayTex.anisotropy = maxAnisotropy
+    this.dayTex.minFilter = THREE.LinearMipmapLinearFilter
+    this.dayTex.magFilter = THREE.LinearFilter
+    this.dayTex.colorSpace = THREE.SRGBColorSpace
+
     this.nightTex = loader.load('/textures/earth-night.jpg')
+    this.nightTex.anisotropy = maxAnisotropy
+    this.nightTex.minFilter = THREE.LinearMipmapLinearFilter
+    this.nightTex.magFilter = THREE.LinearFilter
+    this.nightTex.colorSpace = THREE.SRGBColorSpace
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
