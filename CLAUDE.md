@@ -338,7 +338,7 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 ```
 We're working on Aussie Sky — a real-time 3D satellite tracker with an AI agent chat interface. Portfolio project for landing a SWE internship in Australia. Read CLAUDE.md fully before doing anything.
 
-Where we left off (end of Session 8 + arc fix):
+Where we left off (end of Session 8 + arc fix + chatbot position sync):
 
 WHAT'S LIVE at https://aussie-sky.vercel.app:
 - 3D Earth globe (Three.js, NASA 8K day + 3.6K night textures, GLSL day/night shader)
@@ -346,13 +346,14 @@ WHAT'S LIVE at https://aussie-sky.vercel.app:
 - ~9,000–10,000 live satellites from CelesTrak/space-track (30-min cache)
 - ISS: separate 5-min TLE cache via /tle/iss, frontend refreshes every 2 min
 - ISS rendered as yellow dot + orbital ring + pulse animation on agent highlight
-- ISS dot now sits ON the orbital ring (GMST alignment fixed — this was the last bug)
+- ISS dot now sits ON the orbital ring (GMST alignment fixed)
+- Chatbot get_satellite_info now uses the same 5-min ISS TLE as the globe — positions match
 - Catalog satellites as blue InstancedMesh (propagator web worker, 100ms tick)
 - AI agent chat (Claude API, tool use, multi-turn history)
 - 4 agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info
 - UTC clock overlay + satellite count overlay
 - Backend: Python FastAPI on Railway; frontend: Vite+React on Vercel
-- Tests: 31 Vitest + 67 pytest — all green
+- Tests: 31 Vitest + 72 pytest — all green
 
 KEY TECHNICAL STATE:
 - Coordinate system: prime meridian → +X, north → +Y, 90°E → −Z (Three.js SphereGeometry UV convention)
