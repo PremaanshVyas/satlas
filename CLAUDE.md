@@ -368,7 +368,9 @@ SESSION 9 GOALS (priority order — each is independently shippable, stop if tim
 3. Category filter toggles: classify catalog by name pattern (STARLINK, GPS, IRIDIUM, ISS, debris) → UI buttons → show/hide InstancedMesh subsets
 4. Agent group-highlight tool: highlight_catalog_group(category) so agent can say "show me all Starlink satellites"
 
-KNOWN ISSUE — satellites disappeared from globe after last push. Globe shows no dots. The /satellites endpoint and all rendering code were NOT changed in the last commit (only /satellite-info was changed). Before starting Session 9 work, debug this first:
+KNOWN ISSUE 1 — chatbot date/time is wrong for Australian users. System prompt passes UTC time and asks Claude to convert to Melbourne time itself. Claude guesses the offset (AEST vs AEDT) and gets it wrong — user confirmed it said May 14 when it was 10:35 PM May 13 AEST. Fix: compute Melbourne local time explicitly in api/chat.ts using `now.toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })` and pass BOTH UTC and Melbourne time in the system prompt so Claude never has to infer the offset.
+
+KNOWN ISSUE 2 — satellites disappeared from globe after last push. Globe shows no dots. The /satellites endpoint and all rendering code were NOT changed in the last commit (only /satellite-info was changed). Before starting Session 9 work, debug this first:
 1. Hit https://<railway-url>/health — is Railway up?
 2. Hit https://<railway-url>/satellites — does it return a JSON array or an error?
 3. Check Railway deploy logs for any startup crash (import error, etc.)
