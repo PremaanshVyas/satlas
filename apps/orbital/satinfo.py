@@ -6,10 +6,13 @@ from skyfield.api import EarthSatellite, load, wgs84
 _ts = load.timescale(builtin=True)
 
 
-def satellite_info(catalog: list, query: str) -> Optional[dict]:
+def satellite_info(catalog: list, query: str, fresh_tles: Optional[dict] = None) -> Optional[dict]:
     """
     Search catalog by NORAD ID (if query is all digits) or name (case-insensitive substring).
     Returns current orbital snapshot or None if not found.
+
+    fresh_tles: {norad_id: {'tle1': ..., 'tle2': ...}} — TLE overrides keyed by NORAD ID.
+    Injects a fresher TLE (e.g. the 5-min ISS cache) so the chatbot and globe agree on position.
     """
     query_stripped = query.strip()
 
@@ -30,8 +33,12 @@ def satellite_info(catalog: list, query: str) -> Optional[dict]:
     if sat_data is None:
         return None
 
+    override = (fresh_tles or {}).get(sat_data['norad_id'])
+    tle1 = override['tle1'] if override else sat_data['tle1']
+    tle2 = override['tle2'] if override else sat_data['tle2']
+
     try:
-        sat = EarthSatellite(sat_data['tle1'], sat_data['tle2'], sat_data['name'], _ts)
+        sat = EarthSatellite(tle1, tle2, sat_data['name'], _ts)
         t = _ts.now()
         pos = sat.at(t)
         subpoint = wgs84.subpoint(pos)

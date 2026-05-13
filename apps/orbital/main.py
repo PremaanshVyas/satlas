@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from overhead import satellites_overhead
@@ -70,8 +72,20 @@ async def get_satellite_info(
     query: str = Query(..., description='Satellite name (substring) or NORAD catalog ID'),
 ) -> dict:
     try:
-        catalog = await get_satellites()
-        result = satellite_info(catalog, query)
+        # Fetch catalog and fresh ISS TLE in parallel — both are cached so this is fast.
+        # The ISS TLE uses a 5-min cache to match the globe's accuracy; the catalog uses 30 min.
+        # Injecting the fresh TLE via fresh_tles ensures the chatbot and globe agree on ISS position.
+        catalog_result, iss_tle_result = await asyncio.gather(
+            get_satellites(), get_iss_tle(), return_exceptions=True
+        )
+        if isinstance(catalog_result, Exception):
+            raise catalog_result
+
+        fresh_tles = {}
+        if not isinstance(iss_tle_result, Exception):
+            fresh_tles[ISS_NORAD_ID] = iss_tle_result
+
+        result = satellite_info(catalog_result, query, fresh_tles if fresh_tles else None)
         if result is None:
             raise HTTPException(status_code=404, detail=f'Satellite not found: {query}')
         return result
