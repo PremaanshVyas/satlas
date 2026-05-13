@@ -62,7 +62,49 @@ const HIGHLIGHT_TOOL: Anthropic.Tool = {
   },
 }
 
-const TOOLS = [PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL]
+const FIND_OVERHEAD_TOOL: Anthropic.Tool = {
+  name: 'find_satellites_overhead',
+  description:
+    'Find satellites currently overhead within a given radius of an observer. Returns up to 20 satellites sorted by elevation angle (highest first), with each satellite\'s name, NORAD ID, altitude, azimuth, and elevation. Use when the user asks "what satellites are over me", "what\'s overhead right now", or "what can I see from [location]".',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      latitude: {
+        type: 'number',
+        description: 'Observer latitude in decimal degrees. South is negative.',
+      },
+      longitude: {
+        type: 'number',
+        description: 'Observer longitude in decimal degrees. West is negative.',
+      },
+      radius_km: {
+        type: 'number',
+        description:
+          'Search radius in kilometres from the observer\'s ground position. Default 2000. Use 1000 for a tighter local search.',
+      },
+    },
+    required: ['latitude', 'longitude'],
+  },
+}
+
+const GET_SAT_INFO_TOOL: Anthropic.Tool = {
+  name: 'get_satellite_info',
+  description:
+    'Look up a satellite by name or NORAD catalog ID and get its current orbital position and parameters. Use when the user asks about a specific satellite by name (e.g. "where is Hubble", "what is the ISS altitude", "tell me about Starlink-1"). After calling this tool, also call highlight_on_globe with the returned norad_id so the globe focuses on the satellite.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      query: {
+        type: 'string',
+        description:
+          'Satellite name (case-insensitive substring match) or NORAD catalog number as a string. Examples: "hubble", "25544", "starlink-1".',
+      },
+    },
+    required: ['query'],
+  },
+}
+
+const TOOLS = [PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL, FIND_OVERHEAD_TOOL, GET_SAT_INFO_TOOL]
 
 interface PassesInput {
   latitude: number
@@ -73,6 +115,8 @@ interface PassesInput {
 interface HighlightInput {
   norad_id: string
   satellite_name: string
+  latitude?: number
+  longitude?: number
 }
 
 interface HistoryMessage {
@@ -87,6 +131,35 @@ async function callOrbitalService(input: PassesInput): Promise<unknown> {
     hours_ahead: String(input.hours_ahead ?? 24),
   })
   const res = await fetch(`${ORBITAL_SERVICE_URL}/predict-passes?${params}`)
+  if (!res.ok) throw new Error(`Orbital service returned ${res.status}`)
+  return res.json()
+}
+
+interface OverheadInput {
+  latitude: number
+  longitude: number
+  radius_km?: number
+}
+
+interface SatInfoInput {
+  query: string
+}
+
+async function callOverheadService(input: OverheadInput): Promise<unknown> {
+  const params = new URLSearchParams({
+    latitude: String(input.latitude),
+    longitude: String(input.longitude),
+    radius_km: String(input.radius_km ?? 2000),
+  })
+  const res = await fetch(`${ORBITAL_SERVICE_URL}/satellites-overhead?${params}`)
+  if (!res.ok) throw new Error(`Orbital service returned ${res.status}`)
+  return res.json()
+}
+
+async function callSatInfoService(input: SatInfoInput): Promise<unknown> {
+  const params = new URLSearchParams({ query: input.query })
+  const res = await fetch(`${ORBITAL_SERVICE_URL}/satellite-info?${params}`)
+  if (res.status === 404) return { error: `Satellite not found: ${input.query}` }
   if (!res.ok) throw new Error(`Orbital service returned ${res.status}`)
   return res.json()
 }
@@ -136,12 +209,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ]
 
       const toolResults: Anthropic.ToolResultBlockParam[] = []
+      // Maps norad_id → {latitude, longitude} from get_satellite_info results this turn
+      const satInfoPositions = new Map<string, { latitude: number; longitude: number }>()
 
       for (const block of response1.content) {
         if (block.type !== 'tool_use') continue
 
         if (block.name === 'predict_iss_passes') {
           const result = await callOrbitalService(block.input as PassesInput)
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
+        } else if (block.name === 'find_satellites_overhead') {
+          const result = await callOverheadService(block.input as OverheadInput)
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
+        } else if (block.name === 'get_satellite_info') {
+          const result = await callSatInfoService(block.input as SatInfoInput)
+          // Store position for highlight enrichment (Claude may call highlight_on_globe after this)
+          const r = result as Record<string, unknown>
+          if (r && typeof r.norad_id === 'string' && typeof r.latitude === 'number' && typeof r.longitude === 'number') {
+            satInfoPositions.set(r.norad_id, { latitude: r.latitude, longitude: r.longitude })
+          }
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -161,6 +255,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             content: 'error: unknown tool',
             is_error: true,
           })
+        }
+      }
+
+      // Enrich the highlight directive with lat/lon from satinfo (if available)
+      // This allows Globe.highlightSatellite to fly to the correct position for non-ISS satellites
+      if (pendingHighlight) {
+        const pos = satInfoPositions.get(pendingHighlight.norad_id)
+        if (pos) {
+          pendingHighlight = { ...pendingHighlight, ...pos }
         }
       }
 
