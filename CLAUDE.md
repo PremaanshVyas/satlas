@@ -310,6 +310,22 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 - When a problem is genuinely outside scope, say so directly and offer to log it for V3.
 - Keep responses concise. Prose over bullets unless listing genuinely parallel things.
 - If asked to write code, follow the conventions section above.
+- **Document everything, including failures.** Every wrong turn, failed attempt, and multi-step debugging journey gets an ADR entry in the Decisions log. This is a portfolio project — the journey matters as much as the result. Never omit the mistakes.
+- **Keep docs in sync.** At the end of every session: update Active scope (mark tasks done, update current phase), add ADR entries for any non-obvious decisions made, update the bootstrap prompt to reflect the new session end state.
+
+---
+
+## Docs map — what lives where
+
+| File | What it contains |
+|------|-----------------|
+| `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope (current phase + next milestone), completed task history, decisions log (ADR-lite), session bootstrap prompt. Update this every session. |
+| `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans generated during brainstorming. One file per session/feature. Contains exact file paths, code, test commands, and step-by-step tasks. Created by the writing-plans skill, executed by executing-plans. |
+| `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. Covers architecture, component breakdown, data flow, trade-offs. Written before the plan, reviewed by mickey before implementation starts. |
+| `CHANGELOG.md` | User-facing change log. Updated when a session ships something visible. Not every internal fix needs an entry — milestone features and breaking changes do. |
+| `README.md` | Public-facing project overview. What it does, how to run it locally, deploy notes. Updated when major features ship or setup instructions change. |
+
+**Rule for documenting ups and downs:** Every non-obvious decision, wrong turn, failed attempt, or debugging journey goes into the `## Decisions log` section of `CLAUDE.md` as an ADR entry — including the mistakes and the reasons they were wrong. This is a portfolio project: viewers should see the real engineering process, not just the happy path. If something took three attempts to fix, all three attempts get logged. Format: `- **YYYY-MM-DD — short title.** What happened, what was wrong, what the fix was, and the rule to remember.`
 
 ---
 
