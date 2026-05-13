@@ -24,6 +24,7 @@ export function useGlobe(
       setSatelliteCount(globe.getSatelliteCount())
       setIsLoading(false)
     })
+    globe.onCatalogRefresh = (count) => setSatelliteCount(count)
     globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {
@@ -34,6 +35,7 @@ export function useGlobe(
 
     return () => {
       observer.disconnect()
+      globe.onCatalogRefresh = null
       globe.unmount()
       globeRef.current = null
       canvas.remove()

@@ -35,6 +35,7 @@ export class Globe {
   private flyToPos: THREE.Vector3 | null = null
   private flyStartTime: number | null = null
   private catalogCount = 0
+  onCatalogRefresh: ((count: number) => void) | null = null
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
     this.mounted = true
@@ -77,10 +78,21 @@ export class Globe {
     try {
       const tles = await fetchSatelliteCatalog(baseUrl)
       if (!this.mounted) return
+      // Dispose previous field/worker before replacing them on catalog refresh
+      if (this.field) {
+        this.scene.remove(this.field.mesh)
+        this.field.dispose()
+        this.field = null
+      }
+      if (this.worker) {
+        this.worker.terminate()
+        this.worker = null
+      }
       const issTle = tles.find(t => t.norad_id === ISS_NORAD)
       if (issTle) this.iss.updateTle(issTle.tle1, issTle.tle2)
       const others = tles.filter(t => t.norad_id !== ISS_NORAD)
       this.catalogCount = others.length + 1  // +1 for ISS
+      this.onCatalogRefresh?.(this.catalogCount)
 
       this.field = new SatelliteField(others.length)
       this.scene.add(this.field.mesh)
