@@ -5,11 +5,13 @@ import { EarthMesh } from './EarthMesh'
 import { AtmosphereMesh } from './AtmosphereMesh'
 import { StarField } from './StarField'
 import { SatelliteMesh } from './SatelliteMesh'
-import { SatelliteField } from './SatelliteField'
+import { SatelliteField, DEFAULT_COLOR as SAT_DEFAULT_COLOR } from './SatelliteField'
 import { getSunDirection } from '../lib/solar'
 import { fetchSatelliteCatalog, fetchIssTle } from '../lib/celestrak'
 import type { TLERecord } from '../lib/celestrak'
 
+
+const HIGHLIGHT_COLOR = new THREE.Color(0x4ade80)  // lime-400 — hover + selected
 
 const GROUP_HIGHLIGHT_COLORS: Record<string, THREE.Color> = {
   STARLINK: new THREE.Color(0xa78bfa),  // violet-400
@@ -215,8 +217,9 @@ export class Globe {
       this.onCatalogRefresh?.(this.catalogCount)
       this.rebuildCategoryMask()
 
-      // Deselect ground track if catalog rebuilt
+      // Deselect ground track and hover if catalog rebuilt — all indices are now stale
       this.clearGroundTrack()
+      this.hoveredIdx = -1
 
       this.field = new SatelliteField(others.length)
       this.scene.add(this.field.mesh)
@@ -252,6 +255,8 @@ export class Globe {
       this.field.update(this.lastPositionBuffer, this.activeCategoryMask)
     }
     if (this.field) this.field.setCategoryColors([], null)  // reset to default blue
+    if (this.hoveredIdx >= 0) this.refreshInstanceColor(this.hoveredIdx)
+    if (this.selectedSatIdx >= 0) this.refreshInstanceColor(this.selectedSatIdx)
   }
 
   // Called when the agent sets a filter: update shown categories AND apply per-category colours.
@@ -270,13 +275,16 @@ export class Globe {
     if (!this.field) return
     if (this.agentFilterCategories === null) {
       this.field.setCategoryColors([], null)
-      return
+    } else {
+      const colorMap: Record<string, THREE.Color> = {}
+      for (const cat of this.agentFilterCategories) {
+        colorMap[cat] = GROUP_HIGHLIGHT_COLORS[cat]
+      }
+      this.field.setCategoryColors(this.satCategories as string[], colorMap)
     }
-    const colorMap: Record<string, THREE.Color> = {}
-    for (const cat of this.agentFilterCategories) {
-      colorMap[cat] = GROUP_HIGHLIGHT_COLORS[cat]
-    }
-    this.field.setCategoryColors(this.satCategories as string[], colorMap)
+    // Re-apply hover/selected highlights which were overwritten by the bulk color reset
+    if (this.hoveredIdx >= 0) this.refreshInstanceColor(this.hoveredIdx)
+    if (this.selectedSatIdx >= 0) this.refreshInstanceColor(this.selectedSatIdx)
   }
 
   getCategoryCount(cat: SatCategory): number {
@@ -308,7 +316,9 @@ export class Globe {
       clearInterval(this.groundTrackRecomputeInterval)
       this.groundTrackRecomputeInterval = null
     }
+    const oldSelected = this.selectedSatIdx
     this.selectedSatIdx = -1
+    if (oldSelected >= 0) this.refreshInstanceColor(oldSelected)
   }
 
   private showGroundTrack(idx: number): void {
@@ -325,6 +335,7 @@ export class Globe {
     const mat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6 })
     this.groundTrackLine = new THREE.LineLoop(geo, mat)
     this.scene.add(this.groundTrackLine)
+    this.refreshInstanceColor(idx)  // highlight selected dot
 
     // Recompute every 60s to keep the arc aligned with GMST drift
     this.groundTrackRecomputeInterval = setInterval(() => {
@@ -336,6 +347,27 @@ export class Globe {
         }
       }
     }, 60 * 1000)
+  }
+
+  // ── Instance colour helpers ──────────────────────────────────────────────────
+
+  // Returns the "resting" colour for a catalog instance (no hover / selection).
+  private getBaseInstanceColor(idx: number): THREE.Color {
+    if (this.agentFilterCategories !== null) {
+      const cat = this.satCategories[idx]
+      return cat ? (GROUP_HIGHLIGHT_COLORS[cat] ?? SAT_DEFAULT_COLOR) : SAT_DEFAULT_COLOR
+    }
+    return SAT_DEFAULT_COLOR
+  }
+
+  // Apply the correct colour for idx based on current hover / selected state.
+  private refreshInstanceColor(idx: number): void {
+    if (idx < 0 || !this.field) return
+    if (idx === this.hoveredIdx || idx === this.selectedSatIdx) {
+      this.field.setInstanceColor(idx, HIGHLIGHT_COLOR)
+    } else {
+      this.field.setInstanceColor(idx, this.getBaseInstanceColor(idx))
+    }
   }
 
   // ── Click handler ────────────────────────────────────────────────────────────
@@ -374,6 +406,20 @@ export class Globe {
 
     if (!this.lastPositionBuffer) return
     const buf = this.lastPositionBuffer
+
+    // Short-circuit: if a catalog satellite is already hovered (tooltip visible),
+    // clicking it should always work — the hover uses a wider hit zone than the
+    // click's tight dotRadiusPx+1, so without this you had to be pixel-perfect.
+    if (this.hoveredIdx >= 0) {
+      const name = this.satNames[this.hoveredIdx]
+      const noradId = this.satNoradIds[this.hoveredIdx]
+      if (name && noradId) {
+        this.showGroundTrack(this.hoveredIdx)
+        this.onSatelliteClick(name, noradId)
+        return
+      }
+    }
+
     const count = buf.length / 3
     const SPHERE_RADIUS = 0.005
 
@@ -449,7 +495,9 @@ export class Globe {
           const r = issPos.length()
           const altKm = Math.round((r - 1) * R_EARTH_KM)
           if (this.hoveredIdx !== -2) {
+            const prev = this.hoveredIdx
             this.hoveredIdx = -2  // sentinel for ISS
+            if (prev >= 0) this.refreshInstanceColor(prev)  // restore previous catalog dot
             this.onSatelliteHover(this.issName, altKm, e.clientX, e.clientY)
           }
           return
@@ -497,12 +545,17 @@ export class Globe {
       const r = Math.sqrt(x * x + y * y + z * z)
       const altKm = Math.round((r - 1) * R_EARTH_KM)
       if (bestIdx !== this.hoveredIdx) {
+        const prev = this.hoveredIdx
         this.hoveredIdx = bestIdx
+        if (prev >= 0) this.refreshInstanceColor(prev)  // restore old
+        this.refreshInstanceColor(bestIdx)               // highlight new
         this.onSatelliteHover(name ?? null, altKm, e.clientX, e.clientY)
       }
     } else {
       if (this.hoveredIdx !== -1) {
+        const prev = this.hoveredIdx
         this.hoveredIdx = -1
+        if (prev >= 0) this.refreshInstanceColor(prev)  // restore on hover-out
         this.onSatelliteHover(null, null, e.clientX, e.clientY)
       }
     }
