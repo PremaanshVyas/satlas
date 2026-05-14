@@ -4,6 +4,44 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 11 post] — Zero satellites after Railway cold start — AbortController timeout too short (2026-05-14)
+
+### Problem
+After the Session 11 deploy, users on a cold Railway start (fresh container spin-up, no prior traffic) would see the globe load but with zero satellite dots. The ISS yellow dot appeared, but the full ~9,000-satellite catalog never loaded. No error was shown to the user.
+
+### Root Cause
+A 35-second `AbortController` timeout was added to `fetchCatalogFromNetwork` to surface Railway failures quickly. Railway's free tier puts containers to sleep after ~5 minutes of inactivity. A cold start can take 40-60 seconds — longer than the 35s timeout. The `fetch()` call was silently aborted mid-cold-start; the `catch(() => {})` in the background refresh path swallowed the error entirely; the `SatelliteField` was never populated.
+
+The `localStorage` cache was added in the same session to make repeat visits instant, which helped for second+ visits but did nothing for the very first visit (cache empty on first load).
+
+### Fix
+Removed the `AbortController` and `FETCH_TIMEOUT_MS` constant from `fetchCatalogFromNetwork` entirely. `fetch()` now runs without a timeout — the browser's own connection lifecycle handles genuine server-down cases (a network error propagates to the caller). Slow cold starts now complete correctly once Railway wakes the container. The `localStorage` cache (30-min TTL) means this wait only ever happens on the first visit or after the cache expires; repeat visitors get instant loads.
+
+### Lesson
+Never add a hard fetch timeout shorter than the worst-case cold-start time of the target server. The timeout that was added to "fail fast" had the effect of failing silently on every cold start. Use the cache for the common (fast) case; leave the network fetch uncapped for the slow case.
+
+---
+
+## [Session 11] — Agent-controlled category filter with per-category satellite colours (2026-05-14)
+
+### Problem
+The original plan was to highlight a category group using per-instance THREE.js colours (`setColorAt`). This worked on first activation but stopped working after any manual category filter toggle — dots would go invisible or fail to recolour.
+
+### Root Cause
+The clear path set `mesh.instanceColor = null`, then recreated the buffer on the next highlight. Category filter toggles call `instanceMatrix.needsUpdate = true`, which causes Three.js to rebind the VAO. The null → non-null transition on `instanceColor` during a frame where `instanceMatrix` was also dirty produced unreliable WebGL state — the highlight stopped applying.
+
+Two further attempts were made:
+1. **Permanently white material + blue instanceColor on clear.** Three.js shader variant cache changed when going from no-instanceColor to always-instanceColor, causing invisible dots.
+2. **Keep original material colour on clear + pre-init instanceColor to WHITE in constructor.** `blue material × white instanceColor = blue` visually — identical to the original no-instanceColor state. Buffer stays alive permanently. No VAO rebinding issue. This is the correct fix.
+
+### Second architectural problem
+Per-instance highlight was abandoned anyway because it solved the wrong problem. The category filter pills already control which satellites are visible. Making the AI highlight a group independently created two separate state machines for the same concern. Replacement: `set_category_filter(categories: string[])` tool. The agent calls this, which activates the same category filter code path as clicking the pills, keeping pills and AI in sync. `applyAgentFilter()` additionally applies per-category dot colours when agent-set; `setActiveCategories()` (manual toggle) clears the colour mode back to default blue.
+
+### Lesson
+When an AI agent controls something that already has a manual UI control, wire them both to the same underlying state — don't create a second independent state machine. Document the `instanceColor` always-live pattern: pre-init to WHITE in the constructor; clear by resetting material + all-WHITE, never by setting to null.
+
+---
+
 ## [Session 10] — ISS click/hover resolving to docked module NORAD IDs (2026-05-14)
 
 ### Problem

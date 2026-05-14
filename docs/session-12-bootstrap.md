@@ -6,7 +6,7 @@
 We're working on Aussie Sky — a real-time 3D satellite tracker with an AI agent chat interface.
 Portfolio project for landing a SWE internship in Australia. Read CLAUDE.md fully before doing anything.
 
-Where we left off (end of Session 11 + post-session fixes):
+Where we left off (end of Session 11 + all post-session fixes):
 
 WHAT'S LIVE at https://aussie-sky.vercel.app:
 - Full-screen 3D globe (Three.js, NASA 8K day + 3.6K night textures, GLSL day/night shader)
@@ -30,10 +30,13 @@ WHAT'S LIVE at https://aussie-sky.vercel.app:
 - 6 agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info,
   set_category_filter, get_category_counts
 - UTC clock + satellite count overlays (top-left / top-right)
+- localStorage catalog cache: key `aussie-sky-catalog-v1`, 30-min TTL. Repeat visits load instantly
+  from cache; background refresh fires for next-visit freshness. First-time visitors wait on cold start.
+- Globe renders immediately on first animation frame (ISS-only) without waiting for catalog
 - Backend: Python FastAPI on Railway; frontend: Vite+React on Vercel
-- Tests: 87 pytest + 38 Vitest — all green; tsc clean
+- Tests: 87 pytest + 39 Vitest — all green; tsc clean
 
-KEY TECHNICAL STATE (final after post-session fixes):
+KEY TECHNICAL STATE:
 - SatelliteField.setCategoryColors(catMap: string[], catColors: Record<string, THREE.Color> | null):
   catColors=null → mat=DEFAULT_COLOR, all instanceColor=WHITE (back to blue).
   catColors set → mat=white, each instance gets its category colour.
@@ -48,11 +51,20 @@ KEY TECHNICAL STATE (final after post-session fixes):
   onCategoriesChange callback keeps App.tsx shownCategories in sync for next chat message.
 - GROUP_HIGHLIGHT_COLORS: STARLINK=0xa78bfa, GPS=0x34d399, IRIDIUM=0x38bdf8,
   DEBRIS=0xf87171, OTHER=0xfbbf24.
+- celestrak.ts fetchCatalogFromNetwork: NO AbortController timeout — Railway cold starts can take
+  40-60s; a 35s timeout was silently aborting fetches → zero satellites. Browser handles the
+  connection lifecycle. Cache (localStorage) handles the performance case.
+- Globe.mount() calls onReady via requestAnimationFrame so the globe canvas is visible on the
+  first frame — the catalog load runs in parallel and does not block the initial render.
 
 ARCHITECTURE RULE — ENFORCE STRICTLY:
 The AI chatbot is a PRESENTER, not an info generator.
 Claude must not compute, infer, or guess any data value. Every value must come from a tool result
-or pre-computed server-side value.
+or pre-computed server-side value. This is enforced at three layers:
+  1. System prompt: explicit rules forbidding self-computed values, mandatory tool calls.
+  2. UI: satellite info card shows name + NORAD ID from local data — no AI call on click.
+     "Ask AI" button prefills the chat so the backend does an exact NORAD ID lookup.
+  3. Wire format: presenter-only means Claude formats tool output, never originates data.
 
 SESSION 12 GOALS (priority order):
 1. CI/CD: GitHub Actions workflow — lint + type-check + vitest on PR; pytest on PR; Docker build

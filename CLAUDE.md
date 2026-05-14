@@ -111,18 +111,20 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 11 complete (+ post-session fixes). `set_category_filter` agent tool (replaces group-highlight): agent controls filter pills directly, satellites colour by category when agent-set. `get_category_counts` tool + `/satellite-categories` endpoint live. 38 Vitest + 87 pytest — all green.
+**Current phase:** Session 11 complete (all fixes shipped). `set_category_filter` agent tool, `get_category_counts` tool, localStorage catalog cache, AbortController timeout removed. 39 Vitest + 87 pytest — all green.
 
 **Next milestone:** Session 12 — CI/CD setup (GitHub Actions), deployment health check, and V1 polish.
 
-**Session 11 completed tasks (final state after post-session bugfixes):**
+**Session 11 completed tasks (final state after all post-session bugfixes):**
 - [x] `set_category_filter(categories: string[])` agent tool: agent says "show Starlink" → Starlink pill activates, others turn off; satellites colour violet. "Show Starlink and GPS" → both on, coloured. "Show all" → all on, blue. Supports additive ("also show GPS") via current-state context passed in every request.
 - [x] `get_category_counts` agent tool: Claude answers "how many GPS satellites?" without guessing. Calls `/satellite-categories` Python endpoint.
 - [x] `__SET_FILTER__:{"categories":[...]}` wire directive replaces former `__GROUP_HIGHLIGHT__`. Parsed by `useChat.ts`, flows to `GlobeView` → `Globe.applyAgentFilter()`.
 - [x] `shownCategories` passed in POST body on every chat request so agent knows current filter state for additive/exclusive logic.
 - [x] Globe.applyAgentFilter(): sets activeCategories + per-instance category colours (GROUP_HIGHLIGHT_COLORS). Globe.setActiveCategories() (manual toggle): clears agent colour mode. instanceColor buffer pre-inited WHITE in SatelliteField constructor so buffer never goes null (VAO safety).
-- [x] 87 pytest + 38 Vitest — all green; tsc clean.
-- [x] CHANGELOG, README, CLAUDE.md updated.
+- [x] localStorage catalog cache: key `aussie-sky-catalog-v1`, 30-min TTL. Repeat visitors get instant catalog load; background refresh fires for next-visit freshness.
+- [x] Removed 35s AbortController timeout from `fetchCatalogFromNetwork` — Railway cold starts can take 40-60s; the timeout was silently aborting the fetch, leaving the globe with zero satellites.
+- [x] Globe renders on first animation frame (ISS-only view) without waiting for catalog load.
+- [x] 87 pytest + 39 Vitest — all green; tsc clean.
 
 **Session 10 completed tasks:**
 - [x] Hover tooltip: mousemove handler in Globe.ts (40ms throttle), screen-space proximity, shows name + altitude km
@@ -207,6 +209,10 @@ Format: date, decision, rationale, rule to remember.
 
 - **2026-05-14 — ISS click/hover returns wrong module (Unity, Destiny) — fixed by priority check.** ISS docked modules (NORAD 26958 Unity, 27386 Destiny, etc.) share the same orbital position as ISS ZARYA (25544). The catalog InstancedMesh includes these modules as blue dots. Before the fix, clicking near the yellow ISS dot iterated the catalog buffer first and returned whichever docked module was geometrically closest in the buffer — not ISS ZARYA. Fix: both click and hover handlers check the ISS SatelliteMesh position against the cursor before iterating the catalog buffer. If the cursor is within the ISS dot radius (+2px tolerance for click, +6px for hover), the handler fires with `(issName, '25544')` and returns. `issName` is captured from the catalog on load (NORAD 25544 should be 'ISS (ZARYA)') with a hard fallback. Sentinel value `-2` for `hoveredIdx` prevents re-firing while cursor stays over the ISS. Rule: when a special object shares a position with catalog entries, always check it first in the pick loop.
 
+- **2026-05-14 — localStorage catalog cache for instant repeat-visit loads.** `fetchSatelliteCatalog` calls Railway which cold-starts in 40-60s on the free tier. Added `loadCachedCatalog()` / `saveCatalogToCache()` in `celestrak.ts` using localStorage key `aussie-sky-catalog-v1` with 30-min TTL (matching Railway's backend cache TTL). If cache is fresh (< 30 min old, ≥ 100 records), return it immediately and fire a background `fetchCatalogFromNetwork()` void promise to keep the cache fresh for the next visit. First-time visitors still wait on a cold start; every subsequent visit is instant. Rule: for catalog data that rarely changes within 30 minutes, always layer a client-side cache so cold-start latency only affects the very first load.
+
+- **2026-05-14 — Removed AbortController timeout from catalog fetch — Railway cold starts exceed 35s.** A 35s AbortController timeout was added to `fetchCatalogFromNetwork` to surface Railway failures quickly. Railway free-tier cold starts can take 40-60s — the timeout silently aborted the fetch mid-cold-start, the `catch(() => {})` swallowed the error, and the globe showed zero satellites with no user feedback. Fix: removed the AbortController entirely. The browser's own connection lifecycle handles genuine server-down cases (network error surfaces to the caller). Slow cold starts now complete correctly. Rule: never add a hard fetch timeout shorter than the worst-case cold-start time of the target server. Use the localStorage cache for the common (fast) case; leave the network fetch uncapped for the cold-start case.
+
 ---
 
 ## Out of scope (so we don't drift)
@@ -226,7 +232,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-11-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-12-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
