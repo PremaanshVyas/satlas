@@ -2,7 +2,6 @@ import { renderHook, act } from '@testing-library/react'
 import { useGlobe } from './useGlobe'
 import type { HighlightDirective } from '../types/chat'
 
-// Mock the Globe class entirely — Three.js requires WebGL which jsdom doesn't provide
 vi.mock('../globe/Globe', () => ({
   Globe: vi.fn(function () {
     return {
@@ -10,13 +9,15 @@ vi.mock('../globe/Globe', () => ({
       resize: vi.fn(),
       unmount: vi.fn(),
       highlightSatellite: vi.fn(),
+      setActiveCategories: vi.fn(),
       onCatalogRefresh: null,
       onSatelliteClick: null,
+      onSatelliteHover: null,
     }
   }),
+  ALL_CATEGORIES: ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'],
 }))
 
-// Mock ResizeObserver (not available in jsdom)
 const mockObserve = vi.fn()
 const mockDisconnect = vi.fn()
 vi.stubGlobal(
@@ -83,10 +84,25 @@ describe('useGlobe', () => {
     expect(globeInstance).toBeDefined()
 
     act(() => {
-      // Simulate the globe firing a satellite click
       globeInstance.onSatelliteClick?.('STARLINK-1234', '44713')
     })
 
     expect(onSatelliteClick).toHaveBeenCalledWith('STARLINK-1234', '44713')
+  })
+
+  test('setActiveCategories calls globe.setActiveCategories', () => {
+    const containerRef = makeContainerRef()
+    const { result } = renderHook(() =>
+      useGlobe(containerRef as React.RefObject<HTMLDivElement>, null),
+    )
+
+    const globeInstance = vi.mocked(Globe).mock.results[0]?.value
+    const cats = new Set(['STARLINK', 'GPS'] as const)
+
+    act(() => {
+      result.current.setActiveCategories(cats as never)
+    })
+
+    expect(globeInstance.setActiveCategories).toHaveBeenCalledWith(cats)
   })
 })

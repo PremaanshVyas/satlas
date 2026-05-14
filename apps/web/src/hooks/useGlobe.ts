@@ -1,17 +1,30 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import type { RefObject } from 'react'
 import { Globe } from '../globe/Globe'
+import type { SatCategory } from '../globe/Globe'
 import type { HighlightDirective } from '../types/chat'
+
+export interface HoverInfo {
+  name: string
+  altKm: number
+  screenX: number
+  screenY: number
+}
 
 export function useGlobe(
   containerRef: RefObject<HTMLDivElement | null>,
   highlight: HighlightDirective | null,
   onSatelliteClick?: (name: string, noradId: string) => void,
-): { isLoading: boolean; satelliteCount: number } {
+): {
+  isLoading: boolean
+  satelliteCount: number
+  hoverInfo: HoverInfo | null
+  setActiveCategories: (cats: Set<SatCategory>) => void
+} {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
   const globeRef = useRef<Globe | null>(null)
-  // Stable ref so the click handler always calls the latest version of the prop
   const onSatelliteClickRef = useRef(onSatelliteClick)
   onSatelliteClickRef.current = onSatelliteClick
 
@@ -30,6 +43,13 @@ export function useGlobe(
     })
     globe.onCatalogRefresh = (count) => setSatelliteCount(count)
     globe.onSatelliteClick = (name, noradId) => onSatelliteClickRef.current?.(name, noradId)
+    globe.onSatelliteHover = (name, altKm, screenX, screenY) => {
+      if (name !== null && altKm !== null) {
+        setHoverInfo({ name, altKm, screenX, screenY })
+      } else {
+        setHoverInfo(null)
+      }
+    }
     globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {
@@ -57,5 +77,9 @@ export function useGlobe(
     }
   }, [highlight])
 
-  return { isLoading, satelliteCount }
+  const setActiveCategories = useCallback((cats: Set<SatCategory>) => {
+    globeRef.current?.setActiveCategories(cats)
+  }, [])
+
+  return { isLoading, satelliteCount, hoverInfo, setActiveCategories }
 }

@@ -6,9 +6,10 @@ interface AgentPanelProps {
   isLoading: boolean
   sendMessage: (content: string) => void
   prefill?: string | null
+  onClearPrefill?: () => void
 }
 
-export default function AgentPanel({ messages, isLoading, sendMessage, prefill }: AgentPanelProps) {
+export default function AgentPanel({ messages, isLoading, sendMessage, prefill, onClearPrefill }: AgentPanelProps) {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -28,6 +29,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill }
     if (!input.trim() || isLoading) return
     sendMessage(input.trim())
     setInput('')
+    onClearPrefill?.()
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -38,16 +40,16 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill }
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-950">
+    <div className="flex flex-col h-full bg-gray-950/95 backdrop-blur-sm">
       {/* Message list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="text-xs text-gray-600 text-center leading-relaxed px-4">
-              Ask about ISS passes or where it is right now.
+              Ask about any satellite or the ISS.
               <br />
               <span className="text-gray-700">
-                e.g. "Show me where the ISS is right now"
+                e.g. "Where is the ISS right now?"
               </span>
             </p>
           </div>
@@ -78,12 +80,12 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill }
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-800 p-4">
+      <div className="border-t border-gray-800 p-3">
         <div className="flex gap-2">
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-gray-900 rounded-lg px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-gray-700 disabled:opacity-50"
+            className="flex-1 bg-gray-900 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-gray-700 disabled:opacity-50"
             placeholder="Ask anything…"
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -93,7 +95,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill }
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Send
           </button>
