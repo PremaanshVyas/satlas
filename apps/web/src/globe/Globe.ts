@@ -98,6 +98,9 @@ export class Globe {
   private selectedSatIdx = -1
   private groundTrackRecomputeInterval: ReturnType<typeof setInterval> | null = null
 
+  // ISS identity (name captured from catalog; NORAD 25544 is always Zarya)
+  private issName = 'ISS (ZARYA)'
+
   // Hover
   private hoveredIdx = -1
   private hoverThrottleMs = 0
@@ -184,7 +187,10 @@ export class Globe {
         this.worker = null
       }
       const issTle = tles.find((t: TLERecord) => t.norad_id === ISS_NORAD)
-      if (issTle) this.iss.updateTle(issTle.tle1, issTle.tle2)
+      if (issTle) {
+        this.iss.updateTle(issTle.tle1, issTle.tle2)
+        this.issName = issTle.name || 'ISS (ZARYA)'
+      }
       const others = tles.filter((t: TLERecord) => t.norad_id !== ISS_NORAD)
       this.satNames = others.map((t: TLERecord) => t.name)
       this.satNoradIds = others.map((t: TLERecord) => t.norad_id)
@@ -296,19 +302,41 @@ export class Globe {
   // ── Click handler ────────────────────────────────────────────────────────────
 
   private onCanvasClick = (e: MouseEvent): void => {
-    if (!this.onSatelliteClick || !this.lastPositionBuffer) return
+    if (!this.onSatelliteClick) return
     const canvas = e.target as HTMLCanvasElement
     const rect = canvas.getBoundingClientRect()
     const clickX = e.clientX - rect.left
     const clickY = e.clientY - rect.top
 
-    const buf = this.lastPositionBuffer
-    const count = buf.length / 3
-    const SPHERE_RADIUS = 0.005
     const fovFactor = rect.height / (2 * Math.tan((this.camera.fov * Math.PI) / 360))
     const camX = this.camera.position.x
     const camY = this.camera.position.y
     const camZ = this.camera.position.z
+
+    // Check ISS first — it sits at the same location as docked modules in the catalog
+    // (Unity, Destiny, etc.) so without this the wrong NORAD ID gets returned.
+    const issPos = this.iss.getCurrentPosition()
+    if (issPos) {
+      this._projPos.copy(issPos).project(this.camera)
+      if (this._projPos.z <= 1) {
+        const sx = (this._projPos.x + 1) * 0.5 * rect.width
+        const sy = (1 - this._projPos.y) * 0.5 * rect.height
+        const screenDist = Math.hypot(sx - clickX, sy - clickY)
+        const dx = issPos.x - camX, dy = issPos.y - camY, dz = issPos.z - camZ
+        const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        const dotRadiusPx = (0.008 / depth) * fovFactor  // 0.008 = ISS dot radius
+        if (screenDist <= dotRadiusPx + 2) {
+          this.clearGroundTrack()  // ISS already has its own arc via SatelliteMesh
+          this.onSatelliteClick(this.issName, ISS_NORAD)
+          return
+        }
+      }
+    }
+
+    if (!this.lastPositionBuffer) return
+    const buf = this.lastPositionBuffer
+    const count = buf.length / 3
+    const SPHERE_RADIUS = 0.005
 
     let bestScreenDist = Infinity
     let bestIdx = -1
@@ -356,24 +384,48 @@ export class Globe {
     if (now - this.hoverThrottleMs < 40) return
     this.hoverThrottleMs = now
 
-    if (!this.lastPositionBuffer) {
-      this.onSatelliteHover(null, null, e.clientX, e.clientY)
-      return
-    }
-
     const canvas = e.target as HTMLCanvasElement
     const rect = canvas.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
 
-    const buf = this.lastPositionBuffer
-    const count = buf.length / 3
-    const SPHERE_RADIUS = 0.005
-    const HOVER_EXTRA_PX = 6
     const fovFactor = rect.height / (2 * Math.tan((this.camera.fov * Math.PI) / 360))
     const camX = this.camera.position.x
     const camY = this.camera.position.y
     const camZ = this.camera.position.z
+    const HOVER_EXTRA_PX = 6
+
+    // Check ISS first (same reason as click handler)
+    const issPos = this.iss.getCurrentPosition()
+    if (issPos) {
+      this._projPos.copy(issPos).project(this.camera)
+      if (this._projPos.z <= 1) {
+        const sx = (this._projPos.x + 1) * 0.5 * rect.width
+        const sy = (1 - this._projPos.y) * 0.5 * rect.height
+        const screenDist = Math.hypot(sx - mouseX, sy - mouseY)
+        const dx = issPos.x - camX, dy = issPos.y - camY, dz = issPos.z - camZ
+        const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        const dotRadiusPx = (0.008 / depth) * fovFactor
+        if (screenDist <= dotRadiusPx + HOVER_EXTRA_PX) {
+          const r = issPos.length()
+          const altKm = Math.round((r - 1) * R_EARTH_KM)
+          if (this.hoveredIdx !== -2) {
+            this.hoveredIdx = -2  // sentinel for ISS
+            this.onSatelliteHover(this.issName, altKm, e.clientX, e.clientY)
+          }
+          return
+        }
+      }
+    }
+
+    if (!this.lastPositionBuffer) {
+      if (this.hoveredIdx !== -1) { this.hoveredIdx = -1; this.onSatelliteHover(null, null, e.clientX, e.clientY) }
+      return
+    }
+
+    const buf = this.lastPositionBuffer
+    const count = buf.length / 3
+    const SPHERE_RADIUS = 0.005
 
     let bestDist = Infinity
     let bestIdx = -1
