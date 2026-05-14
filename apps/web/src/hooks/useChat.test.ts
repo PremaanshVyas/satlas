@@ -242,3 +242,76 @@ describe('useChat conversation history', () => {
     })
   })
 })
+
+describe('useChat group highlight directive', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  test('parses __GROUP_HIGHLIGHT__ directive and exposes groupHighlight', async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      mockStream(['Starlink satellites are now highlighted.\n__GROUP_HIGHLIGHT__:{"category":"STARLINK"}\n']),
+    )
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('show me all Starlink satellites')
+    })
+
+    await waitFor(() => {
+      expect(result.current.groupHighlight).toEqual({ category: 'STARLINK' })
+    })
+    expect(result.current.messages[1]?.content).toBe('Starlink satellites are now highlighted.')
+  })
+
+  test('strips GROUP_HIGHLIGHT directive from displayed text', async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      mockStream(['GPS satellites highlighted.\n__GROUP_HIGHLIGHT__:{"category":"GPS"}\n']),
+    )
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('show GPS satellites')
+    })
+
+    await waitFor(() => {
+      const assistantMsg = result.current.messages.find(m => m.role === 'assistant')
+      expect(assistantMsg?.content).not.toContain('__GROUP_HIGHLIGHT__')
+    })
+  })
+
+  test('resets groupHighlight to null at start of each new message', async () => {
+    vi.mocked(fetch)
+      .mockReturnValueOnce(
+        mockStream(['Highlighted.\n__GROUP_HIGHLIGHT__:{"category":"DEBRIS"}\n']),
+      )
+      .mockReturnValueOnce(mockStream(['Sure.']))
+
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('show debris')
+    })
+
+    await waitFor(() => {
+      expect(result.current.groupHighlight).not.toBeNull()
+    })
+
+    await act(async () => {
+      await result.current.sendMessage('what else?')
+    })
+
+    await waitFor(() => {
+      expect(result.current.groupHighlight).toBeNull()
+    })
+  })
+
+  test('initial groupHighlight is null', () => {
+    const { result } = renderHook(() => useChat())
+    expect(result.current.groupHighlight).toBeNull()
+  })
+})

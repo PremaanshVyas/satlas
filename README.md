@@ -6,13 +6,15 @@ A live, open platform that lets anyone explore what's happening in Earth orbit �
 
 **Live demo:** [aussie-sky.vercel.app](https://aussie-sky.vercel.app)  
 Open the site — ~10,000 live satellites orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker.  
-Ask the agent: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
+Ask: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
+Ask: _"Show all Starlink satellites"_ — it highlights every Starlink dot in violet while dimming everything else.  
+Ask: _"How many GPS satellites are tracked?"_ — it queries the live catalog and tells you.  
 Ask: _"What satellites are overhead right now from Sydney?"_ — it queries the catalog and tells you what's up there.  
-Ask: _"Where is Hubble?"_ — it looks up the orbital snapshot and flies the globe camera to Hubble's actual position.  
-Click any satellite dot on the globe — the agent panel pre-fills with that satellite's details ready to query.  
+Hover any dot for name + altitude. Click a dot to see the info card; hit "Ask AI" to query it without cluttering the globe view.  
+Category filter pills toggle entire groups on/off. Click a dot to see its orbital arc.  
 The agent remembers conversation context — follow-up questions work.  
-**Status:** MVP shipped — live catalog with 10k satellites, AI agent with 4 tools, click-to-select, multi-turn conversation history all working
+**Status:** MVP+ — full-screen globe, floating AI chat overlay, hover tooltips, category filters, orbital arcs, group highlight via AI, 6 agent tools
 
 ---
 
@@ -93,10 +95,15 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 ### What's working now
 - [x] 3D Earth with ISS rendered in real time (TLE propagation via satellite.js)
 - [x] ~10,000 live catalog satellites at actual orbital altitudes (LEO/MEO/GEO shells visually distinct)
+- [x] Full-screen globe with floating overlays (AI chat, satellite info card, category filters)
+- [x] Hover tooltip — satellite name + altitude on mouse-over
+- [x] Category filter pills — toggle Starlink / GPS / Iridium / Debris / Other with Uint8Array mask
+- [x] Click-to-select — shows info card (name + NORAD ID); click "Ask AI" to query
+- [x] Orbital arc — clicking any satellite draws its ECI+GMST orbit ring
 - [x] AI agent answers questions with real orbital mechanics (skyfield pass prediction)
-- [x] Agent-driven globe interaction — asking about a satellite focuses the camera and flies to its actual position
-- [x] Click any satellite dot → agent panel pre-fills with that satellite for immediate querying
-- [x] Streaming chat UI with typing indicator
+- [x] Agent-driven globe interaction — asking about a satellite flies the camera and pulses it
+- [x] **Group highlight (Session 11)** — "show all Starlink satellites" highlights that group with per-instance colours; everything else dims
+- [x] **Category counts (Session 11)** — "how many GPS satellites are tracked?" calls the live catalog
 - [x] Multi-turn conversation history (follow-up questions work)
 - [x] Find satellites overhead from any location
 - [x] Look up any satellite by name or NORAD ID — get orbital snapshot and globe highlight
@@ -106,10 +113,10 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 ### MVP (weeks 1–4)
 - [x] Project scaffolding
 - [x] Live TLE catalog (~10,000 satellites, InstancedMesh + web worker)
-- [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info
+- [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info, highlight_catalog_group, get_category_counts
 - [x] Click satellite → details (click-to-select with exact NORAD ID lookup)
-- [ ] Hover tooltip (satellite name + altitude on mouse hover)
-- [ ] Filter by category (Starlink, ISS, debris, etc.)
+- [x] Hover tooltip (satellite name + altitude on mouse hover)
+- [x] Filter by category (Starlink, GPS, Iridium, Debris, Other)
 - [ ] CI/CD wired up
 
 ### V1 (weeks 5–8)

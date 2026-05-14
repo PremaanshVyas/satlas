@@ -13,3 +13,7 @@ export interface HighlightDirective {
   latitude?: number   // decimal degrees — present when get_satellite_info was called
   longitude?: number  // decimal degrees — present when get_satellite_info was called
 }
+
+export interface GroupHighlightDirective {
+  category: 'STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER'
+}

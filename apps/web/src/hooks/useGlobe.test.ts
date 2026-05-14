@@ -10,6 +10,7 @@ vi.mock('../globe/Globe', () => ({
       unmount: vi.fn(),
       highlightSatellite: vi.fn(),
       setActiveCategories: vi.fn(),
+      setGroupHighlight: vi.fn(),
       onCatalogRefresh: null,
       onSatelliteClick: null,
       onSatelliteHover: null,
@@ -104,5 +105,38 @@ describe('useGlobe', () => {
     })
 
     expect(globeInstance.setActiveCategories).toHaveBeenCalledWith(cats)
+  })
+
+  test('calls setGroupHighlight on globe when groupHighlight prop changes', () => {
+    const containerRef = makeContainerRef()
+    const { rerender } = renderHook(
+      ({ gh }: { gh: { category: 'STARLINK' } | null }) =>
+        useGlobe(containerRef as React.RefObject<HTMLDivElement>, null, undefined, gh),
+      { initialProps: { gh: null as { category: 'STARLINK' } | null } },
+    )
+
+    const globeInstance = vi.mocked(Globe).mock.results[0]?.value
+
+    act(() => {
+      rerender({ gh: { category: 'STARLINK' } })
+    })
+
+    expect(globeInstance.setGroupHighlight).toHaveBeenCalledWith('STARLINK')
+  })
+
+  test('calls setGroupHighlight(null) when groupHighlight clears', () => {
+    const containerRef = makeContainerRef()
+    const { rerender } = renderHook(
+      ({ gh }: { gh: { category: 'GPS' } | null }) =>
+        useGlobe(containerRef as React.RefObject<HTMLDivElement>, null, undefined, gh),
+      { initialProps: { gh: { category: 'GPS' } as { category: 'GPS' } | null } },
+    )
+
+    act(() => {
+      rerender({ gh: null })
+    })
+
+    const globeInstance = vi.mocked(Globe).mock.results[0]?.value
+    expect(globeInstance.setGroupHighlight).toHaveBeenLastCalledWith(null)
   })
 })

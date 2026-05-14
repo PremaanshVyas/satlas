@@ -1,32 +1,50 @@
 import { useState, useCallback } from 'react'
-import type { ChatMessage, HighlightDirective } from '../types/chat'
+import type { ChatMessage, HighlightDirective, GroupHighlightDirective } from '../types/chat'
 
 const HIGHLIGHT_MARKER = '\n__HIGHLIGHT__:'
+const GROUP_HIGHLIGHT_MARKER = '\n__GROUP_HIGHLIGHT__:'
 
-function parseChunkForHighlight(
-  accumulated: string,
-): { text: string; highlight: HighlightDirective | null } {
-  const idx = accumulated.indexOf(HIGHLIGHT_MARKER)
-  if (idx === -1) return { text: accumulated, highlight: null }
+function parseDirectives(accumulated: string): {
+  text: string
+  highlight: HighlightDirective | null
+  groupHighlight: GroupHighlightDirective | null
+} {
+  let text = accumulated
+  let highlight: HighlightDirective | null = null
+  let groupHighlight: GroupHighlightDirective | null = null
 
-  const text = accumulated.slice(0, idx)
-  const jsonStr = accumulated.slice(idx + HIGHLIGHT_MARKER.length).replace(/\n$/, '')
-  try {
-    const highlight = JSON.parse(jsonStr) as HighlightDirective
-    return { text, highlight }
-  } catch {
-    return { text: accumulated, highlight: null }
+  // Process __HIGHLIGHT__ first (emitted before __GROUP_HIGHLIGHT__ in the stream)
+  const hIdx = text.indexOf(HIGHLIGHT_MARKER)
+  if (hIdx !== -1) {
+    const jsonStr = text.slice(hIdx + HIGHLIGHT_MARKER.length).replace(/\n$/, '')
+    try {
+      highlight = JSON.parse(jsonStr) as HighlightDirective
+      text = text.slice(0, hIdx)  // only strip when parse succeeds
+    } catch { /* malformed: keep raw text so user sees it */ }
   }
+
+  const ghIdx = text.indexOf(GROUP_HIGHLIGHT_MARKER)
+  if (ghIdx !== -1) {
+    const jsonStr = text.slice(ghIdx + GROUP_HIGHLIGHT_MARKER.length).replace(/\n$/, '')
+    try {
+      groupHighlight = JSON.parse(jsonStr) as GroupHighlightDirective
+      text = text.slice(0, ghIdx)
+    } catch { /* malformed: keep raw text */ }
+  }
+
+  return { text, highlight, groupHighlight }
 }
 
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [highlight, setHighlight] = useState<HighlightDirective | null>(null)
+  const [groupHighlight, setGroupHighlight] = useState<GroupHighlightDirective | null>(null)
 
   const sendMessage = useCallback(async (content: string) => {
-    // Reset highlight at the start of every new message
+    // Reset directives at the start of every new message
     setHighlight(null)
+    setGroupHighlight(null)
 
     // Snapshot history from messages currently in state (before adding new user message).
     // Filter out any still-streaming message (shouldn't exist at this point, but defensive).
@@ -70,20 +88,21 @@ export function useChat() {
         const chunk = decoder.decode(value, { stream: true })
         rawAccumulated += chunk
 
-        // Strip any directive from displayed content in real time
-        const { text } = parseChunkForHighlight(rawAccumulated)
+        // Strip any directives from displayed content in real time
+        const { text } = parseDirectives(rawAccumulated)
         setMessages(prev =>
           prev.map(m => (m.id === assistantId ? { ...m, content: text } : m)),
         )
       }
 
-      // Final parse: extract highlight if present
-      const { text, highlight: newHighlight } = parseChunkForHighlight(rawAccumulated)
+      // Final parse: extract all directives
+      const { text, highlight: newHighlight, groupHighlight: newGroupHighlight } = parseDirectives(rawAccumulated)
       const displayText = text.trim() ? text : 'No response — please try again.'
       setMessages(prev =>
         prev.map(m => (m.id === assistantId ? { ...m, content: displayText } : m)),
       )
       if (newHighlight) setHighlight(newHighlight)
+      if (newGroupHighlight) setGroupHighlight(newGroupHighlight)
     } catch {
       setMessages(prev =>
         prev.map(m =>
@@ -100,5 +119,5 @@ export function useChat() {
     }
   }, [messages])
 
-  return { messages, isLoading, sendMessage, highlight }
+  return { messages, isLoading, sendMessage, highlight, groupHighlight }
 }

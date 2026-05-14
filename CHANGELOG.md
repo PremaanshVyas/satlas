@@ -4,6 +4,22 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 10] — ISS click/hover resolving to docked module NORAD IDs (2026-05-14)
+
+### Problem
+Clicking or hovering the ISS yellow dot on the globe would sometimes fire the `onSatelliteClick` callback with the NORAD ID and name of a docked module (Unity / NORAD 26958, Destiny / NORAD 27386, etc.) rather than ISS ZARYA (25544). The satellite info card would say "ISS MODULE" and the "Ask AI" prefill would query the wrong ID — resulting in "satellite not found" responses since the docked modules aren't separately tracked in the orbital service.
+
+### Root Cause
+The catalog `InstancedMesh` includes all tracked ISS-related objects: the core ISS (ZARYA), plus docked modules that share the same orbital position. The click handler iterated the catalog buffer sequentially and returned the first instance within the click radius. Because docked modules occupy the exact same position as ZARYA in the propagated buffer (same TLE epoch, same orbit), whichever catalog index came first in the buffer won — and for the modules this was usually before ZARYA's index. The yellow `SatelliteMesh` ISS dot sits above the catalog buffer entirely, but the catalog buffer was checked first.
+
+### Fix
+Both the click and hover handlers now check the `SatelliteMesh` ISS position **before** iterating the catalog buffer. If the cursor is within the ISS dot radius (+2px tolerance for click, +6px for hover), the handler returns immediately with the `issName`/`ISS_NORAD` pair captured from the catalog. A sentinel value `hoveredIdx = -2` prevents re-firing while the cursor stays over the ISS. The `issName` is captured from the catalog record for NORAD 25544 at load time, with a hard fallback to `'ISS (ZARYA)'`.
+
+### Lesson
+When a special object shares a spatial position with catalog entries, always check it first in the pick loop. The rendering order (yellow dot rendered on top) is irrelevant to the geometry intersection test — the pick loop is sequential over a flat buffer and has no concept of visual layering.
+
+---
+
 ## [Session 9d] — Click-to-select triggering on blank space with 10k satellites (2026-05-14)
 
 ### Problem

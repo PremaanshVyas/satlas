@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { useGlobe } from '../hooks/useGlobe'
-import type { HighlightDirective } from '../types/chat'
+import type { HighlightDirective, GroupHighlightDirective } from '../types/chat'
 import type { SatCategory } from '../globe/Globe'
 import { ALL_CATEGORIES } from '../globe/Globe'
 
@@ -22,10 +22,11 @@ const CATEGORY_COLORS: Record<SatCategory, string> = {
 
 interface GlobeViewProps {
   highlight: HighlightDirective | null
+  groupHighlight: GroupHighlightDirective | null
   onSatelliteSelect?: (name: string, noradId: string) => void
 }
 
-export default function GlobeView({ highlight, onSatelliteSelect }: GlobeViewProps) {
+export default function GlobeView({ highlight, groupHighlight, onSatelliteSelect }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(
     new Set(ALL_CATEGORIES),
@@ -34,6 +35,7 @@ export default function GlobeView({ highlight, onSatelliteSelect }: GlobeViewPro
     containerRef,
     highlight,
     onSatelliteSelect,
+    groupHighlight,
   )
   const [utcClock, setUtcClock] = useState('')
 

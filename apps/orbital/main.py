@@ -11,6 +11,22 @@ app = FastAPI(title='Aussie Sky Orbital Service')
 
 ISS_NORAD_ID = '25544'
 
+_CATEGORY_KEYS = ('STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER')
+
+
+def _classify_satellite(name: str) -> str:
+    """Mirror of Globe.ts classifySatellite() — must stay in sync."""
+    n = name.upper()
+    if n.startswith('STARLINK'):
+        return 'STARLINK'
+    if n.startswith('GPS') or 'NAVSTAR' in n or n.startswith('BIIF') or n.startswith('BIII'):
+        return 'GPS'
+    if n.startswith('IRIDIUM'):
+        return 'IRIDIUM'
+    if ' DEB' in n or n.endswith(' DEB') or 'DEBRIS' in n or 'R/B' in n or 'ROCKET BODY' in n:
+        return 'DEBRIS'
+    return 'OTHER'
+
 # TODO: tighten allow_origins to the Vercel domain before V1 production
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +52,20 @@ async def get_passes(
         return {'passes': passes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get('/satellite-categories')
+async def get_satellite_categories() -> dict[str, int]:
+    try:
+        catalog = await get_satellites()
+        counts: dict[str, int] = {k: 0 for k in _CATEGORY_KEYS}
+        for sat in catalog:
+            if sat.get('norad_id') == ISS_NORAD_ID:
+                continue
+            counts[_classify_satellite(sat.get('name', ''))] += 1
+        return counts
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f'Category count failed: {e}')
 
 
 @app.get('/satellites')

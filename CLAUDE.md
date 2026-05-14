@@ -111,9 +111,16 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 10 complete + ISS identity hotfix. Full-screen globe, floating overlay UI, hover tooltips, category filters, ground track, collapsible AI chat, satellite info card, and ISS click/hover fix all live. 77 pytest + 33 Vitest — all green.
+**Current phase:** Session 11 complete. Group-highlight agent tool (`highlight_catalog_group`) + category-count agent tool (`get_category_counts`) + `/satellite-categories` Python endpoint all live. 39 Vitest + 87 pytest — all green. Ready for deployment.
 
-**Next milestone:** Session 11 — agent group-highlight tool (`highlight_catalog_group(category)`), polish, and deployment. See `docs/session-11-bootstrap.md` for the full context prompt.
+**Next milestone:** Session 12 — CI/CD setup (GitHub Actions), deployment health check, and V1 polish.
+
+**Session 11 completed tasks:**
+- [x] `highlight_catalog_group(category)` agent tool: Claude says "show all Starlink satellites" → all Starlink dots go violet, everything else dims to near-black. Uses THREE.InstancedMesh `setColorAt` + white material; cleared by restoring blue material + null instanceColor.
+- [x] `get_category_counts` agent tool: Claude answers "how many GPS satellites?" without guessing. Calls new `/satellite-categories` Python endpoint which classifies the cached catalog.
+- [x] `__GROUP_HIGHLIGHT__` wire directive: emitted by `api/chat.ts` after text, parsed by `useChat.ts`, flows to `useGlobe.ts` → `Globe.setGroupHighlight()`.
+- [x] 87 pytest (10 new for `/satellite-categories` + `_classify_satellite`) + 39 Vitest (6 new for GROUP_HIGHLIGHT parsing + useGlobe wiring) — all green; tsc clean.
+- [x] CHANGELOG, README, CLAUDE.md updated.
 
 **Session 10 completed tasks:**
 - [x] Hover tooltip: mousemove handler in Globe.ts (40ms throttle), screen-space proximity, shows name + altitude km
@@ -188,6 +195,10 @@ Format: date, decision, rationale, rule to remember.
 
 - **2026-05-14 — Session 10: Ground track computed in Globe.ts using satellite.js directly.** The propagator worker already uses satellite.js. For the selected-satellite arc, importing satellite.js in Globe.ts (main thread) was simpler than adding a 'compute_arc' message round-trip to the worker. Arc computation for 180 points takes ~2ms — negligible on click. Pattern mirrors SatelliteMesh.computeArcPoints(): propagate 180 evenly-spaced points over one orbital period, rotate all by a single GMST snapshot, map ECI→Three.js ECEF. LineLoop recomputes every 60s. Rule: a 2ms main-thread computation on user interaction is preferable to worker message round-trips that add latency and code complexity.
 
+- **2026-05-14 — Session 11: Group-highlight tool uses per-instance colour + white material trick.** `highlight_catalog_group(category)` colours all dots in the selected category with their pill colour (STARLINK=violet-400, GPS=emerald-400, IRIDIUM=sky-400, DEBRIS=red-400, OTHER=amber-400) and dims all others to near-black (`0x1e3a5f`). THREE.js implementation: when highlight is active, set `material.color = white` and call `mesh.setColorAt()` for each instance (instanceColor array). Final dot colour = instanceColor × material = instanceColor × 1.0 = pure instanceColor. Clear: set material back to blue + `mesh.instanceColor = null`. Rule: THREE.InstancedMesh multiplies material colour by instanceColor — material must be white for instanceColor to show through unmodified. The group highlight re-applies after catalog refresh (stored as `activeGroupHighlight` on Globe). The `__GROUP_HIGHLIGHT__` directive is emitted at the end of the response stream, parsed in `useChat.ts` alongside `__HIGHLIGHT__`, and flows to `Globe.setGroupHighlight()` via `useGlobe`. Clearing: reset at the start of each new `sendMessage` call, same as `highlight`.
+
+- **2026-05-14 — Session 11: `get_category_counts` tool calls Python backend, not frontend data.** The frontend already has `Globe.getCategoryCount(cat)` but it's client-side — the agent runs server-side and can't access it. Added `/satellite-categories` endpoint in Python that classifies the cached catalog using `_classify_satellite()` (mirrors `classifySatellite()` in Globe.ts). These two classification functions MUST stay in sync — any regex update in one needs to be applied to the other. Rule: when logic exists in both Python and TypeScript, document the sync requirement explicitly.
+
 - **2026-05-14 — ISS click/hover returns wrong module (Unity, Destiny) — fixed by priority check.** ISS docked modules (NORAD 26958 Unity, 27386 Destiny, etc.) share the same orbital position as ISS ZARYA (25544). The catalog InstancedMesh includes these modules as blue dots. Before the fix, clicking near the yellow ISS dot iterated the catalog buffer first and returned whichever docked module was geometrically closest in the buffer — not ISS ZARYA. Fix: both click and hover handlers check the ISS SatelliteMesh position against the cursor before iterating the catalog buffer. If the cursor is within the ISS dot radius (+2px tolerance for click, +6px for hover), the handler fires with `(issName, '25544')` and returns. `issName` is captured from the catalog on load (NORAD 25544 should be 'ISS (ZARYA)') with a hard fallback. Sentinel value `-2` for `hoveredIdx` prevents re-firing while cursor stays over the ISS. Rule: when a special object shares a position with catalog entries, always check it first in the pick loop.
 
 ---
@@ -233,7 +244,7 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | File | What it contains |
 |------|-----------------|
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
-| `docs/session-10-bootstrap.md` | Next session full context prompt — paste at start of Session 10. |
+| `docs/session-12-bootstrap.md` | Next session full context prompt — paste at start of Session 12. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
 | `CHANGELOG.md` | User-facing change log. Updated when a session ships something visible. |

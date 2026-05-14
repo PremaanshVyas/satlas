@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import type { RefObject } from 'react'
 import { Globe } from '../globe/Globe'
 import type { SatCategory } from '../globe/Globe'
-import type { HighlightDirective } from '../types/chat'
+import type { HighlightDirective, GroupHighlightDirective } from '../types/chat'
 
 export interface HoverInfo {
   name: string
@@ -15,6 +15,7 @@ export function useGlobe(
   containerRef: RefObject<HTMLDivElement | null>,
   highlight: HighlightDirective | null,
   onSatelliteClick?: (name: string, noradId: string) => void,
+  groupHighlight?: GroupHighlightDirective | null,
 ): {
   isLoading: boolean
   satelliteCount: number
@@ -76,6 +77,13 @@ export function useGlobe(
       )
     }
   }, [highlight])
+
+  useEffect(() => {
+    // groupHighlight === undefined means prop was not passed — skip to avoid spurious null call on mount
+    if (globeRef.current && groupHighlight !== undefined) {
+      globeRef.current.setGroupHighlight(groupHighlight?.category ?? null)
+    }
+  }, [groupHighlight])
 
   const setActiveCategories = useCallback((cats: Set<SatCategory>) => {
     globeRef.current?.setActiveCategories(cats)

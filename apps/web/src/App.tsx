@@ -9,7 +9,7 @@ interface SelectedSat {
 }
 
 export default function App() {
-  const { messages, isLoading, sendMessage, highlight } = useChat()
+  const { messages, isLoading, sendMessage, highlight, groupHighlight } = useChat()
   const [chatOpen, setChatOpen] = useState(false)
   const [prefill, setPrefill] = useState<string | null>(null)
   const [selectedSat, setSelectedSat] = useState<SelectedSat | null>(null)
@@ -31,7 +31,7 @@ export default function App() {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-950">
       {/* Globe — full screen */}
-      <GlobeView highlight={highlight} onSatelliteSelect={handleSatelliteSelect} />
+      <GlobeView highlight={highlight} groupHighlight={groupHighlight} onSatelliteSelect={handleSatelliteSelect} />
 
       {/* Selected satellite info card — top-left, below clock */}
       {selectedSat && (

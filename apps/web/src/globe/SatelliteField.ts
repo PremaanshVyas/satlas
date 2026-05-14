@@ -1,13 +1,17 @@
 import * as THREE from 'three'
 
+const DEFAULT_COLOR = new THREE.Color(0x60a5fa)
+const DIM_COLOR = new THREE.Color(0x1e3a5f)
+
 export class SatelliteField {
   readonly mesh: THREE.InstancedMesh
+  private readonly mat: THREE.MeshBasicMaterial
   private dummy = new THREE.Object3D()
 
   constructor(count: number) {
     const geo = new THREE.SphereGeometry(0.005, 6, 6)
-    const mat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.7 })
-    this.mesh = new THREE.InstancedMesh(geo, mat, count)
+    this.mat = new THREE.MeshBasicMaterial({ color: DEFAULT_COLOR, transparent: true, opacity: 0.7 })
+    this.mesh = new THREE.InstancedMesh(geo, this.mat, count)
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
   }
 
@@ -27,8 +31,25 @@ export class SatelliteField {
     this.mesh.instanceMatrix.needsUpdate = true
   }
 
+  // Sets per-instance colours for a group highlight.
+  // highlightMask[i] === 1 → highlightColor, 0 → DIM_COLOR.
+  // Call with null to clear the highlight and restore uniform material colour.
+  setGroupHighlight(highlightMask: Uint8Array | null, highlightColor: THREE.Color): void {
+    if (highlightMask === null) {
+      this.mesh.instanceColor = null
+      this.mat.color.set(DEFAULT_COLOR)
+      return
+    }
+    const count = this.mesh.count
+    this.mat.color.set(0xffffff)  // material must be white so instanceColor shows through unmodified
+    for (let i = 0; i < count; i++) {
+      this.mesh.setColorAt(i, highlightMask[i] ? highlightColor : DIM_COLOR)
+    }
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
+  }
+
   dispose(): void {
     this.mesh.geometry.dispose()
-    ;(this.mesh.material as THREE.Material).dispose()
+    this.mat.dispose()
   }
 }

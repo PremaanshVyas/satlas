@@ -23,6 +23,8 @@ Help users track satellites and understand orbital mechanics. \
 \n- find_satellites_overhead: call when the user asks what satellites are overhead, above them, or currently visible from their location.\
 \n- get_satellite_info: call when the user asks about ANY specific satellite — "where is X", "tell me about X", "what altitude is X", "show me X". ALWAYS call this tool; NEVER answer satellite position, altitude, velocity, inclination, or orbital period from your training knowledge — that data changes daily and your training is outdated. The live catalog tracks ~10,000 satellites. When the user's message includes a NORAD ID (a plain integer, e.g. "NORAD 44713"), pass just that number as the query for exact lookup. If get_satellite_info returns not-found, say "I couldn't find this satellite in our live catalog" — do not guess or fill from memory. Always call highlight_on_globe IN THE SAME RESPONSE (in parallel).\
 \n- highlight_on_globe: call this IN THE SAME TURN as get_satellite_info — do not wait for get_satellite_info to return first. ONLY call for satellites confirmed in the ~10,000-satellite catalog. Do not mention the highlight in your text response.\
+\n- highlight_catalog_group: call when the user asks to "show", "highlight", "colour", "display", or "focus on" a category of satellites (Starlink, GPS, Iridium, Debris, Other). Maps user intent to the correct enum (e.g. "show all Starlink" → category: "STARLINK"). Do not mention the visual change in your text response.\
+\n- get_category_counts: call when the user asks how many satellites of a given type are tracked. NEVER guess or compute counts yourself — always call this tool.\
 \n\nIMPORTANT — you are the PRESENTER, not the calculator. Every value you show the user must come from a tool result or from data explicitly provided below. Never compute, infer, or guess any data value — not position, not altitude, not timezone offsets, not pass times. If data is missing, say it is unavailable.\
 \n\nCurrent time (pre-computed, use as-is): UTC: ${utcTime} | Melbourne (AEST/AEDT): ${melbourneTime}\
 \n\nFor pass times from orbital tool results (which are in UTC ISO 8601), convert to the user's local timezone only when you have been given the offset explicitly. For Australian locations you may use the Melbourne time above as a reference.\
@@ -128,7 +130,35 @@ const GET_SAT_INFO_TOOL: Anthropic.Tool = {
   },
 }
 
-const TOOLS = [PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL, FIND_OVERHEAD_TOOL, GET_SAT_INFO_TOOL]
+const HIGHLIGHT_GROUP_TOOL: Anthropic.Tool = {
+  name: 'highlight_catalog_group',
+  description:
+    'Signal the 3D globe to colour all satellites in a given category (e.g. Starlink, GPS, Debris). Use when the user asks to "show", "highlight", "colour", or "display" a category of satellites. This does not affect your text response — do not mention the visual change.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      category: {
+        type: 'string',
+        enum: ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'],
+        description: 'Satellite category to highlight on the globe.',
+      },
+    },
+    required: ['category'],
+  },
+}
+
+const GET_CATEGORY_COUNTS_TOOL: Anthropic.Tool = {
+  name: 'get_category_counts',
+  description:
+    'Returns how many tracked satellites belong to each category (Starlink, GPS, Iridium, Debris, Other). Use when the user asks how many satellites of a given type are currently tracked.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {},
+    required: [],
+  },
+}
+
+const TOOLS = [PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL, FIND_OVERHEAD_TOOL, GET_SAT_INFO_TOOL, HIGHLIGHT_GROUP_TOOL, GET_CATEGORY_COUNTS_TOOL]
 
 interface PassesInput {
   latitude: number
@@ -141,6 +171,10 @@ interface HighlightInput {
   satellite_name: string
   latitude?: number
   longitude?: number
+}
+
+interface HighlightGroupInput {
+  category: 'STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER'
 }
 
 interface HistoryMessage {
@@ -186,6 +220,18 @@ async function callOverheadService(input: OverheadInput): Promise<unknown> {
     res = await fetchWithTimeout(`${ORBITAL_SERVICE_URL}/satellites-overhead?${params}`, ORBITAL_FETCH_TIMEOUT_MS)
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') return { error: 'Orbital service timed out — it may be waking up. Try again in a moment.' }
+    throw err
+  }
+  if (!res.ok) return { error: `Orbital service returned ${res.status}` }
+  return res.json()
+}
+
+async function callCategoryCountsService(): Promise<unknown> {
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${ORBITAL_SERVICE_URL}/satellite-categories`, ORBITAL_FETCH_TIMEOUT_MS)
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') return { error: 'Service timeout' }
     throw err
   }
   if (!res.ok) return { error: `Orbital service returned ${res.status}` }
@@ -246,6 +292,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     let pendingHighlight: HighlightInput | null = null
+    let pendingGroupHighlight: HighlightGroupInput | null = null
 
     if (response1.stop_reason === 'tool_use') {
       const messages: Anthropic.MessageParam[] = [
@@ -293,6 +340,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             tool_use_id: block.id,
             content: 'ok',
           })
+        } else if (block.name === 'highlight_catalog_group') {
+          pendingGroupHighlight = block.input as HighlightGroupInput
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: 'ok',
+          })
+        } else if (block.name === 'get_category_counts') {
+          const result = await callCategoryCountsService()
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
         } else {
           toolResults.push({
             type: 'tool_result',
@@ -334,9 +395,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Emit highlight directive after text (frontend strips this from displayed content)
+    // Emit directives after text (frontend strips these from displayed content)
     if (pendingHighlight) {
       res.write(`\n__HIGHLIGHT__:${JSON.stringify(pendingHighlight)}\n`)
+    }
+    if (pendingGroupHighlight) {
+      res.write(`\n__GROUP_HIGHLIGHT__:${JSON.stringify(pendingGroupHighlight)}\n`)
     }
 
     res.end()
