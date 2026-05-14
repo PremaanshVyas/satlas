@@ -51,7 +51,7 @@ jobs:
           cache: pip
           cache-dependency-path: apps/orbital/requirements.txt
       - run: pip install -r requirements.txt
-      - run: pytest
+      - run: python -m pytest
 
   orbital-docker:
     name: Orbital — Docker build
