@@ -6,7 +6,10 @@ export interface TLERecord {
 }
 
 const CACHE_KEY = 'aussie-sky-catalog-v1'
-const CACHE_TTL_MS = 30 * 60 * 1000  // match Railway backend TTL
+// Discard cache only if it is more than 24 h old or corrupt.
+// Stale-while-revalidate: even "old" data is shown immediately while a fresh
+// fetch runs in the background — satellites don't change meaningfully in hours.
+const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000
 
 function loadCachedCatalog(): TLERecord[] | null {
   try {
@@ -14,7 +17,7 @@ function loadCachedCatalog(): TLERecord[] | null {
     if (!raw) return null
     const { data, ts } = JSON.parse(raw) as { data: TLERecord[]; ts: number }
     if (!Array.isArray(data) || data.length < 100) return null
-    if (Date.now() - ts > CACHE_TTL_MS) return null
+    if (Date.now() - ts > MAX_CACHE_AGE_MS) return null
     return data
   } catch {
     return null
@@ -40,13 +43,13 @@ async function fetchCatalogFromNetwork(baseUrl: string): Promise<TLERecord[]> {
 export async function fetchSatelliteCatalog(baseUrl: string): Promise<TLERecord[]> {
   const cached = loadCachedCatalog()
   if (cached) {
-    // Return cached data immediately for instant render.
-    // Fire background refresh to update cache for next visit — don't await.
+    // Always return cached data immediately (stale-while-revalidate).
+    // Background refresh keeps the cache warm — Railway cold starts only affect
+    // the refresh, never the foreground load. Users always see satellites instantly.
     void fetchCatalogFromNetwork(baseUrl).catch(() => {})
     return cached
   }
-  // No cache: fetch from network. No artificial timeout — Railway cold starts can
-  // take up to 60s. The globe is shown immediately (ISS-only) while this loads.
+  // No usable cache (first ever visit, or > 24h old): must wait for network.
   return fetchCatalogFromNetwork(baseUrl)
 }
 
