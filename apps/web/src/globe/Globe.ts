@@ -42,7 +42,11 @@ export class Globe {
   private keepaliveInterval: ReturnType<typeof setInterval> | null = null
   private issTleInterval: ReturnType<typeof setInterval> | null = null
   private visibilityHandler: (() => void) | null = null
+  private raycaster = new THREE.Raycaster()
+  private satNames: string[] = []
+  private clickCanvas: HTMLCanvasElement | null = null
   onCatalogRefresh: ((count: number) => void) | null = null
+  onSatelliteClick: ((name: string) => void) | null = null
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
     this.mounted = true
@@ -87,6 +91,9 @@ export class Globe {
       void this.initCatalog()
     }, 30 * 60 * 1000)
 
+    this.clickCanvas = canvas
+    canvas.addEventListener('click', this.onCanvasClick)
+
     // Ping the orbital service to prevent Railway free-tier cold starts.
     const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
     const ping = () => fetch(`${baseUrl}/health`).catch(() => undefined)
@@ -125,6 +132,7 @@ export class Globe {
       const issTle = tles.find(t => t.norad_id === ISS_NORAD)
       if (issTle) this.iss.updateTle(issTle.tle1, issTle.tle2)
       const others = tles.filter(t => t.norad_id !== ISS_NORAD)
+      this.satNames = others.map(t => t.name)
       this.catalogCount = others.length + 1  // +1 for ISS
       this.onCatalogRefresh?.(this.catalogCount)
 
@@ -152,6 +160,23 @@ export class Globe {
       console.warn('[Globe] Catalog unavailable, running ISS-only:', err)
       if (this.mounted) onReady?.()
     }
+  }
+
+  private onCanvasClick = (e: MouseEvent): void => {
+    if (!this.field || !this.onSatelliteClick) return
+    const canvas = e.target as HTMLCanvasElement
+    const rect = canvas.getBoundingClientRect()
+    const mouse = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    )
+    this.raycaster.setFromCamera(mouse, this.camera)
+    const hits = this.raycaster.intersectObject(this.field.mesh)
+    if (hits.length === 0) return
+    const { instanceId } = hits[0]
+    if (instanceId === undefined) return
+    const name = this.satNames[instanceId]
+    if (name) this.onSatelliteClick(name)
   }
 
   highlightSatellite(noradId: string, latDeg?: number, lonDeg?: number): void {
@@ -238,6 +263,10 @@ export class Globe {
     if (this.visibilityHandler !== null) {
       document.removeEventListener('visibilitychange', this.visibilityHandler)
       this.visibilityHandler = null
+    }
+    if (this.clickCanvas !== null) {
+      this.clickCanvas.removeEventListener('click', this.onCanvasClick)
+      this.clickCanvas = null
     }
     this.worker?.terminate()
     this.worker = null

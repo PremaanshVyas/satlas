@@ -6,10 +6,14 @@ import type { HighlightDirective } from '../types/chat'
 export function useGlobe(
   containerRef: RefObject<HTMLDivElement | null>,
   highlight: HighlightDirective | null,
+  onSatelliteClick?: (name: string) => void,
 ): { isLoading: boolean; satelliteCount: number } {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
   const globeRef = useRef<Globe | null>(null)
+  // Stable ref so the click handler always calls the latest version of the prop
+  const onSatelliteClickRef = useRef(onSatelliteClick)
+  onSatelliteClickRef.current = onSatelliteClick
 
   useEffect(() => {
     const container = containerRef.current
@@ -25,6 +29,7 @@ export function useGlobe(
       setIsLoading(false)
     })
     globe.onCatalogRefresh = (count) => setSatelliteCount(count)
+    globe.onSatelliteClick = (name) => onSatelliteClickRef.current?.(name)
     globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {

@@ -10,6 +10,8 @@ vi.mock('../globe/Globe', () => ({
       resize: vi.fn(),
       unmount: vi.fn(),
       highlightSatellite: vi.fn(),
+      onCatalogRefresh: null,
+      onSatelliteClick: null,
     }
   }),
 }))
@@ -64,5 +66,27 @@ describe('useGlobe', () => {
 
     const globeInstance = vi.mocked(Globe).mock.results[0]?.value
     expect(globeInstance?.highlightSatellite).not.toHaveBeenCalled()
+  })
+
+  test('wires onSatelliteClick callback to globe and calls it when globe fires', () => {
+    const containerRef = makeContainerRef()
+    const onSatelliteClick = vi.fn()
+    renderHook(() =>
+      useGlobe(
+        containerRef as React.RefObject<HTMLDivElement>,
+        null,
+        onSatelliteClick,
+      ),
+    )
+
+    const globeInstance = vi.mocked(Globe).mock.results[0]?.value
+    expect(globeInstance).toBeDefined()
+
+    act(() => {
+      // Simulate the globe firing a satellite click
+      globeInstance.onSatelliteClick?.('STARLINK-1234')
+    })
+
+    expect(onSatelliteClick).toHaveBeenCalledWith('STARLINK-1234')
   })
 })

@@ -4,11 +4,12 @@ import type { HighlightDirective } from '../types/chat'
 
 interface GlobeViewProps {
   highlight: HighlightDirective | null
+  onSatelliteSelect?: (name: string) => void
 }
 
-export default function GlobeView({ highlight }: GlobeViewProps) {
+export default function GlobeView({ highlight, onSatelliteSelect }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const { isLoading, satelliteCount } = useGlobe(containerRef, highlight)
+  const { isLoading, satelliteCount } = useGlobe(containerRef, highlight, onSatelliteSelect)
   const [utcClock, setUtcClock] = useState('')
 
   useEffect(() => {
