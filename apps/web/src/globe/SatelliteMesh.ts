@@ -49,9 +49,9 @@ export class SatelliteMesh {
       gmst,
     )
 
-    const lat = geo.latitude  // radians
-    const lon = geo.longitude // radians
-    const r = 1.06
+    const lat = geo.latitude   // radians
+    const lon = geo.longitude  // radians
+    const r = (R_EARTH_KM + geo.height) / R_EARTH_KM  // actual orbital radius in Earth-radii units
 
     return new THREE.Vector3(
        r * Math.cos(lat) * Math.cos(lon),

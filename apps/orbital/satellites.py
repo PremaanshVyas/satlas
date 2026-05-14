@@ -100,10 +100,18 @@ async def get_satellites() -> list:
     if _cache['tles'] and now - _cache['fetched_at'] < CACHE_TTL_SECONDS:
         return _cache['tles']
 
+    tles = None
     try:
         tles = await _fetch_celestrak()
     except Exception:
-        tles = await _fetch_spacetrack()
+        try:
+            tles = await _fetch_spacetrack()
+        except Exception:
+            # Both live sources failed — serve stale cache so the globe stays populated.
+            # Only raise (producing a 503) if we have never successfully fetched.
+            if _cache['tles']:
+                return _cache['tles']
+            raise
 
     # Guarantee ISS is in the catalog regardless of source or filter behavior
     if not any(t['norad_id'] == ISS_NORAD for t in tles):

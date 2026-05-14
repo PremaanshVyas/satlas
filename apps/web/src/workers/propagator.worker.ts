@@ -15,6 +15,8 @@ interface TickMessage {
 
 type WorkerMessage = InitMessage | TickMessage
 
+const R_EARTH_KM = 6371.0
+
 let satrecs: satellite.SatRec[] = []
 
 self.onmessage = (event: MessageEvent<WorkerMessage>) => {
@@ -43,8 +45,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
       )
       const lat = geo.latitude
       const lon = geo.longitude
-      // 1.02 < ISS at 1.06 — field satellites sit closer to surface so ISS stays visually dominant
-      const r = 1.02
+      const r = (R_EARTH_KM + geo.height) / R_EARTH_KM  // actual orbital radius in Earth-radii units
 
       buffer[i * 3]     =  r * Math.cos(lat) * Math.cos(lon)
       buffer[i * 3 + 1] =  r * Math.sin(lat)

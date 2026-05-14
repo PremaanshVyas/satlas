@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import satellites
+from satellites import CACHE_TTL_SECONDS
 from main import app
 
 
@@ -204,11 +205,20 @@ class TestGetSatellitesFallback:
             result = asyncio.run(satellites.get_satellites())
         assert result == SAMPLE_TLE_LIST
 
-    def test_raises_if_both_sources_fail(self):
+    def test_raises_if_both_sources_fail_and_no_cache(self):
         with patch('satellites._fetch_celestrak', AsyncMock(side_effect=Exception('blocked'))), \
              patch('satellites._fetch_spacetrack', AsyncMock(side_effect=ValueError('no creds'))):
             with pytest.raises((Exception, ValueError)):
                 asyncio.run(satellites.get_satellites())
+
+    def test_returns_stale_cache_when_both_sources_fail(self):
+        stale = [{'name': 'STALE-SAT', 'norad_id': '99999', 'tle1': 'x', 'tle2': 'y'}]
+        satellites._cache['tles'] = stale
+        satellites._cache['fetched_at'] = time.time() - (CACHE_TTL_SECONDS + 1)  # expired
+        with patch('satellites._fetch_celestrak', AsyncMock(side_effect=Exception('blocked'))), \
+             patch('satellites._fetch_spacetrack', AsyncMock(side_effect=Exception('down'))):
+            result = asyncio.run(satellites.get_satellites())
+        assert result == stale
 
     def test_caches_celestrak_result(self):
         with patch('satellites._fetch_celestrak', AsyncMock(return_value=SAMPLE_TLE_LIST)) as mock_ct:

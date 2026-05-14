@@ -57,7 +57,7 @@ export class Globe {
     this.renderer.setSize(w, h, false)
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
-    this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100)
+    this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 200)
     this.camera.position.set(0, 0, CAMERA_DISTANCE)
 
     this.scene = new THREE.Scene()
@@ -80,7 +80,7 @@ export class Globe {
     this.controls.enableDamping = true
     this.controls.dampingFactor = 0.05
     this.controls.minDistance = 1.3
-    this.controls.maxDistance = 8
+    this.controls.maxDistance = 15  // allows zooming out to GEO shell at r≈6.6
     this.controls.autoRotate = false
 
     this.tick()
