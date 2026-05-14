@@ -111,26 +111,25 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 9 complete. Click-to-select live and working. Satellites now render at actual orbital altitude (LEO/MEO/GEO shells visible). CelesTrak catalog fixed (FORMAT=TLE), stale-cache fallback prevents blank globe on source outage. Chatbot timezone fixed (Melbourne time server-side). System prompt hardened: NORAD ID in prefill → exact backend lookup; Claude never answers satellite data from training. 77 pytest + 32 Vitest — all green.
+**Current phase:** Session 10 complete. Full-screen globe with floating overlay UI. Hover tooltips, category filters, ground track for selected satellite, collapsible AI chat panel, and satellite info card all shipped. 77 pytest + 33 Vitest — all green.
 
-**Next milestone:** Session 10 — hover tooltip + category filter toggles. See `docs/session-10-bootstrap.md` for the full context prompt.
+**Next milestone:** Session 11 — agent group-highlight tool (`highlight_catalog_group(category)`), polish, and deployment. See `docs/session-11-bootstrap.md` for the full context prompt.
 
-**Session 9 completed tasks:**
-- [x] Debug satellites disappeared: CelesTrak FORMAT=json→TLE fix, stale cache fallback
-- [x] Chatbot timezone bug: server-side Melbourne time injected into system prompt
-- [x] Satellite heights: propagated geo.height replaces hardcoded radius in worker + ISS mesh
-- [x] Camera far plane 100→200, maxDistance 8→15 (to show MEO/GEO)
-- [x] Click-to-select: screen-space proximity picking (dynamic dot radius from depth + FOV)
-- [x] satNoradIds[] parallel array; prefill format "Tell me about NORAD <id> (<name>)"
-- [x] System prompt: ALWAYS call get_satellite_info; NORAD ID → exact match; never fill from training
-- [x] Test: useGlobe.test.ts updated for two-arg onSatelliteClick signature
-- [x] 77 pytest + 32 Vitest green
+**Session 10 completed tasks:**
+- [x] Hover tooltip: mousemove handler in Globe.ts (40ms throttle), screen-space proximity, shows name + altitude km
+- [x] Category filter pills: classifySatellite() buckets TLEs into STARLINK/GPS/IRIDIUM/DEBRIS/OTHER; Uint8Array mask applied in SatelliteField.update(); bottom-center overlay buttons
+- [x] Ground track: click-to-select shows ECI+GMST orbit arc (sky-blue LineLoop) for selected catalog satellite; recomputes every 60s; clears on empty-space click
+- [x] Full-screen globe: removed 65/35 split; globe is absolute inset-0
+- [x] Collapsible AI chat: floating 320px right overlay, toggle button bottom-right, badge shows reply count
+- [x] Satellite info card: top-left card shows name + NORAD ID + "Ask AI" button; decouples exploration from AI
+- [x] Category mask applied in click + hover loops (no false positives on hidden satellites)
+- [x] 77 pytest + 33 Vitest green; tsc clean
 
-**Session 8 completed tasks (summary):**
-- ISS 5-min TLE cache + frontend 2-min refresh; NASA 8K/3.6K textures; atmosphere + star field; ISS arc ECI+GMST; catalog limit 10k; 67 orbital + 31 web tests green.
+**Session 9 completed tasks (summary):**
+- Click-to-select, actual orbital heights, hardened system prompt, CelesTrak FORMAT=TLE fix, stale cache fallback, Melbourne time server-side. 77 pytest + 32 Vitest.
 
-**Sessions 1–7 (shipped, stable):**
-- Globe rendering, ISS SGP4 propagation, Vercel deploy, agent + predict_iss_passes tool, highlight_on_globe (camera fly-to + pulse), live TLE catalog (InstancedMesh + web worker), conversation history, find_satellites_overhead + get_satellite_info tools, coordinate transform fix, UTC clock + satellite count overlays, Railway keepalive, chatbot reliability (haiku/sonnet split + 5s timeout).
+**Sessions 1–8 (shipped, stable):**
+- Globe rendering, ISS SGP4, Vercel deploy, agent + tools (predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info), live TLE catalog, conversation history, coordinate transform fix, UTC clock, satellite count, Railway keepalive, NASA 8K textures, atmosphere, star field, ISS arc ECI+GMST.
 
 **Blockers:** None.
 
@@ -180,6 +179,12 @@ Format: date, decision, rationale, rule to remember.
 
 - **2026-05-14 — Chatbot "satellite not found" fix: NORAD ID in prefill + hardened system prompt.** Claude sometimes answered from training knowledge without calling the tool, or mangled the satellite name in the query. Fix: (1) prefill includes NORAD ID so system prompt rule triggers exact lookup; (2) system prompt updated: "ALWAYS call this tool; NEVER answer satellite position, altitude, velocity, inclination, or orbital period from your training knowledge." Rule: when Claude is forbidden from using training data for a domain, make the tool call mandatory in the system prompt and structure the input to bypass fuzzy matching.
 
+- **2026-05-14 — Session 10: Globe layout switched to full-screen with floating overlays.** The original 65/35 split (globe left, chat right) consumed 35% of the viewport for the AI panel that most users never interact with. Inspired by satellitetracker3d.com: globe is `absolute inset-0`, AI panel is a 320px right-side overlay toggled by a floating chat button (bottom-right). Satellite info card (top-left, below clock) decouples click-to-select from AI — clicking a satellite shows name + NORAD ID + "Ask AI" button rather than immediately filling the chat. This way the globe is unobstructed when exploring.
+
+- **2026-05-14 — Session 10: Category filtering via Uint8Array mask, not worker re-init.** Initial approach considered re-initing the propagator worker with a filtered TLE array on each toggle. Rejected: worker re-init is ~200ms and rebuilds the InstancedMesh, causing a visual flash. Instead: `classifySatellite()` buckets each TLE name by regex at catalog load time; `rebuildCategoryMask()` produces a `Uint8Array` (`1`=active, `0`=hidden); `SatelliteField.update()` accepts an optional mask and sets hidden instances to scale-0 matrix (renders as nothing). Category mask is also applied in click and hover loops to skip hidden satellites. Rule: prefer a visibility mask over re-init for InstancedMesh filtering — avoids mesh teardown and keeps the frame continuous.
+
+- **2026-05-14 — Session 10: Ground track computed in Globe.ts using satellite.js directly.** The propagator worker already uses satellite.js. For the selected-satellite arc, importing satellite.js in Globe.ts (main thread) was simpler than adding a 'compute_arc' message round-trip to the worker. Arc computation for 180 points takes ~2ms — negligible on click. Pattern mirrors SatelliteMesh.computeArcPoints(): propagate 180 evenly-spaced points over one orbital period, rotate all by a single GMST snapshot, map ECI→Three.js ECEF. LineLoop recomputes every 60s. Rule: a 2ms main-thread computation on user interaction is preferable to worker message round-trips that add latency and code complexity.
+
 ---
 
 ## Out of scope (so we don't drift)
@@ -199,7 +204,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-10-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-11-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
