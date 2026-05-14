@@ -23,11 +23,12 @@ WHAT'S LIVE at https://aussie-sky.vercel.app:
   modules (Unity/Destiny/etc.) no longer hijack the pick; always resolves to ISS (ZARYA) / 25544
 - Collapsible AI chat: floating chat button (bottom-right) opens a 320px right-side overlay panel;
   shows reply-count badge when closed
-- **NEW (Session 11):** Group highlight — agent says "show all Starlink satellites" and all Starlink
-  dots go violet; everything else dims to near-black. Uses SatelliteField.setGroupHighlight() with
-  per-instance THREE.InstancedMesh colours. Cleared at the start of each new chat message.
-- **NEW (Session 11):** Category counts — agent answers "how many GPS satellites?" via new Python
-  /satellite-categories endpoint + get_category_counts tool.
+- Group highlight — agent says "show all Starlink satellites" and all Starlink dots go violet;
+  everything else dims to near-black. Uses SatelliteField.setGroupHighlight() with per-instance
+  THREE.InstancedMesh colours. Cleared at the start of each new chat message.
+  Robust to category filter toggles: instanceColor buffer stays alive from construction (never null).
+- Category counts — agent answers "how many GPS satellites?" via new Python /satellite-categories
+  endpoint + get_category_counts tool.
 - AI agent chat (Claude API, tool use, multi-turn history)
 - 6 agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info,
   highlight_catalog_group, get_category_counts
@@ -37,8 +38,11 @@ WHAT'S LIVE at https://aussie-sky.vercel.app:
 
 KEY TECHNICAL STATE (Session 11 additions):
 - SatelliteField.setGroupHighlight(mask: Uint8Array | null, highlightColor: THREE.Color):
-  When mask is set: material=white, setColorAt for all instances (highlighted=color, dimmed=0x1e3a5f).
-  When null: material=0x60a5fa, mesh.instanceColor=null.
+  CORRECT PATTERN: instanceColor buffer is pre-initialised to WHITE in constructor (never null).
+  When mask is set: mat.color=white, setColorAt for all instances (highlighted=color, dimmed=0x1e3a5f).
+  When null (clear): mat.color=DEFAULT_COLOR (0x60a5fa), setColorAt all instances to WHITE.
+  Final dot colour = mat.color × instanceColor. Default: blue × white = blue. No null/non-null VAO transitions.
+  DO NOT set mesh.instanceColor = null — this breaks after category filter toggles (VAO rebinding bug).
 - Globe.setGroupHighlight(category: SatCategory | null): builds mask from satCategories, calls
   field.setGroupHighlight(). Re-applies after catalog refresh (activeGroupHighlight stored).
   GROUP_HIGHLIGHT_COLORS: STARLINK=0xa78bfa, GPS=0x34d399, IRIDIUM=0x38bdf8, DEBRIS=0xf87171, OTHER=0xfbbf24
