@@ -19,3 +19,6 @@ dist/
 # Editor
 .vscode/
 .idea/
+
+# Claude Code local config
+.claude/
