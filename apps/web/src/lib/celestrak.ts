@@ -6,9 +6,12 @@ export interface TLERecord {
 }
 
 const CACHE_KEY = 'aussie-sky-catalog-v3'
-// Discard cache only after 24 h — stale-while-revalidate means satellites are
-// always shown immediately from cache while a fresh fetch runs in background.
-const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000
+// Serve cached data immediately for up to SERVE_AGE_MS without waiting for network.
+// After that, still serve stale data instantly but always refresh in the background.
+// TLEs are valid for several days, so serving up to 48 h old data is safe while fresh
+// data loads. Only reject the cache entirely if it is >72 h old or malformed.
+const SERVE_AGE_MS  = 24 * 60 * 60 * 1000   // 24 h — always serve from here instantly
+const MAX_CACHE_AGE_MS = 72 * 60 * 60 * 1000// 72 h — hard expiry (satellite orbits too stale)
 
 // CelesTrak serves TLE data directly to browsers (CORS enabled, user IPs never blocked).
 // Cloud IPs (Railway, AWS, etc.) get 403 on GROUP=active — browser IPs do not.
@@ -32,14 +35,15 @@ export function parseTleText(text: string): TLERecord[] {
   return records
 }
 
-function loadCachedCatalog(): TLERecord[] | null {
+function loadCachedCatalog(): { data: TLERecord[]; needsRefresh: boolean } | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY)
     if (!raw) return null
     const { data, ts } = JSON.parse(raw) as { data: TLERecord[]; ts: number }
     if (!Array.isArray(data) || data.length < 100) return null
-    if (Date.now() - ts > MAX_CACHE_AGE_MS) return null
-    return data
+    const age = Date.now() - ts
+    if (age > MAX_CACHE_AGE_MS) return null          // truly too old — reject
+    return { data, needsRefresh: age > SERVE_AGE_MS }// stale but usable — serve + refresh
   } catch {
     return null
   }
@@ -85,12 +89,13 @@ async function fetchCatalogFromNetwork(baseUrl: string): Promise<TLERecord[]> {
 export async function fetchSatelliteCatalog(baseUrl: string): Promise<TLERecord[]> {
   const cached = loadCachedCatalog()
   if (cached) {
-    // Always serve cached data immediately then refresh in background (stale-while-revalidate).
-    // Cold starts on Railway only affect the background refresh — never the foreground load.
+    // Always serve cached data immediately (stale-while-revalidate).
+    // Background refresh runs whenever cache is older than SERVE_AGE_MS (24 h) or on every
+    // call — either way the foreground load is always instant for the user.
     void fetchCatalogFromNetwork(baseUrl).catch(() => {})
-    return cached
+    return cached.data
   }
-  // No usable cache (first visit ever, or > 24 h old): must wait for network.
+  // No usable cache (first visit ever, or > 72 h old): must wait for network.
   return fetchCatalogFromNetwork(baseUrl)
 }
 
