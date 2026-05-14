@@ -173,9 +173,16 @@ export class Globe {
 
     const buf = this.lastPositionBuffer
     const count = buf.length / 3
-    const HIT_RADIUS_PX = 20  // generous click target — satellites are tiny dots
 
-    let bestDist = HIT_RADIUS_PX
+    // Dot geometry radius in world units (must match SatelliteField sphere radius)
+    const SPHERE_RADIUS = 0.005
+    // pixels per world unit at unit depth — derived from camera FOV and canvas height
+    const fovFactor = rect.height / (2 * Math.tan((this.camera.fov * Math.PI) / 360))
+    const camX = this.camera.position.x
+    const camY = this.camera.position.y
+    const camZ = this.camera.position.z
+
+    let bestScreenDist = Infinity
     let bestIdx = -1
 
     for (let i = 0; i < count; i++) {
@@ -185,8 +192,20 @@ export class Globe {
 
       const sx = (this._projPos.x + 1) * 0.5 * rect.width
       const sy = (1 - this._projPos.y) * 0.5 * rect.height
-      const dist = Math.hypot(sx - clickX, sy - clickY)
-      if (dist < bestDist) { bestDist = dist; bestIdx = i }
+      const screenDist = Math.hypot(sx - clickX, sy - clickY)
+
+      // Compute the visual pixel radius of this dot at its current depth
+      const dx = buf[i * 3] - camX
+      const dy = buf[i * 3 + 1] - camY
+      const dz = buf[i * 3 + 2] - camZ
+      const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
+      const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
+
+      // Only accept if the click landed on or within 1px of the visual dot edge
+      if (screenDist <= dotRadiusPx + 1 && screenDist < bestScreenDist) {
+        bestScreenDist = screenDist
+        bestIdx = i
+      }
     }
 
     if (bestIdx >= 0) {
