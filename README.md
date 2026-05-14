@@ -5,13 +5,14 @@
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
 **Live demo:** [aussie-sky.vercel.app](https://aussie-sky.vercel.app)  
-Open the site — ~1000 live satellites orbit Earth in real time, fetched from the US Space Force catalog and propagated in a web worker.  
+Open the site — ~10,000 live satellites orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker.  
 Ask the agent: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
 Ask: _"What satellites are overhead right now from Sydney?"_ — it queries the catalog and tells you what's up there.  
 Ask: _"Where is Hubble?"_ — it looks up the orbital snapshot and flies the globe camera to Hubble's actual position.  
+Click any satellite dot on the globe — the agent panel pre-fills with that satellite's details ready to query.  
 The agent remembers conversation context — follow-up questions work.  
-**Status:** MVP shipped — live satellite catalog, AI agent with 4 tools, multi-turn conversation history all working
+**Status:** MVP shipped — live catalog with 10k satellites, AI agent with 4 tools, click-to-select, multi-turn conversation history all working
 
 ---
 
@@ -91,19 +92,23 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 
 ### What's working now
 - [x] 3D Earth with ISS rendered in real time (TLE propagation via satellite.js)
+- [x] ~10,000 live catalog satellites at actual orbital altitudes (LEO/MEO/GEO shells visually distinct)
 - [x] AI agent answers questions with real orbital mechanics (skyfield pass prediction)
 - [x] Agent-driven globe interaction — asking about a satellite focuses the camera and flies to its actual position
+- [x] Click any satellite dot → agent panel pre-fills with that satellite for immediate querying
 - [x] Streaming chat UI with typing indicator
 - [x] Multi-turn conversation history (follow-up questions work)
 - [x] Find satellites overhead from any location
 - [x] Look up any satellite by name or NORAD ID — get orbital snapshot and globe highlight
+- [x] Melbourne-accurate timestamps (computed server-side, not guessed by Claude)
 - [x] Deployed and auto-deploying at [aussie-sky.vercel.app](https://aussie-sky.vercel.app)
 
 ### MVP (weeks 1–4)
 - [x] Project scaffolding
-- [x] Live TLE catalog (~1000 satellites, InstancedMesh + web worker)
+- [x] Live TLE catalog (~10,000 satellites, InstancedMesh + web worker)
 - [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info
-- [ ] Click satellite → details
+- [x] Click satellite → details (click-to-select with exact NORAD ID lookup)
+- [ ] Hover tooltip (satellite name + altitude on mouse hover)
 - [ ] Filter by category (Starlink, ISS, debris, etc.)
 - [ ] CI/CD wired up
 
@@ -145,6 +150,10 @@ Full debugging history is in [`CHANGELOG.md`](CHANGELOG.md). A few highlights:
 **Chatbot reliability — Vercel 10s timeout + Railway cold starts** — The agent chat panel was intermittently returning "No response" even for simple questions. Two causes: (1) Vercel Hobby silently ignores `maxDuration: 60` — the hard cap is always 10s. Using Sonnet for the tool-detection turn consumed 3–5s, leaving no headroom for Railway. Fix: tool-detection turn uses `claude-haiku-4-5-20251001` (~1s), streaming answer keeps Sonnet for quality. (2) Railway free-tier sleeps after ~5 minutes; cold start takes 20–30s. Fix: the Globe component now pings `/health` on mount and every 4 minutes, keeping the backend warm for the duration of a user session.
 
 **Coordinate system bug — every satellite over the wrong continent** — The 3D globe was rendering all satellites roughly 90° off in longitude, making ISS over East Africa appear over South America. Root cause: `THREE.SphereGeometry` UV mapping places the prime meridian (lon=0°) at the +X axis in world space. Both the satellite propagation formula and the solar lighting formula independently placed it at +Z — an internally-consistent 90° shift that made satellites coherent with day/night but wrong against geography. Fix was changing both formulas to `(r·cos(lat)·cos(lon), r·sin(lat), -r·cos(lat)·sin(lon))` and `(xECEF, zECEF, -yECEF)`. Lesson: write coordinate tests (lon=0° → +X, 90°E → −Z, north pole → +Y) before writing any rendering code, and verify against a known external tracker before shipping.
+
+**CelesTrak FORMAT=json — a mock-divergence bug that hid for three sessions** — The catalog was silently broken since Session 6. `FORMAT=json` returns GP orbital elements but never includes `TLE_LINE1`/`TLE_LINE2`. Our parser accessed those keys → `KeyError` on every real call. Tests passed because fixtures had fabricated those keys. Production fell silently to the SpaceTrack fallback; when SpaceTrack had a transient failure both sources failed and the globe ran ISS-only with no error shown. Fix: switch to `FORMAT=TLE` (standard three-line text), add a `_parse_tle_text()` function, and update fixtures from the actual API response. Lesson: never fabricate fixture data with keys that differ from the real response schema.
+
+**Click-to-select false positives — fixed pixel threshold is wrong for 10k satellites** — A 20px hit zone sounds small, but with 10,000 satellites there is nearly always one within 20px of any click position. The correct approach: compute the actual pixel radius of the rendered dot using `dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor`, then only accept a hit if `screenDist <= dotRadiusPx + 1`. This matches the visual dot size exactly at any zoom level. Bonus: the prefill includes the NORAD ID so the backend does an exact catalog match instead of fuzzy name search.
 
 ---
 

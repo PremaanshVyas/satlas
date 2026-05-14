@@ -4,6 +4,83 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 9d] — Click-to-select triggering on blank space with 10k satellites (2026-05-14)
+
+### Problem
+After implementing click-to-select with a 20px fixed threshold, clicking anywhere on the globe — even empty space — would almost always select a satellite and pre-fill the chat panel. The feature was essentially unusable; it felt like random satellite selection.
+
+### Root Cause
+With ~10,000 rendered satellites there is always at least one within 20px of any cursor position on the globe face. A fixed pixel threshold is the wrong abstraction: it ignores how large the dot actually appears on screen, which varies by zoom level and satellite depth.
+
+### What We Tried
+The initial approach was `THREE.Raycaster.intersectObject()` on the `InstancedMesh`. This requires the click to land inside the actual sphere geometry (radius 0.005 world units ≈ 3–4 px at normal zoom) — too precise to be usable. Replaced it with a 20px fixed screen-space threshold, which solved the precision problem but introduced the false-positive problem.
+
+### Fix
+Compute the actual pixel radius of each satellite dot at the time of the click. The formula: `dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor` where `SPHERE_RADIUS = 0.005`, `depth` is the Euclidean camera–satellite distance, and `fovFactor = canvasHeight / (2 * tan(fov/2))`. Only accept a hit if `screenDist <= dotRadiusPx + 1px` (the +1px accounts for sub-pixel rendering edges). This matches the visual dot size exactly at any zoom level, so clicking outside the dot always misses and clicking on the dot always hits.
+
+### Lesson
+Screen-space hit testing for rendered geometry must account for depth and projection — a fixed pixel radius ignores the perspective transform. Any time you're doing manual hit testing, derive the threshold from the same math the renderer uses: `worldRadius / depth * fovFactor` is the correct pixel-radius formula for a perspective camera.
+
+---
+
+## [Session 9c] — "Satellite not found in catalog" when clicking dots on globe (2026-05-14)
+
+### Problem
+Clicking a catalog satellite would pre-fill the chat with the satellite name, but the agent would sometimes respond with "I couldn't find that satellite" or answer with stale training-knowledge data (wrong altitude, wrong orbital period) rather than calling the live backend tool.
+
+### Root Cause
+Two separate causes:
+1. The prefill format was `"Tell me about STARLINK-1234"`. The backend `satellite_info()` function treats this as a substring search — it picks the first match, which may or may not be the intended satellite (many Starlinks have similar names).
+2. The system prompt said the agent *should* call `get_satellite_info` but Claude sometimes skipped it for well-known satellites like the ISS, filling in orbital parameters from training data (which is outdated — TLEs change daily).
+
+### Fix
+1. **Prefill includes NORAD ID:** `"Tell me about NORAD 44713 (STARLINK-1234)"`. The backend `satellite_info()` checks `query.isdigit()` first and performs an exact NORAD ID match, bypassing fuzzy name search entirely.
+2. **System prompt hardened:** `get_satellite_info` rule now says "ALWAYS call this tool; NEVER answer satellite position, altitude, velocity, inclination, or orbital period from your training knowledge — that data changes daily and your training is outdated."
+
+### Lesson
+When Claude is forbidden from using training data for a domain, make the tool call mandatory in the system prompt _and_ structure the input to bypass ambiguity. Fuzzy name matching is a bug waiting to happen when thousands of satellites share a naming prefix.
+
+---
+
+## [Session 9b] — All satellites rendering at the same visual height (2026-05-14)
+
+### Problem
+The 3D globe showed all ~10,000 catalog satellites at the same altitude — a thin shell just above Earth's surface. LEO satellites (ISS at 420km), GPS (20,200km), and GEO (35,786km) were visually indistinguishable.
+
+### Root Cause
+`propagator.worker.ts` used `const r = 1.02` (hardcoded, all satellites placed 2% above Earth's surface). `SatelliteMesh.ts` used `const r = 1.06` for the ISS. Neither used the propagated altitude. The `satellite.js` `eciToGeodetic()` function returns a `GeodeticLocation` with `height` in km — this value was computed but never used for the render position.
+
+### Fix
+In both files: `r = (R_EARTH_KM + geo.height) / R_EARTH_KM` where `R_EARTH_KM = 6371.0`. The ISS orbital arc in `computeArcPoints()` was already correct (it used ECI magnitude normalised by `R_EARTH_KM`), so only the dot position needed changing. Also raised `camera.far` from 100 to 200 and `controls.maxDistance` from 8 to 15 so users can zoom out far enough to see MEO and GEO shells.
+
+### Lesson
+Never hardcode orbital radius values. Always derive from propagated altitude. The propagation library already computes the correct altitude — it just needs to be wired to the render position.
+
+---
+
+## [Session 9a] — CelesTrak catalog silently broken since Session 6 (mock-divergence bug) (2026-05-14)
+
+### Problem
+Satellites disappeared from the globe after a Railway deploy. The globe ran in ISS-only mode with no error shown. The `/satellites` endpoint appeared to work locally (tests green) but was failing in production.
+
+### Root Cause
+`CELESTRAK_ACTIVE_URL` used `FORMAT=json` — CelesTrak's GP (General Perturbations) JSON format. This returns orbital element fields (`MEAN_MOTION`, `ECCENTRICITY`, `EPOCH`, etc.) but **does not include `TLE_LINE1` or `TLE_LINE2`**. The `_parse_gp()` function accessed `item['TLE_LINE1']` → `KeyError` on every real CelesTrak call.
+
+The reason this was undetected: the test fixtures included manually-fabricated JSON with `TLE_LINE1`/`TLE_LINE2` keys that don't exist in the real API response. Tests passed; production failed silently. `get_satellites()` always fell back to SpaceTrack, which was working. When SpaceTrack had a cold-start transient failure at a Railway deploy boundary, both sources failed simultaneously and `/satellites` returned 503.
+
+### What We Tried
+Initially suspected Railway networking, then CelesTrak IP blocking. Read the actual CelesTrak GP JSON schema documentation — confirmed `TLE_LINE1` is never present in `FORMAT=json` responses.
+
+### Fix
+Switched `CELESTRAK_ACTIVE_URL` to `FORMAT=TLE`, which returns the standard 3LE text format (name / line1 / line2 triplets). Added `_parse_tle_text()` to parse it (splitting on newlines, grouping triplets). Kept `_parse_gp()` only for the SpaceTrack fallback, which genuinely does include `TLE_LINE1`/`TLE_LINE2`. Updated test fixtures to use realistic 3LE text instead of fabricated JSON.
+
+Added stale cache fallback: if both CelesTrak and SpaceTrack fail and a previous successful fetch exists in `_cache['tles']`, serve the stale catalog rather than raising a 503.
+
+### Lesson
+Test fixtures must match the real API response schema. Never fabricate keys that differ from what the actual endpoint returns — it creates a divergence that masks production failures while giving false confidence. Whenever you change a data source URL or format, fetch the real endpoint and update the fixtures from actual response data.
+
+---
+
 ## [Session 7c] — Globe not flying to satellite after agent response (2026-05-13)
 
 ### Problem
