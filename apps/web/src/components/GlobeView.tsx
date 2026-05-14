@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { useGlobe } from '../hooks/useGlobe'
-import type { HighlightDirective, GroupHighlightDirective } from '../types/chat'
+import type { HighlightDirective, SetFilterDirective } from '../types/chat'
 import type { SatCategory } from '../globe/Globe'
 import { ALL_CATEGORIES } from '../globe/Globe'
 
@@ -22,11 +22,11 @@ const CATEGORY_COLORS: Record<SatCategory, string> = {
 
 interface GlobeViewProps {
   highlight: HighlightDirective | null
-  groupHighlight: GroupHighlightDirective | null
+  setFilter: SetFilterDirective | null
   onSatelliteSelect?: (name: string, noradId: string) => void
 }
 
-export default function GlobeView({ highlight, groupHighlight, onSatelliteSelect }: GlobeViewProps) {
+export default function GlobeView({ highlight, setFilter, onSatelliteSelect }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(
     new Set(ALL_CATEGORIES),
@@ -35,9 +35,18 @@ export default function GlobeView({ highlight, groupHighlight, onSatelliteSelect
     containerRef,
     highlight,
     onSatelliteSelect,
-    groupHighlight,
   )
   const [utcClock, setUtcClock] = useState('')
+
+  // When agent sends a set_category_filter directive, apply it to the filter pills
+  useEffect(() => {
+    if (!setFilter) return
+    const next = setFilter.categories.length > 0
+      ? new Set(setFilter.categories as SatCategory[])
+      : new Set(ALL_CATEGORIES)  // empty array = show all
+    setActiveCategoriesState(next)
+    setActiveCategories(next)
+  }, [setFilter, setActiveCategories])
 
   useEffect(() => {
     function tick() {

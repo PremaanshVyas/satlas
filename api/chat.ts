@@ -23,7 +23,7 @@ Help users track satellites and understand orbital mechanics. \
 \n- find_satellites_overhead: call when the user asks what satellites are overhead, above them, or currently visible from their location.\
 \n- get_satellite_info: call when the user asks about ANY specific satellite — "where is X", "tell me about X", "what altitude is X", "show me X". ALWAYS call this tool; NEVER answer satellite position, altitude, velocity, inclination, or orbital period from your training knowledge — that data changes daily and your training is outdated. The live catalog tracks ~10,000 satellites. When the user's message includes a NORAD ID (a plain integer, e.g. "NORAD 44713"), pass just that number as the query for exact lookup. If get_satellite_info returns not-found, say "I couldn't find this satellite in our live catalog" — do not guess or fill from memory. Always call highlight_on_globe IN THE SAME RESPONSE (in parallel).\
 \n- highlight_on_globe: call this IN THE SAME TURN as get_satellite_info — do not wait for get_satellite_info to return first. ONLY call for satellites confirmed in the ~10,000-satellite catalog. Do not mention the highlight in your text response.\
-\n- highlight_catalog_group: call when the user asks to "show", "highlight", "colour", "display", or "focus on" a category of satellites (Starlink, GPS, Iridium, Debris, Other). Maps user intent to the correct enum (e.g. "show all Starlink" → category: "STARLINK"). Do not mention the visual change in your text response.\
+\n- set_category_filter: call when the user asks to "show", "display", or "focus on" one or more categories of satellites. Pass the categories array (e.g. "show Starlink and GPS" → categories: ["STARLINK","GPS"]; "show only debris" → categories: ["DEBRIS"]). This updates the filter pills on the globe — only the specified categories are shown, everything else is hidden. Do not mention the visual change in your text response.\
 \n- get_category_counts: call when the user asks how many satellites of a given type are tracked. NEVER guess or compute counts yourself — always call this tool.\
 \n\nIMPORTANT — you are the PRESENTER, not the calculator. Every value you show the user must come from a tool result or from data explicitly provided below. Never compute, infer, or guess any data value — not position, not altitude, not timezone offsets, not pass times. If data is missing, say it is unavailable.\
 \n\nCurrent time (pre-computed, use as-is): UTC: ${utcTime} | Melbourne (AEST/AEDT): ${melbourneTime}\
@@ -130,20 +130,20 @@ const GET_SAT_INFO_TOOL: Anthropic.Tool = {
   },
 }
 
-const HIGHLIGHT_GROUP_TOOL: Anthropic.Tool = {
-  name: 'highlight_catalog_group',
+const SET_FILTER_TOOL: Anthropic.Tool = {
+  name: 'set_category_filter',
   description:
-    'Signal the 3D globe to colour all satellites in a given category (e.g. Starlink, GPS, Debris). Use when the user asks to "show", "highlight", "colour", or "display" a category of satellites. This does not affect your text response — do not mention the visual change.',
+    'Update the category filter on the 3D globe to show only the specified satellite categories. All other categories are hidden. Use when the user asks to "show", "display", or "focus on" one or more categories. Supports multiple: ["STARLINK","GPS"] shows both. This does not affect your text response — do not mention the visual change.',
   input_schema: {
     type: 'object' as const,
     properties: {
-      category: {
-        type: 'string',
-        enum: ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'],
-        description: 'Satellite category to highlight on the globe.',
+      categories: {
+        type: 'array',
+        items: { type: 'string', enum: ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'] },
+        description: 'List of satellite categories to show. All others will be hidden.',
       },
     },
-    required: ['category'],
+    required: ['categories'],
   },
 }
 
@@ -158,7 +158,7 @@ const GET_CATEGORY_COUNTS_TOOL: Anthropic.Tool = {
   },
 }
 
-const TOOLS = [PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL, FIND_OVERHEAD_TOOL, GET_SAT_INFO_TOOL, HIGHLIGHT_GROUP_TOOL, GET_CATEGORY_COUNTS_TOOL]
+const TOOLS = [PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL, FIND_OVERHEAD_TOOL, GET_SAT_INFO_TOOL, SET_FILTER_TOOL, GET_CATEGORY_COUNTS_TOOL]
 
 interface PassesInput {
   latitude: number
@@ -173,8 +173,8 @@ interface HighlightInput {
   longitude?: number
 }
 
-interface HighlightGroupInput {
-  category: 'STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER'
+interface SetFilterInput {
+  categories: ('STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER')[]
 }
 
 interface HistoryMessage {
@@ -268,11 +268,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const historyMessages: Anthropic.MessageParam[] = history.map(m => ({
       role: m.role,
-      // Strip __HIGHLIGHT__ directives from assistant entries — Claude doesn't need to see those
-      content:
-        m.role === 'assistant' && m.content.includes('__HIGHLIGHT__')
-          ? m.content.split('\n__HIGHLIGHT__:')[0]
-          : m.content,
+      // Strip directives from assistant entries — Claude doesn't need to see them
+      content: m.role === 'assistant'
+        ? m.content.split('\n__HIGHLIGHT__:')[0].split('\n__SET_FILTER__:')[0]
+        : m.content,
     }))
 
     const currentMessages: Anthropic.MessageParam[] = [
@@ -292,7 +291,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     let pendingHighlight: HighlightInput | null = null
-    let pendingGroupHighlight: HighlightGroupInput | null = null
+    let pendingSetFilter: SetFilterInput | null = null
 
     if (response1.stop_reason === 'tool_use') {
       const messages: Anthropic.MessageParam[] = [
@@ -340,8 +339,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             tool_use_id: block.id,
             content: 'ok',
           })
-        } else if (block.name === 'highlight_catalog_group') {
-          pendingGroupHighlight = block.input as HighlightGroupInput
+        } else if (block.name === 'set_category_filter') {
+          pendingSetFilter = block.input as SetFilterInput
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -399,8 +398,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (pendingHighlight) {
       res.write(`\n__HIGHLIGHT__:${JSON.stringify(pendingHighlight)}\n`)
     }
-    if (pendingGroupHighlight) {
-      res.write(`\n__GROUP_HIGHLIGHT__:${JSON.stringify(pendingGroupHighlight)}\n`)
+    if (pendingSetFilter) {
+      res.write(`\n__SET_FILTER__:${JSON.stringify(pendingSetFilter)}\n`)
     }
 
     res.end()

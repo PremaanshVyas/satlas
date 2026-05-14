@@ -14,6 +14,6 @@ export interface HighlightDirective {
   longitude?: number  // decimal degrees — present when get_satellite_info was called
 }
 
-export interface GroupHighlightDirective {
-  category: 'STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER'
+export interface SetFilterDirective {
+  categories: ('STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER')[]
 }

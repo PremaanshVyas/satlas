@@ -10,13 +10,6 @@ import { getSunDirection } from '../lib/solar'
 import { fetchSatelliteCatalog, fetchIssTle } from '../lib/celestrak'
 import type { TLERecord } from '../lib/celestrak'
 
-const GROUP_HIGHLIGHT_COLORS: Record<string, number> = {
-  STARLINK: 0xa78bfa,  // violet-400
-  GPS:      0x34d399,  // emerald-400
-  IRIDIUM:  0x38bdf8,  // sky-400
-  DEBRIS:   0xf87171,  // red-400
-  OTHER:    0xfbbf24,  // amber-400
-}
 
 const ISS_TLE1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
 const ISS_TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
@@ -100,9 +93,6 @@ export class Globe {
   // Category filtering
   private activeCategories: Set<SatCategory> = new Set(ALL_CATEGORIES)
   private activeCategoryMask: Uint8Array | null = null
-
-  // Group highlight (agent-driven: colours one category, dims the rest)
-  private activeGroupHighlight: SatCategory | null = null
 
   // Ground track for selected catalog satellite
   private groundTrackLine: THREE.LineLoop | null = null
@@ -216,7 +206,6 @@ export class Globe {
 
       this.field = new SatelliteField(others.length)
       this.scene.add(this.field.mesh)
-      if (this.activeGroupHighlight) this.applyGroupHighlight()
 
       this.worker = new Worker(
         new URL('../workers/propagator.worker.ts', import.meta.url),
@@ -254,27 +243,6 @@ export class Globe {
 
   getCategoryCount(cat: SatCategory): number {
     return this.satCategories.filter(c => c === cat).length
-  }
-
-  setGroupHighlight(category: SatCategory | null): void {
-    this.activeGroupHighlight = category
-    this.applyGroupHighlight()
-  }
-
-  private applyGroupHighlight(): void {
-    if (!this.field) return
-    if (this.activeGroupHighlight === null) {
-      this.field.setGroupHighlight(null, new THREE.Color())
-      return
-    }
-    const hexColor = GROUP_HIGHLIGHT_COLORS[this.activeGroupHighlight] ?? 0xffffff
-    const color = new THREE.Color(hexColor)
-    const count = this.satCategories.length
-    const mask = new Uint8Array(count)
-    for (let i = 0; i < count; i++) {
-      mask[i] = this.satCategories[i] === this.activeGroupHighlight ? 1 : 0
-    }
-    this.field.setGroupHighlight(mask, color)
   }
 
   private rebuildCategoryMask(): void {

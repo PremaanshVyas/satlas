@@ -243,7 +243,7 @@ describe('useChat conversation history', () => {
   })
 })
 
-describe('useChat group highlight directive', () => {
+describe('useChat set_filter directive', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
   })
@@ -252,9 +252,9 @@ describe('useChat group highlight directive', () => {
     vi.unstubAllGlobals()
   })
 
-  test('parses __GROUP_HIGHLIGHT__ directive and exposes groupHighlight', async () => {
+  test('parses __SET_FILTER__ directive and exposes setFilter', async () => {
     vi.mocked(fetch).mockReturnValueOnce(
-      mockStream(['Starlink satellites are now highlighted.\n__GROUP_HIGHLIGHT__:{"category":"STARLINK"}\n']),
+      mockStream(['Showing Starlink satellites only.\n__SET_FILTER__:{"categories":["STARLINK"]}\n']),
     )
     const { result } = renderHook(() => useChat())
 
@@ -263,14 +263,29 @@ describe('useChat group highlight directive', () => {
     })
 
     await waitFor(() => {
-      expect(result.current.groupHighlight).toEqual({ category: 'STARLINK' })
+      expect(result.current.setFilter).toEqual({ categories: ['STARLINK'] })
     })
-    expect(result.current.messages[1]?.content).toBe('Starlink satellites are now highlighted.')
+    expect(result.current.messages[1]?.content).toBe('Showing Starlink satellites only.')
   })
 
-  test('strips GROUP_HIGHLIGHT directive from displayed text', async () => {
+  test('supports multiple categories in a single directive', async () => {
     vi.mocked(fetch).mockReturnValueOnce(
-      mockStream(['GPS satellites highlighted.\n__GROUP_HIGHLIGHT__:{"category":"GPS"}\n']),
+      mockStream(['Showing Starlink and GPS.\n__SET_FILTER__:{"categories":["STARLINK","GPS"]}\n']),
+    )
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('show Starlink and GPS')
+    })
+
+    await waitFor(() => {
+      expect(result.current.setFilter).toEqual({ categories: ['STARLINK', 'GPS'] })
+    })
+  })
+
+  test('strips SET_FILTER directive from displayed text', async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      mockStream(['GPS satellites are now visible.\n__SET_FILTER__:{"categories":["GPS"]}\n']),
     )
     const { result } = renderHook(() => useChat())
 
@@ -280,14 +295,14 @@ describe('useChat group highlight directive', () => {
 
     await waitFor(() => {
       const assistantMsg = result.current.messages.find(m => m.role === 'assistant')
-      expect(assistantMsg?.content).not.toContain('__GROUP_HIGHLIGHT__')
+      expect(assistantMsg?.content).not.toContain('__SET_FILTER__')
     })
   })
 
-  test('resets groupHighlight to null at start of each new message', async () => {
+  test('resets setFilter to null at start of each new message', async () => {
     vi.mocked(fetch)
       .mockReturnValueOnce(
-        mockStream(['Highlighted.\n__GROUP_HIGHLIGHT__:{"category":"DEBRIS"}\n']),
+        mockStream(['Showing debris.\n__SET_FILTER__:{"categories":["DEBRIS"]}\n']),
       )
       .mockReturnValueOnce(mockStream(['Sure.']))
 
@@ -298,7 +313,7 @@ describe('useChat group highlight directive', () => {
     })
 
     await waitFor(() => {
-      expect(result.current.groupHighlight).not.toBeNull()
+      expect(result.current.setFilter).not.toBeNull()
     })
 
     await act(async () => {
@@ -306,12 +321,12 @@ describe('useChat group highlight directive', () => {
     })
 
     await waitFor(() => {
-      expect(result.current.groupHighlight).toBeNull()
+      expect(result.current.setFilter).toBeNull()
     })
   })
 
-  test('initial groupHighlight is null', () => {
+  test('initial setFilter is null', () => {
     const { result } = renderHook(() => useChat())
-    expect(result.current.groupHighlight).toBeNull()
+    expect(result.current.setFilter).toBeNull()
   })
 })
