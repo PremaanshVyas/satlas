@@ -38,30 +38,53 @@ def _make_mock_client(response_data):
     return mock_client
 
 
-CELESTRAK_SAMPLE = [
-    {
-        'OBJECT_NAME': 'ISS (ZARYA)',
-        'NORAD_CAT_ID': 25544,
-        'TLE_LINE1': '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993',
-        'TLE_LINE2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
-    },
-    {
-        'OBJECT_NAME': 'HUBBLE',
-        'NORAD_CAT_ID': 20580,
-        'TLE_LINE1': '1 20580U 90037B   24087.54791667  .00001000  00000-0  10000-3 0  9990',
-        'TLE_LINE2': '2 20580  28.4700 100.0000 0002800  50.0000 310.0000 15.09000000000001',
-    },
-]
+CELESTRAK_TLE_TEXT = (
+    'ISS (ZARYA)\n'
+    '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993\n'
+    '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522\n'
+    'HUBBLE\n'
+    '1 20580U 90037B   24087.54791667  .00001000  00000-0  10000-3 0  9990\n'
+    '2 20580  28.4700 100.0000 0002800  50.0000 310.0000 15.09000000000001\n'
+)
 
 SAMPLE_TLE_LIST = [
     {'name': 'ISS (ZARYA)', 'norad_id': '25544', 'tle1': 'a', 'tle2': 'b'},
 ]
 
 
+class TestParseTleText:
+    def test_parses_two_satellites(self):
+        result = satellites._parse_tle_text(CELESTRAK_TLE_TEXT)
+        assert len(result) == 2
+
+    def test_first_satellite_fields(self):
+        result = satellites._parse_tle_text(CELESTRAK_TLE_TEXT)
+        assert result[0]['name'] == 'ISS (ZARYA)'
+        assert result[0]['norad_id'] == '25544'
+        assert result[0]['tle1'].startswith('1 25544')
+        assert result[0]['tle2'].startswith('2 25544')
+
+    def test_skips_malformed_lines(self):
+        bad = 'GOOD SAT\n1 12345U ...\n2 12345 ...\nJUNK LINE\n'
+        result = satellites._parse_tle_text(bad)
+        assert len(result) == 1
+        assert result[0]['name'] == 'GOOD SAT'
+
+    def test_empty_text_returns_empty_list(self):
+        assert satellites._parse_tle_text('') == []
+
+
+def _make_tle_text(count: int) -> str:
+    """Generate TLE text with `count` triplets for limit-testing."""
+    tle1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
+    tle2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
+    return ''.join(f'SAT-{i}\n{tle1}\n{tle2}\n' for i in range(count))
+
+
 class TestFetchCelesTrak:
     def test_returns_parsed_tle_list(self):
         mock_resp = MagicMock()
-        mock_resp.json.return_value = CELESTRAK_SAMPLE
+        mock_resp.text = CELESTRAK_TLE_TEXT
         mock_resp.raise_for_status = MagicMock()
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
@@ -77,7 +100,7 @@ class TestFetchCelesTrak:
 
     def test_sends_user_agent_header(self):
         mock_resp = MagicMock()
-        mock_resp.json.return_value = CELESTRAK_SAMPLE
+        mock_resp.text = CELESTRAK_TLE_TEXT
         mock_resp.raise_for_status = MagicMock()
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
@@ -89,14 +112,8 @@ class TestFetchCelesTrak:
         assert 'User-Agent' in call_kwargs.get('headers', {})
 
     def test_applies_limit(self):
-        many = [
-            {'OBJECT_NAME': f'SAT-{i}', 'NORAD_CAT_ID': i,
-             'TLE_LINE1': CELESTRAK_SAMPLE[0]['TLE_LINE1'],
-             'TLE_LINE2': CELESTRAK_SAMPLE[0]['TLE_LINE2']}
-            for i in range(satellites.LIMIT + 50)
-        ]
         mock_resp = MagicMock()
-        mock_resp.json.return_value = many
+        mock_resp.text = _make_tle_text(satellites.LIMIT + 50)
         mock_resp.raise_for_status = MagicMock()
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)

@@ -3,7 +3,7 @@ import time
 
 import httpx
 
-CELESTRAK_ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json'
+CELESTRAK_ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=TLE'
 CELESTRAK_ISS_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
 CELESTRAK_HEADERS = {'User-Agent': 'aussie-sky/1.0 (portfolio project; https://aussie-sky.vercel.app)'}
 
@@ -23,7 +23,28 @@ _cache: dict = {'tles': [], 'fetched_at': 0.0}
 _iss_cache: dict = {'tle': None, 'fetched_at': 0.0}
 
 
+def _parse_tle_text(text: str) -> list:
+    """Parse 3LE text (name / TLE-line-1 / TLE-line-2 triplets) into TLE record dicts."""
+    lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
+    result = []
+    i = 0
+    while i + 2 < len(lines):
+        name, tle1, tle2 = lines[i], lines[i + 1], lines[i + 2]
+        if tle1.startswith('1 ') and tle2.startswith('2 '):
+            result.append({
+                'name': name,
+                'norad_id': tle1[2:7].strip(),
+                'tle1': tle1,
+                'tle2': tle2,
+            })
+            i += 3
+        else:
+            i += 1  # skip malformed line
+    return result
+
+
 def _parse_gp(items: list) -> list:
+    """Parse space-track.org GP JSON (which does include TLE_LINE1/TLE_LINE2)."""
     return [
         {
             'name': item['OBJECT_NAME'],
@@ -39,7 +60,7 @@ async def _fetch_celestrak() -> list:
     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
         resp = await client.get(CELESTRAK_ACTIVE_URL, headers=CELESTRAK_HEADERS)
         resp.raise_for_status()
-        return _parse_gp(resp.json())[:LIMIT]
+        return _parse_tle_text(resp.text)[:LIMIT]
 
 
 async def _fetch_iss_tle() -> dict:
