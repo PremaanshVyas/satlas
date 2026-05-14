@@ -23,7 +23,13 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
   const msg = event.data
 
   if (msg.type === 'init') {
-    satrecs = msg.tles.map(t => satellite.twoline2satrec(t.tle1, t.tle2))
+    satrecs = msg.tles.map(t => {
+      try {
+        return satellite.twoline2satrec(t.tle1, t.tle2)
+      } catch {
+        return null  // malformed TLE — slot stays null, skipped on every tick
+      }
+    })
     self.postMessage({ type: 'ready', count: satrecs.length })
     return
   }
@@ -36,20 +42,26 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
     const buffer = new Float32Array(satrecs.length * 3)
 
     satrecs.forEach((satrec, i) => {
-      const posVel = satellite.propagate(satrec, date)
-      if (typeof posVel.position === 'boolean') return
+      if (!satrec) return  // skip malformed TLE slots from init
+      try {
+        const posVel = satellite.propagate(satrec, date)
+        // Guard against false (propagation error) and any other non-object result
+        if (!posVel.position || typeof posVel.position !== 'object') return
 
-      const geo = satellite.eciToGeodetic(
-        posVel.position as satellite.EciVec3<number>,
-        gmst,
-      )
-      const lat = geo.latitude
-      const lon = geo.longitude
-      const r = (R_EARTH_KM + geo.height) / R_EARTH_KM  // actual orbital radius in Earth-radii units
+        const geo = satellite.eciToGeodetic(
+          posVel.position as satellite.EciVec3<number>,
+          gmst,
+        )
+        const lat = geo.latitude
+        const lon = geo.longitude
+        const r = (R_EARTH_KM + geo.height) / R_EARTH_KM
 
-      buffer[i * 3]     =  r * Math.cos(lat) * Math.cos(lon)
-      buffer[i * 3 + 1] =  r * Math.sin(lat)
-      buffer[i * 3 + 2] = -r * Math.cos(lat) * Math.sin(lon)
+        buffer[i * 3]     =  r * Math.cos(lat) * Math.cos(lon)
+        buffer[i * 3 + 1] =  r * Math.sin(lat)
+        buffer[i * 3 + 2] = -r * Math.cos(lat) * Math.sin(lon)
+      } catch {
+        // Single bad satellite — zero its slot and continue (never crash the whole frame)
+      }
     })
 
     self.postMessage({ type: 'positions', buffer }, [buffer.buffer])
