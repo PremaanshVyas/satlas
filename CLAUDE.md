@@ -111,51 +111,20 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 12 complete + all post-session fixes. CI/CD wired up, ESLint fixed, CORS restricted, hover/select dot highlight (lime green), click-when-hovering fix, CelesTrak direct browser fetch, stale-while-revalidate cache (24h), propagator worker crash fixed, full 15k catalog (removed 10k truncation), cache key bumped to v2. 45 Vitest + 87 pytest — all green; tsc clean; lint clean.
+**Current phase:** Session 13 complete — 6 critical reliability bugs fixed before V1 feature work. 45 Vitest + 87 pytest green; tsc clean; lint clean.
 
-**Next milestone:** Session 13 — V1 polish: local dev setup docs, README engineering notes update, and first V1 features (search/filter UI or public API).
+**Next milestone:** Session 14 — V1 polish: README local dev setup (hard blocker for going public), FastAPI /docs on Railway, general pass predictor (`/passes/{norad_id}` + new agent tool), text search on globe (UI-only), UptimeRobot keepalive.
 
-**Session 12 completed tasks:**
-- [x] `.github/workflows/ci.yml`: 4 jobs — `web` (lint + build/tsc + vitest), `api-typecheck` (root tsc --noEmit), `orbital-test` (pytest), `orbital-docker` (docker build). Triggers on push/PR to main.
-- [x] Fixed 3 ESLint errors blocking CI: moved `onSatelliteClickRef.current = …` into `useLayoutEffect` (was during render); added `eslint-disable-next-line react-hooks/set-state-in-effect` for two intentional setState-in-effect patterns in `AgentPanel` and `GlobeView`.
-- [x] Fixed TS2322 CI error: `satrecs` typed as `(SatRec | null)[]` to match the null-returning try-catch in init.
-- [x] CORS restricted from `allow_origins=['*']` to `['https://aussie-sky.vercel.app', 'http://localhost:5173', 'http://localhost:4173']`.
-- [x] Hover/select dot highlight: hovered and selected catalog satellites turn lime green (`0x4ade80`). `SatelliteField.mat` always white; all colouring via `instanceColor`. `Globe.refreshInstanceColor(idx)` applies `HIGHLIGHT_COLOR` when idx is hovered or selected.
-- [x] Click-when-hovering fix: `onCanvasClick` short-circuits to `hoveredIdx` if set — no need to be pixel-perfect when the tooltip is already showing.
-- [x] CelesTrak direct browser fetch: `celestrak.ts` now tries `GROUP=active&FORMAT=TLE` directly from the browser first (user IPs never blocked), Railway `/satellites` only as a silent fallback. Eliminates Railway cold-start latency from the critical path entirely.
-- [x] Stale-while-revalidate cache: `MAX_CACHE_AGE_MS = 24h` (was 30 min). Fresh cached data is served immediately; background refresh keeps the cache warm for the next visit. First visit after 24h blocks on network; all others are instant.
-- [x] Propagator worker crash fix: `twoline2satrec` wrapped in try-catch (returns null for malformed TLEs); each `propagate` call wrapped in per-satellite try-catch; position guard tightened to `!posVel.position || typeof posVel.position !== 'object'`. One bad CelesTrak entry can no longer crash every propagation frame.
-- [x] Removed `LIMIT = 10000` catalog truncation from Python `satellites.py` — CelesTrak now returns ~15,432 objects; the 10k cap was silently dropping ~5,432 satellites, causing chatbot 404s for any satellite past slot 10,000. SpaceTrack fallback URL limit raised to 25,000. System prompt updated from ~10,000 to ~15,000.
-- [x] Cache key bumped `v1` → `v2` in `celestrak.ts` to force all browsers to discard their old 10k cache and fetch the full 15k catalog on next visit.
-- [x] All checks: 45 Vitest + 87 pytest green, lint clean, tsc clean, vite build clean.
+**Session 13 completed tasks:**
+- [x] Cache key v2→v3: forces every browser to discard old SpaceTrack-polluted 25k cache and refetch clean CelesTrak active-satellite data (~9k objects)
+- [x] SpaceTrack fallback: query now filters `OBJECT_TYPE/PAYLOAD`, limit 10k — no debris or rocket bodies even when Railway falls back to SpaceTrack
+- [x] Soft catalog refresh: `initCatalog` detects existing field + similar count (±200) and re-inits worker TLEs in place — no InstancedMesh teardown, no 30-min satellite gap
+- [x] 72h stale-serve cache: `SERVE_AGE_MS=24h`, `MAX_CACHE_AGE_MS=72h` — stale TLEs (valid for days) served instantly up to 72h; background refresh always fires; loading screen never appears on reload
+- [x] Hover/click occlusion: `if (satX*camX + satY*camY + satZ*camZ <= 0) continue` before projection — satellites on the far side of the earth can no longer trigger tooltips or cards
+- [x] Hover/click z-ordering: pick by depth (closest to camera) not screen distance — lower-altitude satellite always wins when two overlap on screen
+- [x] System prompt: explicit tool-error rule — "if any tool returns error, respond with 'service unavailable' only; never substitute training knowledge for live tool results"
 
-**Session 11 completed tasks (final state after all post-session bugfixes):**
-- [x] `set_category_filter(categories: string[])` agent tool: agent says "show Starlink" → Starlink pill activates, others turn off; satellites colour violet. "Show Starlink and GPS" → both on, coloured. "Show all" → all on, blue. Supports additive ("also show GPS") via current-state context passed in every request.
-- [x] `get_category_counts` agent tool: Claude answers "how many GPS satellites?" without guessing. Calls `/satellite-categories` Python endpoint.
-- [x] `__SET_FILTER__:{"categories":[...]}` wire directive replaces former `__GROUP_HIGHLIGHT__`. Parsed by `useChat.ts`, flows to `GlobeView` → `Globe.applyAgentFilter()`.
-- [x] `shownCategories` passed in POST body on every chat request so agent knows current filter state for additive/exclusive logic.
-- [x] Globe.applyAgentFilter(): sets activeCategories + per-instance category colours (GROUP_HIGHLIGHT_COLORS). Globe.setActiveCategories() (manual toggle): clears agent colour mode. instanceColor buffer pre-inited WHITE in SatelliteField constructor so buffer never goes null (VAO safety).
-- [x] localStorage catalog cache: key `aussie-sky-catalog-v1`, 30-min TTL. Repeat visitors get instant catalog load; background refresh fires for next-visit freshness.
-- [x] Removed 35s AbortController timeout from `fetchCatalogFromNetwork` — Railway cold starts can take 40-60s; the timeout was silently aborting the fetch, leaving the globe with zero satellites.
-- [x] Globe renders on first animation frame (ISS-only view) without waiting for catalog load.
-- [x] 87 pytest + 39 Vitest — all green; tsc clean.
-
-**Session 10 completed tasks:**
-- [x] Hover tooltip: mousemove handler in Globe.ts (40ms throttle), screen-space proximity, shows name + altitude km
-- [x] Category filter pills: classifySatellite() buckets TLEs into STARLINK/GPS/IRIDIUM/DEBRIS/OTHER; Uint8Array mask applied in SatelliteField.update(); bottom-center overlay buttons
-- [x] Ground track: click-to-select shows ECI+GMST orbit arc (sky-blue LineLoop) for selected catalog satellite; recomputes every 60s; clears on empty-space click
-- [x] Full-screen globe: removed 65/35 split; globe is absolute inset-0
-- [x] Collapsible AI chat: floating 320px right overlay, toggle button bottom-right, badge shows reply count
-- [x] Satellite info card: top-left card shows name + NORAD ID + "Ask AI" button; decouples globe exploration from AI — "Ask AI" opens chat and prefills query, enforcing presenter-only pattern
-- [x] Category mask applied in click + hover loops (no false positives on hidden satellites)
-- [x] ISS click/hover fix: Globe checks ISS dot position before catalog buffer — docked modules (Unity, Destiny etc.) no longer hijack the click; always resolves to ZARYA/25544
-- [x] 77 pytest + 33 Vitest green; tsc clean
-
-**Session 9 completed tasks (summary):**
-- Click-to-select, actual orbital heights, hardened system prompt, CelesTrak FORMAT=TLE fix, stale cache fallback, Melbourne time server-side. 77 pytest + 32 Vitest.
-
-**Sessions 1–8 (shipped, stable):**
-- Globe rendering, ISS SGP4, Vercel deploy, agent + tools (predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info), live TLE catalog, conversation history, coordinate transform fix, UTC clock, satellite count, Railway keepalive, NASA 8K textures, atmosphere, star field, ISS arc ECI+GMST.
+**Sessions 1–12 (complete, stable):** See `docs/session-12-bootstrap.md` for full task lists. Highlights: globe, ISS SGP4, agent + 6 tools, 15k catalog, CI/CD, CORS, hover/click, category filters, orbital arcs, agent-driven filter with category colours.
 
 **Blockers:** None.
 
@@ -243,6 +212,18 @@ Format: date, decision, rationale, rule to remember.
 
 - **2026-05-14 — Removed AbortController timeout from catalog fetch — Railway cold starts exceed 35s.** A 35s AbortController timeout was added to `fetchCatalogFromNetwork` to surface Railway failures quickly. Railway free-tier cold starts can take 40-60s — the timeout silently aborted the fetch mid-cold-start, the `catch(() => {})` swallowed the error, and the globe showed zero satellites with no user feedback. Fix: removed the AbortController entirely. The browser's own connection lifecycle handles genuine server-down cases (network error surfaces to the caller). Slow cold starts now complete correctly. Rule: never add a hard fetch timeout shorter than the worst-case cold-start time of the target server. Use the localStorage cache for the common (fast) case; leave the network fetch uncapped for the cold-start case.
 
+- **2026-05-14 — Session 13: 25k satellite / debris problem traced to stale SpaceTrack cache.** Old `v2` localStorage cache held a SpaceTrack snapshot (unfiltered, 25k objects including rocket bodies and debris). CelesTrak `GROUP=active` is user-IP-friendly (~9k active payloads), but the cache was populated before browser-direct fetch was the primary path. Fix: bump key to `v3` (forces fresh CelesTrak fetch on next visit); restrict SpaceTrack fallback query to `OBJECT_TYPE/PAYLOAD` with `limit/10000`. Rule: whenever the catalog source or shape changes, bump the cache key — never assume users will get fresh data without an explicit invalidation.
+
+- **2026-05-14 — Session 13: Soft catalog refresh eliminates 30-min satellite gap.** Every 30 minutes `initCatalog` was disposing the InstancedMesh and recreating it. During the ~1–3s worker initialisation, all satellite dots disappeared. Fix: `initCatalog` checks `this.field && this.worker && |newCount - oldCount| <= 200` and, when true, skips mesh teardown and just re-posts `{ type: 'init', tles }` to the existing worker. The worker atomically replaces its `satrecs` array; positions update on the next tick. Full rebuild (dispose + recreate) only on first load or when count changes significantly. Rule: never tear down an InstancedMesh on a background refresh — re-init the worker in place to avoid a visible rendering gap.
+
+- **2026-05-14 — Session 13: 72h stale-serve cache — satellites always instant on any reload.** Previous hard 24h cutoff returned `null` from `loadCachedCatalog` after expiry, forcing a network wait even on the 30-min background refresh. TLEs are valid for several days. New scheme: `SERVE_AGE_MS = 24h` (always serve from here immediately), `MAX_CACHE_AGE_MS = 72h` (hard reject, true first-visit case). Background refresh fires on every `fetchSatelliteCatalog` call. Satellites are instant for any user who visited within 72h. Rule: for orbital data, separate "when to refresh" from "when to block" — stale TLEs are better than a loading screen.
+
+- **2026-05-14 — Session 13: Hover/click occlusion — satellites on far side of earth were triggering tooltips.** Satellites on the opposite hemisphere project to valid 2D screen coordinates (they are in front of the camera, physically behind the earth mesh). The pick loop had no check for this. Fix: add `if (satX*camX + satY*camY + satZ*camZ <= 0) continue` before `Vector3.project()`. The dot product of the satellite's world position and the camera's world position (both from earth centre) is negative when they are on opposite hemispheres — a necessary condition for earth occlusion. O(1) per satellite. Rule: always apply a hemisphere occlusion check before screen-space picking on a globe — the earth mesh blocks geometry but not screen-space projections.
+
+- **2026-05-14 — Session 13: Z-ordering fix — depth not screen distance determines winning satellite.** When two satellites projected to overlapping screen positions, the loop picked the one with smallest `screenDist` regardless of depth. A GEO satellite at 35,786 km could win over a LEO satellite at 400 km if it happened to project 1px closer to the cursor. Fix: change pick criterion to `depth < bestDepth` among all candidates within `dotRadiusPx + HOVER_EXTRA_PX`. Closest satellite to the camera always wins. Rule: in 3D picking, depth is the correct tiebreaker for overlapping 2D hits — screen distance is a proximity filter, not a priority order.
+
+- **2026-05-14 — Session 13: System prompt hardened against training-data fallback on tool errors.** When Railway timed out (5s ORBITAL_FETCH_TIMEOUT_MS), tool results contained `{ error: '...' }`. Claude would see the error but still generate an answer from training knowledge — violating the presenter-only rule. The system prompt previously only said "if data is missing, say unavailable." Fix: add explicit override: "IF ANY TOOL RETURNS AN ERROR OR TIMEOUT: respond with exactly 'The live data service is temporarily unavailable — please try again in a moment.' Do NOT use training knowledge." Rule: the presenter-only rule must cover the error case explicitly — Claude will infer "well, I have relevant knowledge" unless the prohibition is stated for errors specifically.
+
 ---
 
 ## Out of scope (so we don't drift)
@@ -286,7 +267,7 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | File | What it contains |
 |------|-----------------|
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
-| `docs/session-12-bootstrap.md` | Next session full context prompt — paste at start of Session 12. |
+| `docs/session-14-bootstrap.md` | Next session full context prompt — paste at start of Session 14. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
 | `CHANGELOG.md` | User-facing change log. Updated when a session ships something visible. |
