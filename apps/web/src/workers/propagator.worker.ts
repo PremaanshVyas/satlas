@@ -17,7 +17,7 @@ type WorkerMessage = InitMessage | TickMessage
 
 const R_EARTH_KM = 6371.0
 
-let satrecs: satellite.SatRec[] = []
+let satrecs: (satellite.SatRec | null)[] = []
 
 self.onmessage = (event: MessageEvent<WorkerMessage>) => {
   const msg = event.data
