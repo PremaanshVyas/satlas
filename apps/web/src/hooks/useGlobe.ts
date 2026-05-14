@@ -39,7 +39,6 @@ export function useGlobe(
 
     const globe = new Globe()
     globe.mount(canvas, () => {
-      setSatelliteCount(globe.getSatelliteCount())
       setIsLoading(false)
     })
     globe.onCatalogRefresh = (count) => setSatelliteCount(count)

@@ -155,9 +155,12 @@ export class Globe {
     this.controls.autoRotate = false
 
     this.tick()
+    // Show the globe (ISS only) on the first rendered frame — don't wait for catalog.
+    // Catalog dots appear when Railway responds; onCatalogRefresh updates the count.
+    requestAnimationFrame(() => { if (this.mounted) onReady?.() })
     void this.refreshIssTle()
     this.issTleInterval = setInterval(() => void this.refreshIssTle(), 2 * 60 * 1000)
-    void this.initCatalog(onReady)
+    void this.initCatalog()
     this.catalogRefreshInterval = setInterval(() => {
       void this.initCatalog()
     }, 30 * 60 * 1000)
@@ -184,7 +187,7 @@ export class Globe {
     }
   }
 
-  private async initCatalog(onReady?: () => void): Promise<void> {
+  private async initCatalog(): Promise<void> {
     const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
     try {
       const tles = await fetchSatelliteCatalog(baseUrl)
@@ -225,21 +228,17 @@ export class Globe {
       )
       this.worker.onmessage = (e: MessageEvent) => {
         const msg = e.data as { type: string; buffer?: Float32Array }
-        if (msg.type === 'ready') {
-          onReady?.()
-        } else if (msg.type === 'positions' && msg.buffer && this.field) {
+        if (msg.type === 'positions' && msg.buffer && this.field) {
           this.lastPositionBuffer = msg.buffer
           this.field.update(msg.buffer, this.activeCategoryMask)
         }
       }
       this.worker.onerror = (e: ErrorEvent) => {
         console.warn('[Globe] Propagator worker error, running ISS-only:', e.message)
-        if (this.mounted) onReady?.()
       }
       this.worker.postMessage({ type: 'init', tles: others })
     } catch (err) {
       console.warn('[Globe] Catalog unavailable, running ISS-only:', err)
-      if (this.mounted) onReady?.()
     }
   }
 
