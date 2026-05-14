@@ -143,7 +143,7 @@ describe('fetchSatelliteCatalog', () => {
     const cached = makeRecords(110)
     // Cache is 2 h old — old behavior discarded this, new behavior serves it
     vi.stubGlobal('localStorage', makeLocalStorageMock({
-      'aussie-sky-catalog-v1': JSON.stringify({ data: cached, ts: Date.now() - 2 * 60 * 60 * 1000 }),
+      'aussie-sky-catalog-v2': JSON.stringify({ data: cached, ts: Date.now() - 2 * 60 * 60 * 1000 }),
     }))
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -158,7 +158,7 @@ describe('fetchSatelliteCatalog', () => {
   test('fires background refresh when serving from cache', async () => {
     const cached = makeRecords(110)
     vi.stubGlobal('localStorage', makeLocalStorageMock({
-      'aussie-sky-catalog-v1': JSON.stringify({ data: cached, ts: Date.now() }),
+      'aussie-sky-catalog-v2': JSON.stringify({ data: cached, ts: Date.now() }),
     }))
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
