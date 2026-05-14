@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import type { RefObject } from 'react'
 import { Globe } from '../globe/Globe'
 import type { SatCategory } from '../globe/Globe'
@@ -27,7 +27,9 @@ export function useGlobe(
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
   const globeRef = useRef<Globe | null>(null)
   const onSatelliteClickRef = useRef(onSatelliteClick)
-  onSatelliteClickRef.current = onSatelliteClick
+  useLayoutEffect(() => {
+    onSatelliteClickRef.current = onSatelliteClick
+  })
 
   useEffect(() => {
     const container = containerRef.current
@@ -65,7 +67,7 @@ export function useGlobe(
       globeRef.current = null
       canvas.remove()
     }
-  }, [])
+  }, [containerRef])
 
   useEffect(() => {
     if (highlight && globeRef.current) {

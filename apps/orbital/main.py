@@ -27,10 +27,15 @@ def _classify_satellite(name: str) -> str:
         return 'DEBRIS'
     return 'OTHER'
 
-# TODO: tighten allow_origins to the Vercel domain before V1 production
+_ALLOWED_ORIGINS = [
+    'https://aussie-sky.vercel.app',
+    'http://localhost:5173',   # local Vite dev server
+    'http://localhost:4173',   # vite preview
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_methods=['GET'],
     allow_headers=['*'],
 )

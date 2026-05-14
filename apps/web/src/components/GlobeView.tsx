@@ -46,6 +46,8 @@ export default function GlobeView({ highlight, setFilter, onSatelliteSelect, onC
       ? (setFilter.categories as SatCategory[])
       : ALL_CATEGORIES
     const next = new Set(cats)
+    // Syncing agent directive into local pill state — intentional setState in effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveCategoriesState(next)
     applyAgentFilter(cats)  // sets filter + colours in Globe
     onCategoriesChange?.([...next])

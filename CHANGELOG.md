@@ -4,6 +4,23 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 12] — CI/CD setup + ESLint strict-mode fixes (2026-05-14)
+
+### What shipped
+Added `.github/workflows/ci.yml` with 4 parallel jobs: web (lint + tsc + vite build + vitest), api-typecheck (root `tsc --noEmit`), orbital-test (pytest on Python 3.11), orbital-docker (Docker build). Triggers on every push to main and every PR.
+
+### ESLint errors blocking CI
+`eslint-plugin-react-hooks` v7 added two new strict rules not present in earlier versions:
+
+**`react-hooks/refs`:** `onSatelliteClickRef.current = onSatelliteClick` was written directly in the render body of `useGlobe` — a common "stale closure fix" pattern from React 17/18. In v7, this is an error because refs read or written during render can cause missed updates. Fix: moved into `useLayoutEffect` (no dep array), which fires synchronously after every commit — same effective timing as the render-time assignment, but on the correct lifecycle phase.
+
+**`react-hooks/set-state-in-effect`:** Two effects called `setState` inside their body — `AgentPanel` (syncing `prefill` prop to local input state) and `GlobeView` (syncing an agent filter directive to pill UI state). Both are genuinely correct — they fire on external prop changes and don't cascade. Restructuring them would require lifting state or adding complexity that doesn't serve the codebase. Fixed with `// eslint-disable-next-line react-hooks/set-state-in-effect` + a one-line explanation at each site.
+
+### CORS tightened
+Changed `allow_origins=['*']` in FastAPI middleware to `['https://aussie-sky.vercel.app', 'http://localhost:5173', 'http://localhost:4173']`. The open wildcard was a temporary MVP shortcut.
+
+---
+
 ## [Session 11 post] — Zero satellites after Railway cold start — AbortController timeout too short (2026-05-14)
 
 ### Problem

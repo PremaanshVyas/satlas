@@ -102,7 +102,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Orbital arc — clicking any satellite draws its ECI+GMST orbit ring
 - [x] AI agent answers questions with real orbital mechanics (skyfield pass prediction)
 - [x] Agent-driven globe interaction — asking about a satellite flies the camera and pulses it
-- [x] **Group highlight (Session 11)** — "show all Starlink satellites" highlights that group with per-instance colours; everything else dims
+- [x] **Agent-controlled category filter (Session 11)** — "show Starlink" highlights that group in violet; "show Starlink and GPS" adds GPS in emerald; "only show debris" replaces. Manual pill toggle clears agent colours. Current filter state passed to agent on every message for additive logic.
 - [x] **Category counts (Session 11)** — "how many GPS satellites are tracked?" calls the live catalog
 - [x] Multi-turn conversation history (follow-up questions work)
 - [x] Find satellites overhead from any location
@@ -117,7 +117,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Click satellite → details (click-to-select with exact NORAD ID lookup)
 - [x] Hover tooltip (satellite name + altitude on mouse hover)
 - [x] Filter by category (Starlink, GPS, Iridium, Debris, Other)
-- [ ] CI/CD wired up
+- [x] CI/CD wired up (GitHub Actions — lint + typecheck + vitest + pytest + Docker build)
 
 ### V1 (weeks 5–8)
 - [ ] Full TLE catalog (~30k objects)

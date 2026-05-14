@@ -20,6 +20,8 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
 
   useEffect(() => {
     if (prefill) {
+      // Syncing external prefill prop to local input state — intentional, fires once per prefill change
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setInput(prefill)
       inputRef.current?.focus()
     }
