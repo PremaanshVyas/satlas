@@ -11,6 +11,14 @@ import { fetchSatelliteCatalog, fetchIssTle } from '../lib/celestrak'
 import type { TLERecord } from '../lib/celestrak'
 
 
+const GROUP_HIGHLIGHT_COLORS: Record<string, THREE.Color> = {
+  STARLINK: new THREE.Color(0xa78bfa),  // violet-400
+  GPS:      new THREE.Color(0x34d399),  // emerald-400
+  IRIDIUM:  new THREE.Color(0x38bdf8),  // sky-400
+  DEBRIS:   new THREE.Color(0xf87171),  // red-400
+  OTHER:    new THREE.Color(0xfbbf24),  // amber-400
+}
+
 const ISS_TLE1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
 const ISS_TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
 const ISS_NORAD = '25544'
@@ -93,6 +101,9 @@ export class Globe {
   // Category filtering
   private activeCategories: Set<SatCategory> = new Set(ALL_CATEGORIES)
   private activeCategoryMask: Uint8Array | null = null
+  // When agent sets a filter, track which categories it chose so we can re-apply
+  // colors after catalog refresh and clear them on manual toggle.
+  private agentFilterCategories: SatCategory[] | null = null
 
   // Ground track for selected catalog satellite
   private groundTrackLine: THREE.LineLoop | null = null
@@ -206,6 +217,7 @@ export class Globe {
 
       this.field = new SatelliteField(others.length)
       this.scene.add(this.field.mesh)
+      if (this.agentFilterCategories) this.applyAgentCategoryColors()
 
       this.worker = new Worker(
         new URL('../workers/propagator.worker.ts', import.meta.url),
@@ -234,11 +246,38 @@ export class Globe {
   // ── Category filtering ──────────────────────────────────────────────────────
 
   setActiveCategories(cats: Set<SatCategory>): void {
+    this.agentFilterCategories = null  // manual toggle clears agent color mode
     this.activeCategories = cats
     this.rebuildCategoryMask()
     if (this.field && this.lastPositionBuffer) {
       this.field.update(this.lastPositionBuffer, this.activeCategoryMask)
     }
+    if (this.field) this.field.setCategoryColors([], null)  // reset to default blue
+  }
+
+  // Called when the agent sets a filter: update shown categories AND apply per-category colours.
+  applyAgentFilter(categories: SatCategory[]): void {
+    const cats = categories.length > 0 ? categories : [...ALL_CATEGORIES]
+    this.agentFilterCategories = categories.length > 0 ? [...categories] : null
+    this.activeCategories = new Set(cats)
+    this.rebuildCategoryMask()
+    if (this.field && this.lastPositionBuffer) {
+      this.field.update(this.lastPositionBuffer, this.activeCategoryMask)
+    }
+    this.applyAgentCategoryColors()
+  }
+
+  private applyAgentCategoryColors(): void {
+    if (!this.field) return
+    if (this.agentFilterCategories === null) {
+      this.field.setCategoryColors([], null)
+      return
+    }
+    const colorMap: Record<string, THREE.Color> = {}
+    for (const cat of this.agentFilterCategories) {
+      colorMap[cat] = GROUP_HIGHLIGHT_COLORS[cat]
+    }
+    this.field.setCategoryColors(this.satCategories as string[], colorMap)
   }
 
   getCategoryCount(cat: SatCategory): number {

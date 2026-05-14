@@ -9,13 +9,14 @@ const MODEL_DETECT = 'claude-haiku-4-5-20251001'  // tool-detection turn
 const MODEL_ANSWER  = 'claude-haiku-4-5-20251001'  // answer turn — haiku TTFT ~0.5s keeps total under Vercel 10s hard cap
 const ORBITAL_FETCH_TIMEOUT_MS = 5000              // fail fast on Railway cold starts
 
-function buildSystemPrompt(now: Date): string {
+function buildSystemPrompt(now: Date, shownCategories: string[]): string {
   const utcTime = now.toUTCString()
   const melbourneTime = now.toLocaleString('en-AU', {
     timeZone: 'Australia/Melbourne',
     dateStyle: 'full',
     timeStyle: 'long',
   })
+  const shownList = shownCategories.join(', ')
   return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
 Help users track satellites and understand orbital mechanics. \
 \n\nTOOL USAGE RULES:\
@@ -23,7 +24,13 @@ Help users track satellites and understand orbital mechanics. \
 \n- find_satellites_overhead: call when the user asks what satellites are overhead, above them, or currently visible from their location.\
 \n- get_satellite_info: call when the user asks about ANY specific satellite — "where is X", "tell me about X", "what altitude is X", "show me X". ALWAYS call this tool; NEVER answer satellite position, altitude, velocity, inclination, or orbital period from your training knowledge — that data changes daily and your training is outdated. The live catalog tracks ~10,000 satellites. When the user's message includes a NORAD ID (a plain integer, e.g. "NORAD 44713"), pass just that number as the query for exact lookup. If get_satellite_info returns not-found, say "I couldn't find this satellite in our live catalog" — do not guess or fill from memory. Always call highlight_on_globe IN THE SAME RESPONSE (in parallel).\
 \n- highlight_on_globe: call this IN THE SAME TURN as get_satellite_info — do not wait for get_satellite_info to return first. ONLY call for satellites confirmed in the ~10,000-satellite catalog. Do not mention the highlight in your text response.\
-\n- set_category_filter: call when the user asks to "show", "display", or "focus on" one or more categories of satellites. Pass the categories array (e.g. "show Starlink and GPS" → categories: ["STARLINK","GPS"]; "show only debris" → categories: ["DEBRIS"]). This updates the filter pills on the globe — only the specified categories are shown, everything else is hidden. Do not mention the visual change in your text response.\
+\n- set_category_filter: FILTER RULES — read carefully:\
+\n  * Currently shown on globe: ${shownList}\
+\n  * "Show X" / "turn on X" / "also show X" (no "only") = ADD X to currently shown. Call set_category_filter with CURRENT shown categories PLUS X.\
+\n  * "Only show X" / "show only X" / "just X" / "only X" = REPLACE. Call set_category_filter with just X.\
+\n  * "Hide X" / "turn off X" / "remove X" = REMOVE X from currently shown.\
+\n  * "Show all" / "reset" = call set_category_filter with all 5 categories.\
+\n  * ALWAYS call set_category_filter immediately — never say categories are already showing, never argue about current state. Just call the tool with the correct result.\
 \n- get_category_counts: call when the user asks how many satellites of a given type are tracked. NEVER guess or compute counts yourself — always call this tool.\
 \n\nIMPORTANT — you are the PRESENTER, not the calculator. Every value you show the user must come from a tool result or from data explicitly provided below. Never compute, infer, or guess any data value — not position, not altitude, not timezone offsets, not pass times. If data is missing, say it is unavailable.\
 \n\nCurrent time (pre-computed, use as-is): UTC: ${utcTime} | Melbourne (AEST/AEDT): ${melbourneTime}\
@@ -133,7 +140,7 @@ const GET_SAT_INFO_TOOL: Anthropic.Tool = {
 const SET_FILTER_TOOL: Anthropic.Tool = {
   name: 'set_category_filter',
   description:
-    'Update the category filter on the 3D globe to show only the specified satellite categories. All other categories are hidden. Use when the user asks to "show", "display", or "focus on" one or more categories. Supports multiple: ["STARLINK","GPS"] shows both. This does not affect your text response — do not mention the visual change.',
+    'Update the category filter on the 3D globe. Pass the complete list of categories that should be visible after the call. For additive requests ("also show GPS"), include currently shown categories plus the new one. For exclusive requests ("only show Starlink"), pass just the requested category. Always call this tool immediately without arguing.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -258,9 +265,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const { message, history = [] } = req.body as { message: string; history?: HistoryMessage[] }
+  const { message, history = [], shownCategories = ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'] } = req.body as { message: string; history?: HistoryMessage[]; shownCategories?: string[] }
   const now = new Date()
-  const systemPrompt = buildSystemPrompt(now)
+  const systemPrompt = buildSystemPrompt(now, shownCategories)
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache')

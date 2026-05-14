@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import GlobeView from './components/GlobeView'
 import AgentPanel from './components/AgentPanel'
 import { useChat } from './hooks/useChat'
+import { ALL_CATEGORIES } from './globe/Globe'
 
 interface SelectedSat {
   name: string
@@ -13,6 +14,12 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false)
   const [prefill, setPrefill] = useState<string | null>(null)
   const [selectedSat, setSelectedSat] = useState<SelectedSat | null>(null)
+  // Mirror of GlobeView's active categories — passed to chat so the agent knows current state
+  const [shownCategories, setShownCategories] = useState<string[]>([...ALL_CATEGORIES])
+
+  const handleSendMessage = useCallback((content: string) => {
+    sendMessage(content, shownCategories)
+  }, [sendMessage, shownCategories])
 
   function handleSatelliteSelect(name: string, noradId: string) {
     setSelectedSat({ name, noradId })
@@ -31,7 +38,12 @@ export default function App() {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-950">
       {/* Globe — full screen */}
-      <GlobeView highlight={highlight} setFilter={setFilter} onSatelliteSelect={handleSatelliteSelect} />
+      <GlobeView
+        highlight={highlight}
+        setFilter={setFilter}
+        onSatelliteSelect={handleSatelliteSelect}
+        onCategoriesChange={setShownCategories}
+      />
 
       {/* Selected satellite info card — top-left, below clock */}
       {selectedSat && (
@@ -82,7 +94,7 @@ export default function App() {
             <AgentPanel
               messages={messages}
               isLoading={isLoading}
-              sendMessage={sendMessage}
+              sendMessage={handleSendMessage}
               prefill={prefill}
               onClearPrefill={() => setPrefill(null)}
             />

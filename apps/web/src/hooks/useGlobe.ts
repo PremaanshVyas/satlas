@@ -20,6 +20,7 @@ export function useGlobe(
   satelliteCount: number
   hoverInfo: HoverInfo | null
   setActiveCategories: (cats: Set<SatCategory>) => void
+  applyAgentFilter: (cats: SatCategory[]) => void
 } {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
@@ -81,5 +82,9 @@ export function useGlobe(
     globeRef.current?.setActiveCategories(cats)
   }, [])
 
-  return { isLoading, satelliteCount, hoverInfo, setActiveCategories }
+  const applyAgentFilter = useCallback((cats: SatCategory[]) => {
+    globeRef.current?.applyAgentFilter(cats)
+  }, [])
+
+  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter }
 }

@@ -24,29 +24,32 @@ interface GlobeViewProps {
   highlight: HighlightDirective | null
   setFilter: SetFilterDirective | null
   onSatelliteSelect?: (name: string, noradId: string) => void
+  onCategoriesChange?: (cats: string[]) => void
 }
 
-export default function GlobeView({ highlight, setFilter, onSatelliteSelect }: GlobeViewProps) {
+export default function GlobeView({ highlight, setFilter, onSatelliteSelect, onCategoriesChange }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(
     new Set(ALL_CATEGORIES),
   )
-  const { isLoading, satelliteCount, hoverInfo, setActiveCategories } = useGlobe(
+  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter } = useGlobe(
     containerRef,
     highlight,
     onSatelliteSelect,
   )
   const [utcClock, setUtcClock] = useState('')
 
-  // When agent sends a set_category_filter directive, apply it to the filter pills
+  // Agent directive: update filter pills AND apply category colours
   useEffect(() => {
     if (!setFilter) return
-    const next = setFilter.categories.length > 0
-      ? new Set(setFilter.categories as SatCategory[])
-      : new Set(ALL_CATEGORIES)  // empty array = show all
+    const cats = setFilter.categories.length > 0
+      ? (setFilter.categories as SatCategory[])
+      : ALL_CATEGORIES
+    const next = new Set(cats)
     setActiveCategoriesState(next)
-    setActiveCategories(next)
-  }, [setFilter, setActiveCategories])
+    applyAgentFilter(cats)  // sets filter + colours in Globe
+    onCategoriesChange?.([...next])
+  }, [setFilter, applyAgentFilter, onCategoriesChange])
 
   useEffect(() => {
     function tick() {
@@ -70,7 +73,8 @@ export default function GlobeView({ highlight, setFilter, onSatelliteSelect }: G
       } else {
         next.add(cat)
       }
-      setActiveCategories(next)
+      setActiveCategories(next)  // clears agent colour mode in Globe
+      onCategoriesChange?.([...next])
       return next
     })
   }
