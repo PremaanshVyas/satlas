@@ -84,9 +84,9 @@ describe('useGlobe', () => {
 
     act(() => {
       // Simulate the globe firing a satellite click
-      globeInstance.onSatelliteClick?.('STARLINK-1234')
+      globeInstance.onSatelliteClick?.('STARLINK-1234', '44713')
     })
 
-    expect(onSatelliteClick).toHaveBeenCalledWith('STARLINK-1234')
+    expect(onSatelliteClick).toHaveBeenCalledWith('STARLINK-1234', '44713')
   })
 })

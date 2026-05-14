@@ -6,7 +6,7 @@ import type { HighlightDirective } from '../types/chat'
 export function useGlobe(
   containerRef: RefObject<HTMLDivElement | null>,
   highlight: HighlightDirective | null,
-  onSatelliteClick?: (name: string) => void,
+  onSatelliteClick?: (name: string, noradId: string) => void,
 ): { isLoading: boolean; satelliteCount: number } {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
@@ -29,7 +29,7 @@ export function useGlobe(
       setIsLoading(false)
     })
     globe.onCatalogRefresh = (count) => setSatelliteCount(count)
-    globe.onSatelliteClick = (name) => onSatelliteClickRef.current?.(name)
+    globe.onSatelliteClick = (name, noradId) => onSatelliteClickRef.current?.(name, noradId)
     globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {

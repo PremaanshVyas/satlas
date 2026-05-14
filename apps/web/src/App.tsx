@@ -7,8 +7,9 @@ export default function App() {
   const { messages, isLoading, sendMessage, highlight } = useChat()
   const [prefill, setPrefill] = useState<string | null>(null)
 
-  function handleSatelliteSelect(name: string) {
-    setPrefill(`Tell me about ${name}`)
+  function handleSatelliteSelect(name: string, noradId: string) {
+    // NORAD ID ensures backend does exact catalog lookup — name alone can mismatch
+    setPrefill(`Tell me about NORAD ${noradId} (${name})`)
   }
 
   return (

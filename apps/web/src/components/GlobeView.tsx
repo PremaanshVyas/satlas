@@ -4,7 +4,7 @@ import type { HighlightDirective } from '../types/chat'
 
 interface GlobeViewProps {
   highlight: HighlightDirective | null
-  onSatelliteSelect?: (name: string) => void
+  onSatelliteSelect?: (name: string, noradId: string) => void
 }
 
 export default function GlobeView({ highlight, onSatelliteSelect }: GlobeViewProps) {

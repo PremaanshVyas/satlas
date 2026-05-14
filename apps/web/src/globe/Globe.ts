@@ -43,11 +43,12 @@ export class Globe {
   private issTleInterval: ReturnType<typeof setInterval> | null = null
   private visibilityHandler: (() => void) | null = null
   private satNames: string[] = []
+  private satNoradIds: string[] = []
   private lastPositionBuffer: Float32Array | null = null
   private clickCanvas: HTMLCanvasElement | null = null
   private _projPos = new THREE.Vector3()  // reused per click to avoid allocations
   onCatalogRefresh: ((count: number) => void) | null = null
-  onSatelliteClick: ((name: string) => void) | null = null
+  onSatelliteClick: ((name: string, noradId: string) => void) | null = null
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
     this.mounted = true
@@ -134,6 +135,7 @@ export class Globe {
       if (issTle) this.iss.updateTle(issTle.tle1, issTle.tle2)
       const others = tles.filter(t => t.norad_id !== ISS_NORAD)
       this.satNames = others.map(t => t.name)
+      this.satNoradIds = others.map(t => t.norad_id)
       this.catalogCount = others.length + 1  // +1 for ISS
       this.onCatalogRefresh?.(this.catalogCount)
 
@@ -210,7 +212,8 @@ export class Globe {
 
     if (bestIdx >= 0) {
       const name = this.satNames[bestIdx]
-      if (name) this.onSatelliteClick(name)
+      const noradId = this.satNoradIds[bestIdx]
+      if (name && noradId) this.onSatelliteClick(name, noradId)
     }
   }
 
