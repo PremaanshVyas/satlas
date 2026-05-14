@@ -42,9 +42,10 @@ export class Globe {
   private keepaliveInterval: ReturnType<typeof setInterval> | null = null
   private issTleInterval: ReturnType<typeof setInterval> | null = null
   private visibilityHandler: (() => void) | null = null
-  private raycaster = new THREE.Raycaster()
   private satNames: string[] = []
+  private lastPositionBuffer: Float32Array | null = null
   private clickCanvas: HTMLCanvasElement | null = null
+  private _projPos = new THREE.Vector3()  // reused per click to avoid allocations
   onCatalogRefresh: ((count: number) => void) | null = null
   onSatelliteClick: ((name: string) => void) | null = null
 
@@ -148,6 +149,7 @@ export class Globe {
         if (msg.type === 'ready') {
           onReady?.()
         } else if (msg.type === 'positions' && msg.buffer && this.field) {
+          this.lastPositionBuffer = msg.buffer
           this.field.update(msg.buffer)
         }
       }
@@ -163,20 +165,34 @@ export class Globe {
   }
 
   private onCanvasClick = (e: MouseEvent): void => {
-    if (!this.field || !this.onSatelliteClick) return
+    if (!this.onSatelliteClick || !this.lastPositionBuffer) return
     const canvas = e.target as HTMLCanvasElement
     const rect = canvas.getBoundingClientRect()
-    const mouse = new THREE.Vector2(
-      ((e.clientX - rect.left) / rect.width) * 2 - 1,
-      -((e.clientY - rect.top) / rect.height) * 2 + 1,
-    )
-    this.raycaster.setFromCamera(mouse, this.camera)
-    const hits = this.raycaster.intersectObject(this.field.mesh)
-    if (hits.length === 0) return
-    const { instanceId } = hits[0]
-    if (instanceId === undefined) return
-    const name = this.satNames[instanceId]
-    if (name) this.onSatelliteClick(name)
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
+
+    const buf = this.lastPositionBuffer
+    const count = buf.length / 3
+    const HIT_RADIUS_PX = 20  // generous click target — satellites are tiny dots
+
+    let bestDist = HIT_RADIUS_PX
+    let bestIdx = -1
+
+    for (let i = 0; i < count; i++) {
+      this._projPos.set(buf[i * 3], buf[i * 3 + 1], buf[i * 3 + 2])
+      this._projPos.project(this.camera)
+      if (this._projPos.z > 1) continue  // behind camera / beyond far plane
+
+      const sx = (this._projPos.x + 1) * 0.5 * rect.width
+      const sy = (1 - this._projPos.y) * 0.5 * rect.height
+      const dist = Math.hypot(sx - clickX, sy - clickY)
+      if (dist < bestDist) { bestDist = dist; bestIdx = i }
+    }
+
+    if (bestIdx >= 0) {
+      const name = this.satNames[bestIdx]
+      if (name) this.onSatelliteClick(name)
+    }
   }
 
   highlightSatellite(noradId: string, latDeg?: number, lonDeg?: number): void {
