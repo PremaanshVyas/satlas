@@ -33,10 +33,7 @@ describe('fetchSatelliteCatalog', () => {
     const result = await fetchSatelliteCatalog('http://localhost:8000')
 
     expect(result).toEqual(mockData)
-    expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/satellites',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    )
+    expect(fetch).toHaveBeenCalledWith('http://localhost:8000/satellites')
   })
 
   test('throws when response is not ok', async () => {

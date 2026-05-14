@@ -7,7 +7,6 @@ export interface TLERecord {
 
 const CACHE_KEY = 'aussie-sky-catalog-v1'
 const CACHE_TTL_MS = 30 * 60 * 1000  // match Railway backend TTL
-const FETCH_TIMEOUT_MS = 35_000       // Railway free-tier cold start ≤ 30s
 
 function loadCachedCatalog(): TLERecord[] | null {
   try {
@@ -26,32 +25,28 @@ function saveCatalogToCache(data: TLERecord[]): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
   } catch {
-    // localStorage quota exceeded — not fatal
+    // localStorage quota exceeded or unavailable (private browsing) — not fatal
   }
 }
 
 async function fetchCatalogFromNetwork(baseUrl: string): Promise<TLERecord[]> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-  try {
-    const response = await fetch(`${baseUrl}/satellites`, { signal: controller.signal })
-    if (!response.ok) throw new Error(`Catalog fetch failed: ${response.status}`)
-    const data = await response.json() as TLERecord[]
-    saveCatalogToCache(data)
-    return data
-  } finally {
-    clearTimeout(timeout)
-  }
+  const response = await fetch(`${baseUrl}/satellites`)
+  if (!response.ok) throw new Error(`Catalog fetch failed: ${response.status}`)
+  const data = await response.json() as TLERecord[]
+  saveCatalogToCache(data)
+  return data
 }
 
 export async function fetchSatelliteCatalog(baseUrl: string): Promise<TLERecord[]> {
   const cached = loadCachedCatalog()
   if (cached) {
-    // Return cached data immediately for fast render, refresh cache in background for next visit
+    // Return cached data immediately for instant render.
+    // Fire background refresh to update cache for next visit — don't await.
     void fetchCatalogFromNetwork(baseUrl).catch(() => {})
     return cached
   }
-  // No cache — must wait for network (shows ISS-only until this resolves or times out)
+  // No cache: fetch from network. No artificial timeout — Railway cold starts can
+  // take up to 60s. The globe is shown immediately (ISS-only) while this loads.
   return fetchCatalogFromNetwork(baseUrl)
 }
 
