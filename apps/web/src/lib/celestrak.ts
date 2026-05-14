@@ -5,7 +5,7 @@ export interface TLERecord {
   tle2: string
 }
 
-const CACHE_KEY = 'aussie-sky-catalog-v2'
+const CACHE_KEY = 'aussie-sky-catalog-v3'
 // Discard cache only after 24 h — stale-while-revalidate means satellites are
 // always shown immediately from cache while a fresh fetch runs in background.
 const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000

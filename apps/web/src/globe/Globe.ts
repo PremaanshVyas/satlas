@@ -194,6 +194,31 @@ export class Globe {
     try {
       const tles = await fetchSatelliteCatalog(baseUrl)
       if (!this.mounted) return
+
+      const issTle = tles.find((t: TLERecord) => t.norad_id === ISS_NORAD)
+      if (issTle) {
+        this.iss.updateTle(issTle.tle1, issTle.tle2)
+        this.issName = issTle.name || 'ISS (ZARYA)'
+      }
+      const others = tles.filter((t: TLERecord) => t.norad_id !== ISS_NORAD)
+
+      // Soft refresh: if the InstancedMesh and worker already exist with a similar satellite
+      // count, just re-send TLEs to the worker without tearing down the mesh.
+      // Tearing down causes a visible "no satellites" gap while the new worker initializes.
+      if (this.field && this.worker && Math.abs(others.length - this.satNames.length) <= 200) {
+        this.satNames = others.map((t: TLERecord) => t.name)
+        this.satNoradIds = others.map((t: TLERecord) => t.norad_id)
+        this.satTles = others.map((t: TLERecord) => ({ tle1: t.tle1, tle2: t.tle2 }))
+        this.satCategories = others.map((t: TLERecord) => classifySatellite(t.name))
+        this.catalogCount = others.length + 1
+        this.onCatalogRefresh?.(this.catalogCount)
+        this.rebuildCategoryMask()
+        if (this.agentFilterCategories) this.applyAgentCategoryColors()
+        this.worker.postMessage({ type: 'init', tles: others })
+        return
+      }
+
+      // Full init: first load, or catalog size changed significantly (new satellites launched).
       if (this.field) {
         this.scene.remove(this.field.mesh)
         this.field.dispose()
@@ -203,12 +228,6 @@ export class Globe {
         this.worker.terminate()
         this.worker = null
       }
-      const issTle = tles.find((t: TLERecord) => t.norad_id === ISS_NORAD)
-      if (issTle) {
-        this.iss.updateTle(issTle.tle1, issTle.tle2)
-        this.issName = issTle.name || 'ISS (ZARYA)'
-      }
-      const others = tles.filter((t: TLERecord) => t.norad_id !== ISS_NORAD)
       this.satNames = others.map((t: TLERecord) => t.name)
       this.satNoradIds = others.map((t: TLERecord) => t.norad_id)
       this.satTles = others.map((t: TLERecord) => ({ tle1: t.tle1, tle2: t.tle2 }))
@@ -217,7 +236,7 @@ export class Globe {
       this.onCatalogRefresh?.(this.catalogCount)
       this.rebuildCategoryMask()
 
-      // Deselect ground track and hover if catalog rebuilt — all indices are now stale
+      // Deselect ground track and hover — all indices are stale after a full rebuild
       this.clearGroundTrack()
       this.hoveredIdx = -1
 
@@ -423,12 +442,18 @@ export class Globe {
     const count = buf.length / 3
     const SPHERE_RADIUS = 0.005
 
-    let bestScreenDist = Infinity
+    let bestDepth = Infinity
     let bestIdx = -1
 
     for (let i = 0; i < count; i++) {
       if (this.activeCategoryMask && !this.activeCategoryMask[i]) continue
-      this._projPos.set(buf[i * 3], buf[i * 3 + 1], buf[i * 3 + 2])
+
+      const satX = buf[i * 3], satY = buf[i * 3 + 1], satZ = buf[i * 3 + 2]
+      // Occlusion: skip satellites on the far side of the earth from the camera.
+      // They project to valid 2D screen positions but are physically hidden by the globe.
+      if (satX * camX + satY * camY + satZ * camZ <= 0) continue
+
+      this._projPos.set(satX, satY, satZ)
       this._projPos.project(this.camera)
       if (this._projPos.z > 1) continue
 
@@ -436,14 +461,14 @@ export class Globe {
       const sy = (1 - this._projPos.y) * 0.5 * rect.height
       const screenDist = Math.hypot(sx - clickX, sy - clickY)
 
-      const dx = buf[i * 3] - camX
-      const dy = buf[i * 3 + 1] - camY
-      const dz = buf[i * 3 + 2] - camZ
+      const dx = satX - camX, dy = satY - camY, dz = satZ - camZ
       const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
       const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
 
-      if (screenDist <= dotRadiusPx + 1 && screenDist < bestScreenDist) {
-        bestScreenDist = screenDist
+      // Among candidates in the hit zone, prefer the one closest to the camera
+      // (smallest depth) so a lower-altitude satellite always wins over one behind it.
+      if (screenDist <= dotRadiusPx + 1 && depth < bestDepth) {
+        bestDepth = depth
         bestIdx = i
       }
     }
@@ -514,12 +539,18 @@ export class Globe {
     const count = buf.length / 3
     const SPHERE_RADIUS = 0.005
 
-    let bestDist = Infinity
+    let bestDepth = Infinity
     let bestIdx = -1
 
     for (let i = 0; i < count; i++) {
       if (this.activeCategoryMask && !this.activeCategoryMask[i]) continue
-      this._projPos.set(buf[i * 3], buf[i * 3 + 1], buf[i * 3 + 2])
+
+      const satX = buf[i * 3], satY = buf[i * 3 + 1], satZ = buf[i * 3 + 2]
+      // Occlusion: skip satellites on the far side of the earth from the camera.
+      // They project to valid 2D screen positions but are physically hidden by the globe.
+      if (satX * camX + satY * camY + satZ * camZ <= 0) continue
+
+      this._projPos.set(satX, satY, satZ)
       this._projPos.project(this.camera)
       if (this._projPos.z > 1) continue
 
@@ -527,14 +558,14 @@ export class Globe {
       const sy = (1 - this._projPos.y) * 0.5 * rect.height
       const screenDist = Math.hypot(sx - mouseX, sy - mouseY)
 
-      const dx = buf[i * 3] - camX
-      const dy = buf[i * 3 + 1] - camY
-      const dz = buf[i * 3 + 2] - camZ
+      const dx = satX - camX, dy = satY - camY, dz = satZ - camZ
       const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
       const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
 
-      if (screenDist <= dotRadiusPx + HOVER_EXTRA_PX && screenDist < bestDist) {
-        bestDist = screenDist
+      // Among candidates in the hit zone, prefer the one closest to the camera
+      // (smallest depth) so a lower-altitude satellite always wins over one behind it.
+      if (screenDist <= dotRadiusPx + HOVER_EXTRA_PX && depth < bestDepth) {
+        bestDepth = depth
         bestIdx = i
       }
     }
