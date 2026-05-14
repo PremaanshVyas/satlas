@@ -111,7 +111,7 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 10 complete. Full-screen globe with floating overlay UI. Hover tooltips, category filters, ground track for selected satellite, collapsible AI chat panel, and satellite info card all shipped. 77 pytest + 33 Vitest — all green.
+**Current phase:** Session 10 complete + ISS identity hotfix. Full-screen globe, floating overlay UI, hover tooltips, category filters, ground track, collapsible AI chat, satellite info card, and ISS click/hover fix all live. 77 pytest + 33 Vitest — all green.
 
 **Next milestone:** Session 11 — agent group-highlight tool (`highlight_catalog_group(category)`), polish, and deployment. See `docs/session-11-bootstrap.md` for the full context prompt.
 
@@ -121,8 +121,9 @@ aussie-sky/
 - [x] Ground track: click-to-select shows ECI+GMST orbit arc (sky-blue LineLoop) for selected catalog satellite; recomputes every 60s; clears on empty-space click
 - [x] Full-screen globe: removed 65/35 split; globe is absolute inset-0
 - [x] Collapsible AI chat: floating 320px right overlay, toggle button bottom-right, badge shows reply count
-- [x] Satellite info card: top-left card shows name + NORAD ID + "Ask AI" button; decouples exploration from AI
+- [x] Satellite info card: top-left card shows name + NORAD ID + "Ask AI" button; decouples globe exploration from AI — "Ask AI" opens chat and prefills query, enforcing presenter-only pattern
 - [x] Category mask applied in click + hover loops (no false positives on hidden satellites)
+- [x] ISS click/hover fix: Globe checks ISS dot position before catalog buffer — docked modules (Unity, Destiny etc.) no longer hijack the click; always resolves to ZARYA/25544
 - [x] 77 pytest + 33 Vitest green; tsc clean
 
 **Session 9 completed tasks (summary):**
@@ -183,7 +184,11 @@ Format: date, decision, rationale, rule to remember.
 
 - **2026-05-14 — Session 10: Category filtering via Uint8Array mask, not worker re-init.** Initial approach considered re-initing the propagator worker with a filtered TLE array on each toggle. Rejected: worker re-init is ~200ms and rebuilds the InstancedMesh, causing a visual flash. Instead: `classifySatellite()` buckets each TLE name by regex at catalog load time; `rebuildCategoryMask()` produces a `Uint8Array` (`1`=active, `0`=hidden); `SatelliteField.update()` accepts an optional mask and sets hidden instances to scale-0 matrix (renders as nothing). Category mask is also applied in click and hover loops to skip hidden satellites. Rule: prefer a visibility mask over re-init for InstancedMesh filtering — avoids mesh teardown and keeps the frame continuous.
 
+- **2026-05-14 — Session 10: AI chat is a presenter, not an info generator — enforced at the UI level.** The satellite info card (shown on click) deliberately separates exploration from AI. Clicking a satellite shows name + NORAD ID immediately from local data — no AI call. The "Ask AI about this satellite" button then opens the chat panel and prefills "Tell me about NORAD \<id\> (\<name\>)" so the backend does an exact `get_satellite_info` lookup. The AI only speaks when explicitly invoked, and only presents tool results, never generates values itself. This is the presenter-only architectural rule expressed in the UI: the globe is the data source, the AI is the voice.
+
 - **2026-05-14 — Session 10: Ground track computed in Globe.ts using satellite.js directly.** The propagator worker already uses satellite.js. For the selected-satellite arc, importing satellite.js in Globe.ts (main thread) was simpler than adding a 'compute_arc' message round-trip to the worker. Arc computation for 180 points takes ~2ms — negligible on click. Pattern mirrors SatelliteMesh.computeArcPoints(): propagate 180 evenly-spaced points over one orbital period, rotate all by a single GMST snapshot, map ECI→Three.js ECEF. LineLoop recomputes every 60s. Rule: a 2ms main-thread computation on user interaction is preferable to worker message round-trips that add latency and code complexity.
+
+- **2026-05-14 — ISS click/hover returns wrong module (Unity, Destiny) — fixed by priority check.** ISS docked modules (NORAD 26958 Unity, 27386 Destiny, etc.) share the same orbital position as ISS ZARYA (25544). The catalog InstancedMesh includes these modules as blue dots. Before the fix, clicking near the yellow ISS dot iterated the catalog buffer first and returned whichever docked module was geometrically closest in the buffer — not ISS ZARYA. Fix: both click and hover handlers check the ISS SatelliteMesh position against the cursor before iterating the catalog buffer. If the cursor is within the ISS dot radius (+2px tolerance for click, +6px for hover), the handler fires with `(issName, '25544')` and returns. `issName` is captured from the catalog on load (NORAD 25544 should be 'ISS (ZARYA)') with a hard fallback. Sentinel value `-2` for `hoveredIdx` prevents re-firing while cursor stays over the ISS. Rule: when a special object shares a position with catalog entries, always check it first in the pick loop.
 
 ---
 
