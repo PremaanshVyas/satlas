@@ -53,7 +53,9 @@ function loadCache(): { data: TLERecord[]; ts: number } | null {
 function saveCache(data: TLERecord[]): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
-  } catch {}
+  } catch {
+    // localStorage quota exceeded or unavailable — not fatal
+  }
 }
 
 async function fetchActive(): Promise<TLERecord[]> {
@@ -65,7 +67,7 @@ async function fetchActive(): Promise<TLERecord[]> {
   return records
 }
 
-export async function fetchSatelliteCatalog(_baseUrl: string): Promise<TLERecord[]> {
+export async function fetchSatelliteCatalog(): Promise<TLERecord[]> {
   const cached = loadCache()
 
   if (cached) {
@@ -95,7 +97,7 @@ export async function fetchSatelliteCatalog(_baseUrl: string): Promise<TLERecord
 
 // Fetch ISS TLE directly from CelesTrak CATNR — works from all IPs including cloud.
 // This replaces the old Railway /tle/iss call. Railway is no longer in the ISS TLE path.
-export async function fetchIssTle(_baseUrl: string): Promise<{ tle1: string; tle2: string }> {
+export async function fetchIssTle(): Promise<{ tle1: string; tle2: string }> {
   const res = await fetch(ISS_CATNR_URL)
   if (!res.ok) throw new Error(`ISS TLE fetch failed: ${res.status}`)
   const text = await res.text()

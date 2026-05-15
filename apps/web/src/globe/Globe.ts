@@ -206,9 +206,8 @@ export class Globe {
   }
 
   private async refreshIssTle(): Promise<void> {
-    const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
     try {
-      const { tle1, tle2 } = await fetchIssTle(baseUrl)
+      const { tle1, tle2 } = await fetchIssTle()
       if (this.mounted) {
         this.iss.updateTle(tle1, tle2)
         this.issSatrec = satellite.twoline2satrec(tle1, tle2)
@@ -219,9 +218,8 @@ export class Globe {
   }
 
   private async initCatalog(): Promise<void> {
-    const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
     try {
-      const tles = await fetchSatelliteCatalog(baseUrl)
+      const tles = await fetchSatelliteCatalog()
       if (!this.mounted) return
 
       const issTle = tles.find((t: TLERecord) => t.norad_id === ISS_NORAD)

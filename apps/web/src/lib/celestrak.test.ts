@@ -93,7 +93,7 @@ describe('fetchSatelliteCatalog', () => {
       text: () => Promise.resolve(makeTleText(110)),
     }))
 
-    const result = await fetchSatelliteCatalog('http://unused')
+    const result = await fetchSatelliteCatalog()
 
     expect(result.length).toBe(110)
     expect(fetch).toHaveBeenCalledWith(ACTIVE_URL)
@@ -103,7 +103,7 @@ describe('fetchSatelliteCatalog', () => {
   test('throws when CelesTrak fails and there is no stale cache', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')))
 
-    await expect(fetchSatelliteCatalog('http://unused')).rejects.toThrow()
+    await expect(fetchSatelliteCatalog()).rejects.toThrow()
   })
 
   test('serves stale cache when CelesTrak fails instead of throwing', async () => {
@@ -114,7 +114,7 @@ describe('fetchSatelliteCatalog', () => {
     // First call: network fetch (background refresh) fails
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('CelesTrak down')))
 
-    const result = await fetchSatelliteCatalog('http://unused')
+    const result = await fetchSatelliteCatalog()
 
     // Returns stale data even though it's >72h old
     expect(result).toEqual(stale)
@@ -130,7 +130,7 @@ describe('fetchSatelliteCatalog', () => {
       text: () => Promise.resolve(makeTleText(110)),
     }))
 
-    const result = await fetchSatelliteCatalog('http://unused')
+    const result = await fetchSatelliteCatalog()
 
     expect(result).toEqual(cached)
   })
@@ -145,7 +145,7 @@ describe('fetchSatelliteCatalog', () => {
       text: () => Promise.resolve(makeTleText(110)),
     }))
 
-    await fetchSatelliteCatalog('http://unused')
+    await fetchSatelliteCatalog()
     await new Promise(r => setTimeout(r, 0))
 
     expect(fetch).toHaveBeenCalledWith(ACTIVE_URL)
@@ -168,7 +168,7 @@ describe('fetchIssTle', () => {
       text: () => Promise.resolve(issText),
     }))
 
-    const result = await fetchIssTle('http://unused')
+    const result = await fetchIssTle()
 
     expect(result.tle1).toMatch(/^1 25544/)
     expect(result.tle2).toMatch(/^2 25544/)
@@ -178,6 +178,6 @@ describe('fetchIssTle', () => {
   test('throws when CelesTrak returns non-ok status', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
 
-    await expect(fetchIssTle('http://unused')).rejects.toThrow('503')
+    await expect(fetchIssTle()).rejects.toThrow('503')
   })
 })
