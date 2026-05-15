@@ -35,7 +35,7 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)) }
     if (e.key === 'ArrowUp')   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)) }
     if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); const r = results[activeIdx]; if (r) handleSelect(r) }
-    if (e.key === 'Escape')    { setOpen(false); inputRef.current?.blur() }
+    if (e.key === 'Escape')    { setQuery(''); setResults([]); setOpen(false); inputRef.current?.blur() }
   }, [open, results, activeIdx, handleSelect])
 
   useEffect(() => {
