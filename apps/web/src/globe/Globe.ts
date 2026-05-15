@@ -11,6 +11,8 @@ import { fetchSatelliteCatalog, fetchIssTle } from '../lib/celestrak'
 import type { TLERecord } from '../lib/celestrak'
 import { fetchSatcat } from '../lib/satcat'
 import type { SatcatEntry } from '../lib/satcat'
+import { matchSatelliteQuery } from './searchUtils'
+import type { SearchResult } from './searchUtils'
 
 // Orbital parameters computed from TLE data (satrec fields).
 export interface OrbitalParams {
@@ -427,6 +429,34 @@ export class Globe {
   // Public — called from App.tsx when the user clicks ✕ on the info card.
   clearSelection(): void {
     this.clearGroundTrack()
+  }
+
+  searchCatalog(query: string, maxResults = 8): SearchResult[] {
+    const results: SearchResult[] = []
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    // ISS is excluded from satNoradIds — check it separately.
+    if (this.issName.toLowerCase().includes(q) || ISS_NORAD.startsWith(q)) {
+      results.push({ name: this.issName, noradId: ISS_NORAD })
+    }
+    if (results.length < maxResults) {
+      const rest = matchSatelliteQuery(query, this.satNames, this.satNoradIds, maxResults - results.length)
+      results.push(...rest)
+    }
+    return results
+  }
+
+  selectCatalogSatellite(noradId: string): void {
+    if (noradId === ISS_NORAD) {
+      this.clearGroundTrack()  // ISS already has its own arc via SatelliteMesh
+      this.handleSatSelect(ISS_NORAD, this.issSatrec)
+      this.onSatelliteClick?.(this.issName, ISS_NORAD)
+      return
+    }
+    const idx = this.satNoradIds.indexOf(noradId)
+    if (idx < 0) return
+    this.showGroundTrack(idx)
+    this.onSatelliteClick?.(this.satNames[idx] ?? noradId, noradId)
   }
 
   private showGroundTrack(idx: number): void {

@@ -4,6 +4,7 @@ import { Globe } from '../globe/Globe'
 import type { SatCategory, OrbitalParams, LivePosition } from '../globe/Globe'
 import type { HighlightDirective } from '../types/chat'
 import type { SatcatEntry } from '../lib/satcat'
+import type { SearchResult } from '../globe/searchUtils'
 
 export type { OrbitalParams, LivePosition }
 export type { SatcatEntry }
@@ -33,6 +34,8 @@ export function useGlobe(
   setActiveCategories: (cats: Set<SatCategory>) => void
   applyAgentFilter: (cats: SatCategory[]) => void
   deselectSatellite: () => void
+  searchCatalog: (query: string) => SearchResult[]
+  selectCatalogSatellite: (noradId: string) => void
 } {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
@@ -101,5 +104,13 @@ export function useGlobe(
     globeRef.current?.clearSelection()
   }, [])
 
-  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, deselectSatellite }
+  const searchCatalog = useCallback((query: string): SearchResult[] => {
+    return globeRef.current?.searchCatalog(query) ?? []
+  }, [])
+
+  const selectCatalogSatellite = useCallback((noradId: string): void => {
+    globeRef.current?.selectCatalogSatellite(noradId)
+  }, [])
+
+  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, deselectSatellite, searchCatalog, selectCatalogSatellite }
 }

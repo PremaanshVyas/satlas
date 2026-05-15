@@ -4,6 +4,7 @@ import type { OrbitalParams, LivePosition, SatcatEntry } from '../hooks/useGlobe
 import type { HighlightDirective, SetFilterDirective } from '../types/chat'
 import type { SatCategory } from '../globe/Globe'
 import { ALL_CATEGORIES } from '../globe/Globe'
+import SearchBar from './SearchBar'
 
 export type { OrbitalParams, LivePosition, SatcatEntry }
 
@@ -49,7 +50,7 @@ export default function GlobeView({
     new Set(ALL_CATEGORIES),
   )
 
-  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, deselectSatellite } = useGlobe(
+  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, deselectSatellite, searchCatalog, selectCatalogSatellite } = useGlobe(
     containerRef,
     highlight,
     { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteDeselect },
@@ -109,6 +110,17 @@ export default function GlobeView({
   return (
     <div className="w-full h-full relative">
       <div ref={containerRef} className="w-full h-full" />
+
+      {/* Search bar — top-center overlay */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+        <SearchBar
+          onSearch={searchCatalog}
+          onSelect={(noradId, name) => {
+            selectCatalogSatellite(noradId)
+            onSatelliteSelect?.(name, noradId)
+          }}
+        />
+      </div>
 
       {/* UTC clock — top-left */}
       <div className="absolute top-3 left-3 font-mono text-xs text-gray-400 bg-black/50 px-2 py-1 rounded select-none pointer-events-none">

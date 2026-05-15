@@ -1,5 +1,6 @@
-import { describe, test, expect } from 'vitest'
+import { describe, test, expect, it } from 'vitest'
 import * as satellite from 'satellite.js'
+import { matchSatelliteQuery } from './searchUtils'
 
 const TLE1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
 const TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
@@ -64,5 +65,35 @@ describe('satellite coordinate transform', () => {
     const pos = geoToThreeJs(0, Math.PI)
     expect(pos.x).toBeCloseTo(-1, 5)
     expect(pos.z).toBeCloseTo(0, 5)
+  })
+})
+
+describe('matchSatelliteQuery', () => {
+  const names   = ['ISS (ZARYA)', 'STARLINK-1001', 'GPS BIIF-1', 'HUBBLE']
+  const noradIds = ['25544',       '45178',         '37753',      '20580']
+
+  it('returns matches by name substring (case-insensitive)', () => {
+    const r = matchSatelliteQuery('starlink', names, noradIds, 10)
+    expect(r).toHaveLength(1)
+    expect(r[0].name).toBe('STARLINK-1001')
+    expect(r[0].noradId).toBe('45178')
+  })
+
+  it('returns matches by NORAD ID prefix', () => {
+    const r = matchSatelliteQuery('255', names, noradIds, 10)
+    expect(r).toHaveLength(1)
+    expect(r[0].noradId).toBe('25544')
+  })
+
+  it('respects maxResults limit', () => {
+    const bigNames   = Array.from({ length: 20 }, (_, i) => `SAT-${i}`)
+    const bigNoradIds = Array.from({ length: 20 }, (_, i) => `1000${i}`)
+    const r = matchSatelliteQuery('sat', bigNames, bigNoradIds, 5)
+    expect(r).toHaveLength(5)
+  })
+
+  it('returns empty array for empty query', () => {
+    expect(matchSatelliteQuery('', names, noradIds, 10)).toHaveLength(0)
+    expect(matchSatelliteQuery('   ', names, noradIds, 10)).toHaveLength(0)
   })
 })
