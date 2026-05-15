@@ -111,20 +111,17 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 13 complete — 6 critical reliability bugs fixed before V1 feature work. 45 Vitest + 87 pytest green; tsc clean; lint clean.
+**Current phase:** Session 15 complete — text search on globe, README local dev setup, verification of Session 14 reliability fixes. 53 Vitest tests; tsc clean; lint clean.
 
-**Next milestone:** Session 14 — V1 polish: README local dev setup (hard blocker for going public), FastAPI /docs on Railway, general pass predictor (`/passes/{norad_id}` + new agent tool), text search on globe (UI-only), UptimeRobot keepalive.
+**Next milestone:** Session 16 — AWS migration: move Python orbital service from Railway to ECS Fargate; ECR image push in CI; RDS PostgreSQL for alert subscriptions; Terraform for all AWS resources; Sentry error monitoring.
 
-**Session 13 completed tasks:**
-- [x] Cache key v2→v3: forces every browser to discard old SpaceTrack-polluted 25k cache and refetch clean CelesTrak active-satellite data (~9k objects)
-- [x] SpaceTrack fallback: query now filters `OBJECT_TYPE/PAYLOAD`, limit 10k — no debris or rocket bodies even when Railway falls back to SpaceTrack
-- [x] Soft catalog refresh: `initCatalog` detects existing field + similar count (±200) and re-inits worker TLEs in place — no InstancedMesh teardown, no 30-min satellite gap
-- [x] 72h stale-serve cache: `SERVE_AGE_MS=24h`, `MAX_CACHE_AGE_MS=72h` — stale TLEs (valid for days) served instantly up to 72h; background refresh always fires; loading screen never appears on reload
-- [x] Hover/click occlusion: `if (satX*camX + satY*camY + satZ*camZ <= 0) continue` before projection — satellites on the far side of the earth can no longer trigger tooltips or cards
-- [x] Hover/click z-ordering: pick by depth (closest to camera) not screen distance — lower-altitude satellite always wins when two overlap on screen
-- [x] System prompt: explicit tool-error rule — "if any tool returns error, respond with 'service unavailable' only; never substitute training knowledge for live tool results"
+**Session 15 completed tasks:**
+- [x] Verified three Session 14 reliability fixes (celestrak legacy fallback, ISS TLE flow, satellite.js in api/chat.ts) — all confirmed correct, no changes needed
+- [x] Text search on globe: type to find any satellite by name or NORAD ID — SearchBar component + Globe.searchCatalog() + Globe.selectCatalogSatellite() + 9 new tests (53 total)
+- [x] README local dev setup — complete instructions: clone, install, run frontend, run AI chat locally (Vercel CLI), run tests
+- [x] README tech stack accuracy — added Live/Planned status, correct satellite count (~15k), accurate infra table
 
-**Sessions 1–12 (complete, stable):** See `docs/session-12-bootstrap.md` for full task lists. Highlights: globe, ISS SGP4, agent + 6 tools, 15k catalog, CI/CD, CORS, hover/click, category filters, orbital arcs, agent-driven filter with category colours.
+**Sessions 1–14 (complete, stable):** See `docs/session-14-bootstrap.md` for full task lists. Key highlights: globe, ISS SGP4, agent + tools, 15k catalog, CI/CD, CORS, hover/click, category filters, orbital arcs, agent-driven filter, live satellite info card, Railway eliminated from critical path.
 
 **Blockers:** None.
 
@@ -223,6 +220,14 @@ Format: date, decision, rationale, rule to remember.
 - **2026-05-14 — Session 13: Z-ordering fix — depth not screen distance determines winning satellite.** When two satellites projected to overlapping screen positions, the loop picked the one with smallest `screenDist` regardless of depth. A GEO satellite at 35,786 km could win over a LEO satellite at 400 km if it happened to project 1px closer to the cursor. Fix: change pick criterion to `depth < bestDepth` among all candidates within `dotRadiusPx + HOVER_EXTRA_PX`. Closest satellite to the camera always wins. Rule: in 3D picking, depth is the correct tiebreaker for overlapping 2D hits — screen distance is a proximity filter, not a priority order.
 
 - **2026-05-14 — Session 13: System prompt hardened against training-data fallback on tool errors.** When Railway timed out (5s ORBITAL_FETCH_TIMEOUT_MS), tool results contained `{ error: '...' }`. Claude would see the error but still generate an answer from training knowledge — violating the presenter-only rule. The system prompt previously only said "if data is missing, say unavailable." Fix: add explicit override: "IF ANY TOOL RETURNS AN ERROR OR TIMEOUT: respond with exactly 'The live data service is temporarily unavailable — please try again in a moment.' Do NOT use training knowledge." Rule: the presenter-only rule must cover the error case explicitly — Claude will infer "well, I have relevant knowledge" unless the prohibition is stated for errors specifically.
+
+- **2026-05-15 — Session 15: Satellite count stays at ~15k (GROUP=active only).** Reference site (satellitetracker3d.com) shows ~24k by fetching debris + rocket body groups in addition to active payloads. Adding extra CelesTrak group fetches would mean multiple download slots consumed per user visit, each a new 403 risk under CelesTrak's 1-download-per-2h rate limit per IP. Reliability beats count for a portfolio project where the loading state is embarrassing. Rule: never add CelesTrak group fetches unless each group has its own localStorage key and per-group rate-limit handling.
+
+- **2026-05-15 — Session 15: AWS migration deferred to Session 16.** Railway is fully off the AI critical path (see Session 14 commit). The Python orbital service still runs on Railway but nothing calls it from the frontend or AI agent. No production reliability is gained by migrating now. ECS Fargate + RDS + Terraform is a full session of work — sharing it with text search + README would mean doing both poorly. Rule: only migrate infra when there is a concrete trigger (reliability problem, feature requirement, or job-application deadline approaching).
+
+- **2026-05-15 — Session 15: searchCatalog() checks ISS separately before catalog arrays.** Globe.initCatalog() extracts ISS (NORAD 25544) into a separate SatelliteMesh and removes it from satNoradIds/satNames. Any public method that traverses the catalog arrays will silently miss ISS. Fix pattern: every catalog-traversal method checks this.issName / ISS_NORAD first, then searches satNoradIds. Rule: whenever a special object is split from the catalog for separate rendering, add an explicit early check in all catalog-traversal public methods.
+
+- **2026-05-15 — Session 15: selectCatalogSatellite() dispatches ISS via issSatrec, not showGroundTrack.** showGroundTrack(idx) requires a valid index in satNoradIds — ISS has none after being stripped. For ISS: clearGroundTrack() + handleSatSelect(ISS_NORAD, issSatrec) + onSatelliteClick(). For catalog: showGroundTrack(idx) + onSatelliteClick(). Globe.onSatelliteClick fires through the useGlobe callback chain to GlobeView.onSatelliteSelect — don't call onSatelliteSelect explicitly in the SearchBar.onSelect handler or it fires twice. Rule: any programmatic satellite selection must replicate the exact two-step click-handler flow; don't add extra callback fires at the UI layer.
 
 ---
 
