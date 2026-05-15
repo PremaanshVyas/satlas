@@ -11,7 +11,7 @@ SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
 # No MEAN_MOTION/ECCENTRICITY filters — those excluded ISS at certain orbital epochs
 SPACETRACK_QUERY_URL = (
     'https://www.space-track.org/basicspacedata/query/class/gp'
-    '/EPOCH/%3Enow-30/OBJECT_TYPE/PAYLOAD/orderby/NORAD_CAT_ID/limit/25000/format/json'
+    '/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID/limit/35000/format/json'
 )
 
 CACHE_TTL_SECONDS = 30 * 60

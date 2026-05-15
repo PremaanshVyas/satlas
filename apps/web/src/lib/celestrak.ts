@@ -5,17 +5,25 @@ export interface TLERecord {
   tle2: string
 }
 
-const CACHE_KEY = 'aussie-sky-catalog-v3'
+// v4: forces browsers to discard v3 cache (which was populated from Railway's 10k SpaceTrack fallback).
+// Fresh fetch from CelesTrak GROUP=active gives ~15k+ active satellites.
+const CACHE_KEY = 'aussie-sky-catalog-v4'
 // Serve cached data immediately for up to SERVE_AGE_MS without waiting for network.
 // After that, still serve stale data instantly but always refresh in the background.
 // TLEs are valid for several days, so serving up to 48 h old data is safe while fresh
 // data loads. Only reject the cache entirely if it is >72 h old or malformed.
-const SERVE_AGE_MS  = 24 * 60 * 60 * 1000   // 24 h — always serve from here instantly
-const MAX_CACHE_AGE_MS = 72 * 60 * 60 * 1000// 72 h — hard expiry (satellite orbits too stale)
+const SERVE_AGE_MS     = 24 * 60 * 60 * 1000  // 24 h — always serve from here instantly
+const MAX_CACHE_AGE_MS = 72 * 60 * 60 * 1000  // 72 h — hard expiry (satellite orbits too stale)
 
-// CelesTrak serves TLE data directly to browsers (CORS enabled, user IPs never blocked).
-// Cloud IPs (Railway, AWS, etc.) get 403 on GROUP=active — browser IPs do not.
-const CELESTRAK_ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=TLE'
+// Primary group: active payloads (~15k objects, CORS-enabled, user IPs never blocked).
+// Debris groups: notable debris fields trackable via the same gp.php endpoint.
+// All fetched in parallel and merged by NORAD ID (deduplication).
+const CELESTRAK_GROUPS = [
+  'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=TLE',
+  'https://celestrak.org/NORAD/elements/gp.php?GROUP=fengyun-1c-debris&FORMAT=TLE',
+  'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=TLE',
+  'https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=TLE',
+]
 
 export function parseTleText(text: string): TLERecord[] {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
@@ -29,7 +37,7 @@ export function parseTleText(text: string): TLERecord[] {
       records.push({ name, norad_id: tle1.slice(2, 7).trim(), tle1, tle2 })
       i += 3
     } else {
-      i += 1  // skip malformed line, same as Python _parse_tle_text
+      i += 1  // skip malformed line
     }
   }
   return records
@@ -57,13 +65,28 @@ function saveCatalogToCache(data: TLERecord[]): void {
   }
 }
 
+// Fetch all CelesTrak groups in parallel, merge and deduplicate by NORAD ID.
+// Parallel fetch means the total latency ≈ slowest single group, not the sum.
 async function fetchFromCelesTrak(): Promise<TLERecord[]> {
-  const res = await fetch(CELESTRAK_ACTIVE_URL)
-  if (!res.ok) throw new Error(`CelesTrak ${res.status}`)
-  const text = await res.text()
-  const records = parseTleText(text)
-  if (records.length < 100) throw new Error(`CelesTrak returned only ${records.length} records`)
-  return records
+  const results = await Promise.allSettled(
+    CELESTRAK_GROUPS.map(url => fetch(url).then(r => {
+      if (!r.ok) throw new Error(`CelesTrak ${r.status} (${url})`)
+      return r.text()
+    }))
+  )
+  const seen = new Set<string>()
+  const merged: TLERecord[] = []
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue
+    for (const rec of parseTleText(result.value)) {
+      if (!seen.has(rec.norad_id)) {
+        seen.add(rec.norad_id)
+        merged.push(rec)
+      }
+    }
+  }
+  if (merged.length < 100) throw new Error(`CelesTrak returned only ${merged.length} records`)
+  return merged
 }
 
 async function fetchFromRailway(baseUrl: string): Promise<TLERecord[]> {
@@ -75,11 +98,13 @@ async function fetchFromRailway(baseUrl: string): Promise<TLERecord[]> {
 async function fetchCatalogFromNetwork(baseUrl: string): Promise<TLERecord[]> {
   try {
     // Primary: direct browser fetch from CelesTrak CDN — no cold starts, no Railway needed.
+    // Fetches active payloads + major debris groups in parallel (~18-20k objects total).
     const data = await fetchFromCelesTrak()
     saveCatalogToCache(data)
     return data
   } catch {
-    // Fallback: Railway /satellites, which has its own CelesTrak → SpaceTrack → stale chain.
+    // Fallback: Railway /satellites, which serves the full SpaceTrack catalog (all object types)
+    // when it is warm. This is a larger set (~25-35k) but requires Railway to not be cold-starting.
     const data = await fetchFromRailway(baseUrl)
     saveCatalogToCache(data)
     return data

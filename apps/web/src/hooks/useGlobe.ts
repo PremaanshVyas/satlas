@@ -1,8 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import type { RefObject } from 'react'
 import { Globe } from '../globe/Globe'
-import type { SatCategory } from '../globe/Globe'
+import type { SatCategory, OrbitalParams, LivePosition } from '../globe/Globe'
 import type { HighlightDirective } from '../types/chat'
+import type { SatcatEntry } from '../lib/satcat'
+
+export type { OrbitalParams, LivePosition }
+export type { SatcatEntry }
 
 export interface HoverInfo {
   name: string
@@ -11,25 +15,33 @@ export interface HoverInfo {
   screenY: number
 }
 
+interface UseGlobeCallbacks {
+  onSatelliteClick?: (name: string, noradId: string) => void
+  onSatelliteSelectInfo?: (orbital: OrbitalParams, meta: SatcatEntry | null) => void
+  onLivePosition?: (pos: LivePosition | null) => void
+  onSatelliteDeselect?: () => void
+}
+
 export function useGlobe(
   containerRef: RefObject<HTMLDivElement | null>,
   highlight: HighlightDirective | null,
-  onSatelliteClick?: (name: string, noradId: string) => void,
+  callbacks: UseGlobeCallbacks,
 ): {
   isLoading: boolean
   satelliteCount: number
   hoverInfo: HoverInfo | null
   setActiveCategories: (cats: Set<SatCategory>) => void
   applyAgentFilter: (cats: SatCategory[]) => void
+  deselectSatellite: () => void
 } {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
   const globeRef = useRef<Globe | null>(null)
-  const onSatelliteClickRef = useRef(onSatelliteClick)
-  useLayoutEffect(() => {
-    onSatelliteClickRef.current = onSatelliteClick
-  })
+
+  // Keep callback refs fresh so Globe callbacks always call the current version.
+  const callbacksRef = useRef(callbacks)
+  useLayoutEffect(() => { callbacksRef.current = callbacks })
 
   useEffect(() => {
     const container = containerRef.current
@@ -40,17 +52,19 @@ export function useGlobe(
     container.appendChild(canvas)
 
     const globe = new Globe()
-    globe.mount(canvas, () => {
-      setIsLoading(false)
-    })
+    globe.mount(canvas, () => setIsLoading(false))
+
     globe.onCatalogRefresh = (count) => setSatelliteCount(count)
-    globe.onSatelliteClick = (name, noradId) => onSatelliteClickRef.current?.(name, noradId)
+    globe.onSatelliteClick = (name, noradId) => callbacksRef.current.onSatelliteClick?.(name, noradId)
     globe.onSatelliteHover = (name, altKm, screenX, screenY) => {
-      if (name !== null && altKm !== null) {
-        setHoverInfo({ name, altKm, screenX, screenY })
-      } else {
-        setHoverInfo(null)
-      }
+      if (name !== null && altKm !== null) setHoverInfo({ name, altKm, screenX, screenY })
+      else setHoverInfo(null)
+    }
+    globe.onLivePosition = (pos) => callbacksRef.current.onLivePosition?.(pos)
+    globe.onSatelliteSelectInfo = (orbital, meta) => callbacksRef.current.onSatelliteSelectInfo?.(orbital, meta)
+    globe.onSatelliteDeselect = () => {
+      callbacksRef.current.onLivePosition?.(null)
+      callbacksRef.current.onSatelliteDeselect?.()
     }
     globeRef.current = globe
 
@@ -71,11 +85,7 @@ export function useGlobe(
 
   useEffect(() => {
     if (highlight && globeRef.current) {
-      globeRef.current.highlightSatellite(
-        highlight.norad_id,
-        highlight.latitude,
-        highlight.longitude,
-      )
+      globeRef.current.highlightSatellite(highlight.norad_id, highlight.latitude, highlight.longitude)
     }
   }, [highlight])
 
@@ -87,5 +97,9 @@ export function useGlobe(
     globeRef.current?.applyAgentFilter(cats)
   }, [])
 
-  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter }
+  const deselectSatellite = useCallback(() => {
+    globeRef.current?.clearSelection()
+  }, [])
+
+  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, deselectSatellite }
 }

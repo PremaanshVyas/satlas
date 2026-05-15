@@ -1,8 +1,11 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { useGlobe } from '../hooks/useGlobe'
+import type { OrbitalParams, LivePosition, SatcatEntry } from '../hooks/useGlobe'
 import type { HighlightDirective, SetFilterDirective } from '../types/chat'
 import type { SatCategory } from '../globe/Globe'
 import { ALL_CATEGORIES } from '../globe/Globe'
+
+export type { OrbitalParams, LivePosition, SatcatEntry }
 
 const CATEGORY_LABELS: Record<SatCategory, string> = {
   STARLINK: 'Starlink',
@@ -24,20 +27,38 @@ interface GlobeViewProps {
   highlight: HighlightDirective | null
   setFilter: SetFilterDirective | null
   onSatelliteSelect?: (name: string, noradId: string) => void
+  onSatelliteSelectInfo?: (orbital: OrbitalParams, meta: SatcatEntry | null) => void
+  onLivePosition?: (pos: LivePosition | null) => void
+  onSatelliteDeselect?: () => void
   onCategoriesChange?: (cats: string[]) => void
+  onDeselectReady?: (deselect: () => void) => void
 }
 
-export default function GlobeView({ highlight, setFilter, onSatelliteSelect, onCategoriesChange }: GlobeViewProps) {
+export default function GlobeView({
+  highlight,
+  setFilter,
+  onSatelliteSelect,
+  onSatelliteSelectInfo,
+  onLivePosition,
+  onSatelliteDeselect,
+  onCategoriesChange,
+  onDeselectReady,
+}: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(
     new Set(ALL_CATEGORIES),
   )
-  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter } = useGlobe(
+
+  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, deselectSatellite } = useGlobe(
     containerRef,
     highlight,
-    onSatelliteSelect,
+    { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteDeselect },
   )
-  const [utcClock, setUtcClock] = useState('')
+
+  // Expose deselectSatellite to App.tsx (needed for ✕ button on info card)
+  const onDeselectReadyRef = useRef(onDeselectReady)
+  useEffect(() => { onDeselectReadyRef.current = onDeselectReady })
+  useEffect(() => { onDeselectReadyRef.current?.(deselectSatellite) }, [deselectSatellite])
 
   // Agent directive: update filter pills AND apply category colours
   useEffect(() => {
@@ -49,7 +70,7 @@ export default function GlobeView({ highlight, setFilter, onSatelliteSelect, onC
     // Syncing agent directive into local pill state — intentional setState in effect
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveCategoriesState(next)
-    applyAgentFilter(cats)  // sets filter + colours in Globe
+    applyAgentFilter(cats)
     onCategoriesChange?.([...next])
   }, [setFilter, applyAgentFilter, onCategoriesChange])
 
@@ -66,20 +87,22 @@ export default function GlobeView({ highlight, setFilter, onSatelliteSelect, onC
     return () => clearInterval(id)
   }, [])
 
-  function toggleCategory(cat: SatCategory) {
+  const [utcClock, setUtcClock] = useState('')
+
+  const toggleCategory = useCallback((cat: SatCategory) => {
     setActiveCategoriesState(prev => {
       const next = new Set(prev)
       if (next.has(cat)) {
-        if (next.size === 1) return prev  // keep at least one active
+        if (next.size === 1) return prev
         next.delete(cat)
       } else {
         next.add(cat)
       }
-      setActiveCategories(next)  // clears agent colour mode in Globe
+      setActiveCategories(next)
       onCategoriesChange?.([...next])
       return next
     })
-  }
+  }, [setActiveCategories, onCategoriesChange])
 
   const tooltipOffset = 14
 

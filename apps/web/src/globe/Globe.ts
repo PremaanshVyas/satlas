@@ -9,6 +9,23 @@ import { SatelliteField, DEFAULT_COLOR as SAT_DEFAULT_COLOR } from './SatelliteF
 import { getSunDirection } from '../lib/solar'
 import { fetchSatelliteCatalog, fetchIssTle } from '../lib/celestrak'
 import type { TLERecord } from '../lib/celestrak'
+import { fetchSatcat } from '../lib/satcat'
+import type { SatcatEntry } from '../lib/satcat'
+
+// Orbital parameters computed from TLE data (satrec fields).
+export interface OrbitalParams {
+  inclination: number  // degrees
+  period: number       // minutes
+  apogee: number       // km above surface
+  perigee: number      // km above surface
+}
+
+export interface LivePosition {
+  lat: number      // decimal degrees, south negative
+  lon: number      // decimal degrees, west negative
+  altKm: number    // altitude above surface in km
+  velocity: number // km/s
+}
 
 
 const HIGHLIGHT_COLOR = new THREE.Color(0x4ade80)  // lime-400 — hover + selected
@@ -114,14 +131,29 @@ export class Globe {
 
   // ISS identity (name captured from catalog; NORAD 25544 is always Zarya)
   private issName = 'ISS (ZARYA)'
+  // ISS satrec kept in Globe.ts so we can propagate live position without touching SatelliteMesh internals.
+  private issSatrec: satellite.SatRec = satellite.twoline2satrec(ISS_TLE1, ISS_TLE2)
 
   // Hover
   private hoveredIdx = -1
   private hoverThrottleMs = 0
 
+  // Satellite catalog metadata (country, launch date, etc.) keyed by NORAD ID.
+  private satcat: Map<string, SatcatEntry> = new Map()
+
+  // Live position ticking for the selected satellite info card.
+  private liveTickInterval: ReturnType<typeof setInterval> | null = null
+  private liveSelectedSatrec: satellite.SatRec | null = null
+
   onCatalogRefresh: ((count: number) => void) | null = null
   onSatelliteClick: ((name: string, noradId: string) => void) | null = null
   onSatelliteHover: ((name: string | null, altKm: number | null, screenX: number, screenY: number) => void) | null = null
+  // Fires every second with the selected satellite's live geodetic position.
+  onLivePosition: ((pos: LivePosition) => void) | null = null
+  // Fires once when a satellite is selected with static orbital params + satcat metadata.
+  onSatelliteSelectInfo: ((orbital: OrbitalParams, meta: SatcatEntry | null) => void) | null = null
+  // Fires when selection is cleared (click X or click empty space).
+  onSatelliteDeselect: (() => void) | null = null
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
     this.mounted = true
@@ -177,13 +209,19 @@ export class Globe {
     this.keepaliveInterval = setInterval(ping, 4 * 60 * 1000)
     this.visibilityHandler = () => { if (!document.hidden) void ping() }
     document.addEventListener('visibilitychange', this.visibilityHandler)
+
+    // Load satellite metadata (country, launch date, etc.) non-blocking.
+    void fetchSatcat().then(m => { if (this.mounted) this.satcat = m })
   }
 
   private async refreshIssTle(): Promise<void> {
     const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
     try {
       const { tle1, tle2 } = await fetchIssTle(baseUrl)
-      if (this.mounted) this.iss.updateTle(tle1, tle2)
+      if (this.mounted) {
+        this.iss.updateTle(tle1, tle2)
+        this.issSatrec = satellite.twoline2satrec(tle1, tle2)
+      }
     } catch {
       // silent — ISS keeps its current TLE
     }
@@ -198,6 +236,7 @@ export class Globe {
       const issTle = tles.find((t: TLERecord) => t.norad_id === ISS_NORAD)
       if (issTle) {
         this.iss.updateTle(issTle.tle1, issTle.tle2)
+        this.issSatrec = satellite.twoline2satrec(issTle.tle1, issTle.tle2)
         this.issName = issTle.name || 'ISS (ZARYA)'
       }
       const others = tles.filter((t: TLERecord) => t.norad_id !== ISS_NORAD)
@@ -322,6 +361,60 @@ export class Globe {
     this.activeCategoryMask = mask
   }
 
+  // ── Live position tick (for selected satellite info card) ────────────────────
+
+  private static computeOrbitalParams(satrec: satellite.SatRec): OrbitalParams {
+    // Derive period, apogee, perigee from SGP4 elements rather than parsing TLE text.
+    const MU = 398600.4418           // km³/s² — Earth's gravitational parameter
+    const noRads = satrec.no / 60   // mean motion: rad/min → rad/s
+    const a = Math.cbrt(MU / (noRads * noRads))  // semi-major axis in km
+    const e = satrec.ecco
+    return {
+      inclination: Math.round(satrec.inclo * (180 / Math.PI) * 10) / 10,
+      period: Math.round((2 * Math.PI / satrec.no) * 10) / 10,
+      apogee: Math.round(a * (1 + e) - R_EARTH_KM),
+      perigee: Math.round(a * (1 - e) - R_EARTH_KM),
+    }
+  }
+
+  private startLiveTick(satrec: satellite.SatRec): void {
+    this.stopLiveTick()
+    this.liveSelectedSatrec = satrec
+    const tick = () => {
+      if (!this.liveSelectedSatrec || !this.onLivePosition) return
+      const now = new Date()
+      const posVel = satellite.propagate(this.liveSelectedSatrec, now)
+      if (!posVel.position || typeof posVel.position !== 'object') return
+      const gmst = satellite.gstime(now)
+      const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst)
+      const lat = satellite.degreesLat(geo.latitude)
+      const lon = satellite.degreesLong(geo.longitude)
+      const altKm = geo.height
+      let velocity = 0
+      if (posVel.velocity && typeof posVel.velocity === 'object') {
+        const v = posVel.velocity as satellite.EciVec3<number>
+        velocity = Math.round(Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2) * 100) / 100
+      }
+      this.onLivePosition({ lat: Math.round(lat * 1000) / 1000, lon: Math.round(lon * 1000) / 1000, altKm: Math.round(altKm), velocity })
+    }
+    tick()
+    this.liveTickInterval = setInterval(tick, 1000)
+  }
+
+  private stopLiveTick(): void {
+    if (this.liveTickInterval !== null) { clearInterval(this.liveTickInterval); this.liveTickInterval = null }
+    this.liveSelectedSatrec = null
+  }
+
+  // Called whenever a satellite is selected (catalog or ISS).
+  // Fires onSatelliteSelectInfo with TLE-derived orbital params and any satcat metadata.
+  private handleSatSelect(noradId: string, satrec: satellite.SatRec): void {
+    this.startLiveTick(satrec)
+    const orbital = Globe.computeOrbitalParams(satrec)
+    const meta = this.satcat.get(noradId) ?? null
+    this.onSatelliteSelectInfo?.(orbital, meta)
+  }
+
   // ── Ground track ────────────────────────────────────────────────────────────
 
   private clearGroundTrack(): void {
@@ -338,6 +431,13 @@ export class Globe {
     const oldSelected = this.selectedSatIdx
     this.selectedSatIdx = -1
     if (oldSelected >= 0) this.refreshInstanceColor(oldSelected)
+    this.stopLiveTick()
+    this.onSatelliteDeselect?.()
+  }
+
+  // Public — called from App.tsx when the user clicks ✕ on the info card.
+  clearSelection(): void {
+    this.clearGroundTrack()
   }
 
   private showGroundTrack(idx: number): void {
@@ -346,6 +446,7 @@ export class Globe {
     if (!tle) return
     const satrec = satellite.twoline2satrec(tle.tle1, tle.tle2)
     this.selectedSatIdx = idx
+    this.handleSatSelect(this.satNoradIds[idx] ?? '', satrec)
 
     const points = computeArcPoints(satrec)
     if (points.length < 2) return
@@ -417,6 +518,7 @@ export class Globe {
         const dotRadiusPx = (0.008 / depth) * fovFactor  // 0.008 = ISS dot radius
         if (screenDist <= dotRadiusPx + 2) {
           this.clearGroundTrack()  // ISS already has its own arc via SatelliteMesh
+          this.handleSatSelect(ISS_NORAD, this.issSatrec)
           this.onSatelliteClick(this.issName, ISS_NORAD)
           return
         }
@@ -670,6 +772,7 @@ export class Globe {
       this.clickCanvas.removeEventListener('mousemove', this.onCanvasMouseMove)
       this.clickCanvas = null
     }
+    this.stopLiveTick()
     this.clearGroundTrack()
     this.worker?.terminate()
     this.worker = null

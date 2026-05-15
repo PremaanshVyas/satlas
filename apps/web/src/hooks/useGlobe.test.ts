@@ -10,9 +10,13 @@ vi.mock('../globe/Globe', () => ({
       unmount: vi.fn(),
       highlightSatellite: vi.fn(),
       setActiveCategories: vi.fn(),
+      clearSelection: vi.fn(),
       onCatalogRefresh: null,
       onSatelliteClick: null,
       onSatelliteHover: null,
+      onLivePosition: null,
+      onSatelliteSelectInfo: null,
+      onSatelliteDeselect: null,
     }
   }),
   ALL_CATEGORIES: ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'],
@@ -43,7 +47,7 @@ describe('useGlobe', () => {
     const containerRef = makeContainerRef()
     const { rerender } = renderHook(
       ({ highlight }: { highlight: HighlightDirective | null }) =>
-        useGlobe(containerRef as React.RefObject<HTMLDivElement>, highlight),
+        useGlobe(containerRef as React.RefObject<HTMLDivElement>, highlight, {}),
       { initialProps: { highlight: null as HighlightDirective | null } },
     )
 
@@ -61,7 +65,7 @@ describe('useGlobe', () => {
     const containerRef = makeContainerRef()
     renderHook(
       ({ highlight }: { highlight: HighlightDirective | null }) =>
-        useGlobe(containerRef as React.RefObject<HTMLDivElement>, highlight),
+        useGlobe(containerRef as React.RefObject<HTMLDivElement>, highlight, {}),
       { initialProps: { highlight: null as HighlightDirective | null } },
     )
 
@@ -76,7 +80,7 @@ describe('useGlobe', () => {
       useGlobe(
         containerRef as React.RefObject<HTMLDivElement>,
         null,
-        onSatelliteClick,
+        { onSatelliteClick },
       ),
     )
 
@@ -93,7 +97,7 @@ describe('useGlobe', () => {
   test('setActiveCategories calls globe.setActiveCategories', () => {
     const containerRef = makeContainerRef()
     const { result } = renderHook(() =>
-      useGlobe(containerRef as React.RefObject<HTMLDivElement>, null),
+      useGlobe(containerRef as React.RefObject<HTMLDivElement>, null, {}),
     )
 
     const globeInstance = vi.mocked(Globe).mock.results[0]?.value
@@ -105,5 +109,4 @@ describe('useGlobe', () => {
 
     expect(globeInstance.setActiveCategories).toHaveBeenCalledWith(cats)
   })
-
 })

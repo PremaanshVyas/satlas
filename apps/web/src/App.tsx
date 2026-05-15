@@ -1,12 +1,26 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import GlobeView from './components/GlobeView'
 import AgentPanel from './components/AgentPanel'
 import { useChat } from './hooks/useChat'
 import { ALL_CATEGORIES } from './globe/Globe'
+import { objectTypeLabel, opsStatusLabel } from './lib/satcat'
+import type { OrbitalParams, LivePosition, SatcatEntry } from './components/GlobeView'
 
 interface SelectedSat {
   name: string
   noradId: string
+}
+
+function fmt(n: number, decimals = 2): string {
+  return n.toFixed(decimals)
+}
+
+function latLabel(lat: number): string {
+  return `${Math.abs(lat).toFixed(3)}° ${lat >= 0 ? 'N' : 'S'}`
+}
+
+function lonLabel(lon: number): string {
+  return `${Math.abs(lon).toFixed(3)}° ${lon >= 0 ? 'E' : 'W'}`
 }
 
 export default function App() {
@@ -14,8 +28,13 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false)
   const [prefill, setPrefill] = useState<string | null>(null)
   const [selectedSat, setSelectedSat] = useState<SelectedSat | null>(null)
-  // Mirror of GlobeView's active categories — passed to chat so the agent knows current state
+  const [livePosition, setLivePosition] = useState<LivePosition | null>(null)
+  const [selectedOrbital, setSelectedOrbital] = useState<OrbitalParams | null>(null)
+  const [selectedMeta, setSelectedMeta] = useState<SatcatEntry | null>(null)
   const [shownCategories, setShownCategories] = useState<string[]>([...ALL_CATEGORIES])
+
+  // deselectSatellite is passed up from GlobeView once the globe mounts
+  const deselectRef = useRef<(() => void) | null>(null)
 
   const handleSendMessage = useCallback((content: string) => {
     sendMessage(content, shownCategories)
@@ -25,14 +44,31 @@ export default function App() {
     setSelectedSat({ name, noradId })
   }
 
+  function handleSatelliteSelectInfo(orbital: OrbitalParams, meta: SatcatEntry | null) {
+    setSelectedOrbital(orbital)
+    setSelectedMeta(meta)
+  }
+
+  function handleLivePosition(pos: LivePosition | null) {
+    setLivePosition(pos)
+  }
+
+  function handleSatelliteDeselect() {
+    setSelectedSat(null)
+    setLivePosition(null)
+    setSelectedOrbital(null)
+    setSelectedMeta(null)
+  }
+
+  function handleDismissSat() {
+    deselectRef.current?.()   // clears globe arc + stops live tick
+    handleSatelliteDeselect()
+  }
+
   function handleAskAI() {
     if (!selectedSat) return
     setPrefill(`Tell me about NORAD ${selectedSat.noradId} (${selectedSat.name})`)
     setChatOpen(true)
-  }
-
-  function handleDismissSat() {
-    setSelectedSat(null)
   }
 
   return (
@@ -42,39 +78,136 @@ export default function App() {
         highlight={highlight}
         setFilter={setFilter}
         onSatelliteSelect={handleSatelliteSelect}
+        onSatelliteSelectInfo={handleSatelliteSelectInfo}
+        onLivePosition={handleLivePosition}
+        onSatelliteDeselect={handleSatelliteDeselect}
         onCategoriesChange={setShownCategories}
+        onDeselectReady={(fn) => { deselectRef.current = fn }}
       />
 
       {/* Selected satellite info card — top-left, below clock */}
       {selectedSat && (
-        <div className="absolute top-10 left-3 mt-2 w-56 bg-gray-900/90 backdrop-blur-sm border border-gray-700 rounded-lg p-3 shadow-xl z-20">
-          <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="absolute top-10 left-3 mt-2 w-64 bg-gray-900/95 backdrop-blur-sm border border-gray-700/80 rounded-lg shadow-2xl z-20 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 border-b border-gray-800">
             <div className="min-w-0">
-              <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Selected</div>
-              <div className="text-sm font-medium text-white truncate">{selectedSat.name}</div>
-              <div className="text-xs text-gray-500">NORAD {selectedSat.noradId}</div>
+              <div className="text-sm font-semibold text-white truncate leading-tight">{selectedSat.name}</div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-gray-500">NORAD {selectedSat.noradId}</span>
+                {selectedMeta && (
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                    selectedMeta.objectType === 'PAY' ? 'bg-blue-900/60 text-blue-300' :
+                    selectedMeta.objectType === 'DEB' ? 'bg-red-900/60 text-red-300' :
+                    selectedMeta.objectType === 'R/B' ? 'bg-orange-900/60 text-orange-300' :
+                    'bg-gray-800 text-gray-400'
+                  }`}>
+                    {objectTypeLabel(selectedMeta.objectType)}
+                  </span>
+                )}
+              </div>
             </div>
             <button
               onClick={handleDismissSat}
-              className="text-gray-600 hover:text-gray-400 text-lg leading-none flex-shrink-0 mt-0.5"
+              className="text-gray-600 hover:text-gray-300 text-xl leading-none flex-shrink-0 mt-0.5 transition-colors"
               aria-label="Dismiss"
             >
               ×
             </button>
           </div>
-          <button
-            onClick={handleAskAI}
-            className="w-full text-xs font-medium bg-blue-600/80 hover:bg-blue-500 text-white rounded-md py-1.5 transition-colors"
-          >
-            Ask AI about this satellite
-          </button>
+
+          {/* Metadata row — country + launch date */}
+          {selectedMeta && (selectedMeta.owner || selectedMeta.launchDate) && (
+            <div className="flex gap-3 px-3 py-2 border-b border-gray-800 text-xs text-gray-400">
+              {selectedMeta.owner && (
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Origin</span>
+                  <span className="text-gray-300 truncate">{selectedMeta.owner}</span>
+                </div>
+              )}
+              {selectedMeta.launchDate && (
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Launch</span>
+                  <span className="text-gray-300">{selectedMeta.launchDate}</span>
+                </div>
+              )}
+              {selectedMeta.opsStatus && (
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Status</span>
+                  <span className={selectedMeta.opsStatus === '+' ? 'text-green-400' : 'text-gray-400'}>
+                    {opsStatusLabel(selectedMeta.opsStatus)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Live position — updates every second */}
+          <div className="px-3 py-2 border-b border-gray-800">
+            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Live Position</div>
+            {livePosition ? (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                <div>
+                  <div className="text-[10px] text-gray-600">Latitude</div>
+                  <div className="text-xs font-mono text-gray-200">{latLabel(livePosition.lat)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-600">Longitude</div>
+                  <div className="text-xs font-mono text-gray-200">{lonLabel(livePosition.lon)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-600">Altitude</div>
+                  <div className="text-xs font-mono text-gray-200">{livePosition.altKm.toLocaleString()} km</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-600">Velocity</div>
+                  <div className="text-xs font-mono text-gray-200">{fmt(livePosition.velocity)} km/s</div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-gray-600">Propagating…</div>
+            )}
+          </div>
+
+          {/* Orbital parameters — computed from TLE */}
+          {selectedOrbital && (
+            <div className="px-3 py-2 border-b border-gray-800">
+              <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Orbital Parameters</div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                <div>
+                  <div className="text-[10px] text-gray-600">Inclination</div>
+                  <div className="text-xs font-mono text-gray-200">{selectedOrbital.inclination}°</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-600">Period</div>
+                  <div className="text-xs font-mono text-gray-200">{fmt(selectedOrbital.period, 1)} min</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-600">Apogee</div>
+                  <div className="text-xs font-mono text-gray-200">{selectedOrbital.apogee.toLocaleString()} km</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-600">Perigee</div>
+                  <div className="text-xs font-mono text-gray-200">{selectedOrbital.perigee.toLocaleString()} km</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Ask AI */}
+          <div className="px-3 py-2">
+            <button
+              onClick={handleAskAI}
+              className="w-full text-xs font-medium bg-blue-600/80 hover:bg-blue-500 text-white rounded-md py-1.5 transition-colors"
+            >
+              Ask AI about this satellite
+            </button>
+          </div>
         </div>
       )}
 
       {/* Floating chat panel — right side overlay */}
       {chatOpen && (
         <div className="absolute top-0 right-0 h-full w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col">
-          {/* Panel header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-blue-500" />
@@ -119,7 +252,6 @@ export default function App() {
         </button>
       )}
 
-      {/* Unread indicator dot when chat is closed and there are messages */}
       {!chatOpen && messages.length > 0 && (
         <div className="absolute bottom-[74px] right-3 z-40 w-3 h-3 rounded-full bg-blue-400 border-2 border-gray-950" />
       )}
