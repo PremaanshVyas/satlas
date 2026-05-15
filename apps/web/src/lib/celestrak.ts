@@ -87,12 +87,33 @@ export async function fetchSatelliteCatalog(): Promise<TLERecord[]> {
     saveCache(data)
     return data
   } catch (err) {
-    // CelesTrak is temporarily down — check for any stale cache (no age limit).
-    // Stale TLEs are still valid for days; showing old positions beats a blank globe.
+    // CelesTrak enforces 1 download per IP per 2-hour update cycle (since Mar 2026).
+    // The v4 cache-key bump forced a fresh fetch for all users; if they'd already
+    // fetched the v3 data within the same 2h window from the same IP, CelesTrak
+    // returns 403 on the v4 fetch. Fall back to any previous cache key we can find.
     const stale = loadCache()
     if (stale) return stale.data
+    const legacy = loadAnyLegacyCache()
+    if (legacy) return legacy
     throw err
   }
+}
+
+// Check previous cache key versions in order. TLEs are valid for days, so v3 data
+// is better than nothing even if it's a few hours old.
+const LEGACY_KEYS = ['aussie-sky-catalog-v3', 'aussie-sky-catalog-v2', 'aussie-sky-catalog-v1']
+function loadAnyLegacyCache(): TLERecord[] | null {
+  for (const key of LEGACY_KEYS) {
+    try {
+      const raw = localStorage.getItem(key)
+      if (!raw) continue
+      const parsed = JSON.parse(raw) as { data: TLERecord[]; ts: number }
+      if (Array.isArray(parsed.data) && parsed.data.length >= 100) return parsed.data
+    } catch {
+      // corrupt entry — skip
+    }
+  }
+  return null
 }
 
 // Fetch ISS TLE directly from CelesTrak CATNR — works from all IPs including cloud.
