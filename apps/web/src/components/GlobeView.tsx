@@ -74,6 +74,8 @@ export default function GlobeView({
     onCategoriesChange?.([...next])
   }, [setFilter, applyAgentFilter, onCategoriesChange])
 
+  const [utcClock, setUtcClock] = useState('')
+
   useEffect(() => {
     function tick() {
       const now = new Date()
@@ -86,8 +88,6 @@ export default function GlobeView({
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [])
-
-  const [utcClock, setUtcClock] = useState('')
 
   const toggleCategory = useCallback((cat: SatCategory) => {
     setActiveCategoriesState(prev => {
