@@ -5,7 +5,7 @@
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
 **Live demo:** [aussie-sky.vercel.app](https://aussie-sky.vercel.app)  
-Open the site — ~10,000 live satellites orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker.  
+Open the site — ~15,000 active satellites orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker.  
 Ask: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
 Ask: _"Show all Starlink satellites"_ — it highlights every Starlink dot in violet while dimming everything else.  
@@ -65,18 +65,15 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 
 ## Tech stack
 
-| Layer | Tech | Why |
+| Layer | Tech | Status |
 |---|---|---|
-| Frontend | TypeScript, React, Three.js / Cesium, Tailwind, Vite | Industry standard for interactive web; Cesium is purpose-built for geospatial 3D |
-| Agent | Anthropic Claude API with tool use | Mature tool-use, strong reasoning over structured data |
-| Orbital service | Python 3.11, FastAPI, skyfield, sgp4 | The orbital mechanics library ecosystem lives in Python |
-| Vision service | Python, PyTorch, Hugging Face Transformers | Pre-trained EO models we can fine-tune later |
-| API gateway | Go (chi or echo) | Concurrency, low latency in front of agent (V1+) |
-| Database | PostgreSQL with pgvector + PostGIS, TimescaleDB extension | One DB for relational, vector, spatial, and time-series — clean |
-| Pipeline | Cron → Temporal (later) | TLE refresh every 8h, conjunction sweeps, imagery ingestion |
-| Infra | AWS (ECS Fargate, S3, CloudFront, RDS), Terraform | Maps to what every Australian SWE listing asks for |
-| CI/CD | GitHub Actions, Docker | Standard |
-| Observability | OpenTelemetry, Sentry | Real production hygiene |
+| Frontend | TypeScript, React, Three.js, Tailwind, Vite | Live |
+| Agent | Anthropic Claude API (Haiku) with tool use | Live |
+| Orbital compute | satellite.js in Vercel Node.js and browser Web Worker | Live |
+| CI/CD | GitHub Actions — lint + typecheck + vitest + pytest + Docker build | Live |
+| Infra | Vercel (frontend + AI function), Railway (Python service, migrating to AWS) | Live |
+| Database | None yet — planned: PostgreSQL with pgvector | Planned |
+| AWS | ECS Fargate, RDS, ECR, ALB, Secrets Manager, Terraform | Planned |
 
 ---
 
@@ -94,7 +91,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 
 ### What's working now
 - [x] 3D Earth with ISS rendered in real time (TLE propagation via satellite.js)
-- [x] ~10,000 live catalog satellites at actual orbital altitudes (LEO/MEO/GEO shells visually distinct)
+- [x] ~15,000 active catalog satellites at actual orbital altitudes (LEO/MEO/GEO shells visually distinct)
 - [x] Full-screen globe with floating overlays (AI chat, satellite info card, category filters)
 - [x] Hover tooltip — satellite name + altitude on mouse-over
 - [x] Category filter pills — toggle Starlink / GPS / Iridium / Debris / Other with Uint8Array mask
@@ -112,7 +109,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 
 ### MVP (weeks 1–4)
 - [x] Project scaffolding
-- [x] Live TLE catalog (~10,000 satellites, InstancedMesh + web worker)
+- [x] Live TLE catalog (~15,000 satellites, InstancedMesh + web worker)
 - [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info, highlight_catalog_group, get_category_counts
 - [x] Click satellite → details (click-to-select with exact NORAD ID lookup)
 - [x] Hover tooltip (satellite name + altitude on mouse hover)
@@ -166,7 +163,56 @@ Full debugging history is in [`CHANGELOG.md`](CHANGELOG.md). A few highlights:
 
 ## Local development
 
-_Setup instructions will land alongside the first scaffolded code._
+### Prerequisites
+
+- Node.js 20+
+- npm 10+
+- Git
+- An Anthropic API key (free tier works) — get one at [console.anthropic.com](https://console.anthropic.com)
+
+### Install
+
+```bash
+git clone https://github.com/PremaanshVyas/aussie-sky.git
+cd aussie-sky
+npm install                  # root deps (Anthropic SDK, satellite.js)
+cd apps/web && npm install   # frontend deps
+```
+
+### Run the frontend
+
+```bash
+cd apps/web
+npm run dev                  # Vite dev server → http://localhost:5173
+```
+
+The globe loads immediately. Satellite data fetches from CelesTrak directly in the browser — no backend needed to see the globe.
+
+### Run the AI chat locally
+
+The AI chat endpoint is a Vercel serverless function at `api/chat.ts`. To run it locally:
+
+```bash
+# Install Vercel CLI (one-time)
+npm install -g vercel
+
+# Add your Anthropic key at the repo root
+echo 'ANTHROPIC_API_KEY=sk-ant-your-key-here' > .env
+
+# Run the Vercel dev server (from repo root)
+npx vercel dev               # API available at http://localhost:3000/api/chat
+```
+
+Then add `VITE_CHAT_URL=http://localhost:3000/api/chat` to `apps/web/.env.local` to point the frontend at your local API.
+
+### Run tests
+
+```bash
+cd apps/web
+npx vitest run               # 53 unit tests
+npx tsc -b --noEmit          # TypeScript type check
+npx eslint .                 # lint
+```
 
 ---
 
