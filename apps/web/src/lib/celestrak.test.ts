@@ -3,8 +3,8 @@ import { fetchSatelliteCatalog, fetchIssTle, parseTleText } from './celestrak'
 import type { TLERecord } from './celestrak'
 
 const ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=TLE'
+const ISS_URL    = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
 const CACHE_KEY  = 'aussie-sky-catalog-v4'
-const GROUP_COUNT = 4  // active + 3 debris groups fetched in parallel
 
 function makeLocalStorageMock(initial: Record<string, string> = {}) {
   const store: Record<string, string> = { ...initial }
@@ -34,30 +34,6 @@ function makeRecords(count: number): TLERecord[] {
     tle1: `1 0000${i}U ...`,
     tle2: `2 0000${i} ...`,
   }))
-}
-
-// Helper: mock that returns the same ok TLE response for all group fetches
-function mockCelesTrakOk(count = 110) {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    text: () => Promise.resolve(makeTleText(count)),
-  })
-}
-
-// Helper: mock that rejects all GROUP_COUNT CelesTrak calls, then resolves Railway
-function mockCelesTrakFailRailwayOk(railwayData: TLERecord[]) {
-  const m = vi.fn()
-  for (let i = 0; i < GROUP_COUNT; i++) m.mockRejectedValueOnce(new Error('CelesTrak down'))
-  m.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(railwayData) })
-  return m
-}
-
-// Helper: mock that returns 403 for all GROUP_COUNT CelesTrak calls, then resolves Railway
-function mockCelesTrakNonOkRailwayOk(railwayData: TLERecord[]) {
-  const m = vi.fn()
-  for (let i = 0; i < GROUP_COUNT; i++) m.mockResolvedValueOnce({ ok: false, status: 403 })
-  m.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(railwayData) })
-  return m
 }
 
 // ── parseTleText ─────────────────────────────────────────────────────────────
@@ -111,45 +87,37 @@ describe('fetchSatelliteCatalog', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  test('fetches TLE text from all CelesTrak groups when no cache', async () => {
-    vi.stubGlobal('fetch', mockCelesTrakOk(110))
+  test('fetches TLE text from CelesTrak GROUP=active when no cache', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(makeTleText(110)),
+    }))
 
-    const result = await fetchSatelliteCatalog('http://localhost:8000')
+    const result = await fetchSatelliteCatalog('http://unused')
 
-    // 110 unique records (all groups return same NORAD IDs — deduplicated)
     expect(result.length).toBe(110)
-    // The active group URL must have been called
     expect(fetch).toHaveBeenCalledWith(ACTIVE_URL)
-    // Total of GROUP_COUNT calls (no Railway fallback needed)
-    expect(fetch).toHaveBeenCalledTimes(GROUP_COUNT)
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  test('falls back to Railway when all CelesTrak groups fail', async () => {
-    const mockData = makeRecords(110)
-    vi.stubGlobal('fetch', mockCelesTrakFailRailwayOk(mockData))
+  test('throws when CelesTrak fails and there is no stale cache', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')))
 
-    const result = await fetchSatelliteCatalog('http://localhost:8000')
-
-    expect(result).toEqual(mockData)
-    expect(fetch).toHaveBeenCalledWith('http://localhost:8000/satellites')
+    await expect(fetchSatelliteCatalog('http://unused')).rejects.toThrow()
   })
 
-  test('falls back to Railway when CelesTrak groups return non-ok status', async () => {
-    const mockData = makeRecords(110)
-    vi.stubGlobal('fetch', mockCelesTrakNonOkRailwayOk(mockData))
+  test('serves stale cache when CelesTrak fails instead of throwing', async () => {
+    const stale = makeRecords(110)
+    vi.stubGlobal('localStorage', makeLocalStorageMock({
+      [CACHE_KEY]: JSON.stringify({ data: stale, ts: Date.now() - 80 * 60 * 60 * 1000 }),
+    }))
+    // First call: network fetch (background refresh) fails
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('CelesTrak down')))
 
-    const result = await fetchSatelliteCatalog('http://localhost:8000')
+    const result = await fetchSatelliteCatalog('http://unused')
 
-    expect(result).toEqual(mockData)
-  })
-
-  test('throws when both CelesTrak and Railway fail', async () => {
-    const m = vi.fn()
-    for (let i = 0; i < GROUP_COUNT; i++) m.mockRejectedValueOnce(new Error('CelesTrak down'))
-    m.mockResolvedValueOnce({ ok: false, status: 503 })
-    vi.stubGlobal('fetch', m)
-
-    await expect(fetchSatelliteCatalog('http://localhost:8000')).rejects.toThrow()
+    // Returns stale data even though it's >72h old
+    expect(result).toEqual(stale)
   })
 
   test('returns cached data immediately when cache is present (stale-while-revalidate)', async () => {
@@ -157,9 +125,12 @@ describe('fetchSatelliteCatalog', () => {
     vi.stubGlobal('localStorage', makeLocalStorageMock({
       [CACHE_KEY]: JSON.stringify({ data: cached, ts: Date.now() - 2 * 60 * 60 * 1000 }),
     }))
-    vi.stubGlobal('fetch', mockCelesTrakOk(110))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(makeTleText(110)),
+    }))
 
-    const result = await fetchSatelliteCatalog('http://localhost:8000')
+    const result = await fetchSatelliteCatalog('http://unused')
 
     expect(result).toEqual(cached)
   })
@@ -169,10 +140,12 @@ describe('fetchSatelliteCatalog', () => {
     vi.stubGlobal('localStorage', makeLocalStorageMock({
       [CACHE_KEY]: JSON.stringify({ data: cached, ts: Date.now() }),
     }))
-    vi.stubGlobal('fetch', mockCelesTrakOk(110))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(makeTleText(110)),
+    }))
 
-    await fetchSatelliteCatalog('http://localhost:8000')
-    // Allow the background void promise to settle
+    await fetchSatelliteCatalog('http://unused')
     await new Promise(r => setTimeout(r, 0))
 
     expect(fetch).toHaveBeenCalledWith(ACTIVE_URL)
@@ -184,26 +157,27 @@ describe('fetchSatelliteCatalog', () => {
 describe('fetchIssTle', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  test('fetches from baseUrl/tle/iss and returns tle1 and tle2', async () => {
-    const mockData = {
-      tle1: '1 25544U 98067A   26133.54791667  .00016717  00000-0  10270-3 0  9993',
-      tle2: '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
-    }
+  test('fetches ISS TLE directly from CelesTrak CATNR endpoint', async () => {
+    const issText = [
+      'ISS (ZARYA)',
+      '1 25544U 98067A   26133.54791667  .00016717  00000-0  10270-3 0  9993',
+      '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
+    ].join('\n')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(mockData),
+      text: () => Promise.resolve(issText),
     }))
 
-    const result = await fetchIssTle('http://localhost:8000')
+    const result = await fetchIssTle('http://unused')
 
     expect(result.tle1).toMatch(/^1 25544/)
     expect(result.tle2).toMatch(/^2 25544/)
-    expect(fetch).toHaveBeenCalledWith('http://localhost:8000/tle/iss')
+    expect(fetch).toHaveBeenCalledWith(ISS_URL)
   })
 
-  test('throws when response is not ok', async () => {
+  test('throws when CelesTrak returns non-ok status', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
 
-    await expect(fetchIssTle('http://localhost:8000')).rejects.toThrow('503')
+    await expect(fetchIssTle('http://unused')).rejects.toThrow('503')
   })
 })

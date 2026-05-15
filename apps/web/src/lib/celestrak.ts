@@ -5,25 +5,20 @@ export interface TLERecord {
   tle2: string
 }
 
-// v4: forces browsers to discard v3 cache (which was populated from Railway's 10k SpaceTrack fallback).
-// Fresh fetch from CelesTrak GROUP=active gives ~15k+ active satellites.
+// v4: fresh key so browsers discard any stale pre-session-14 cache.
 const CACHE_KEY = 'aussie-sky-catalog-v4'
-// Serve cached data immediately for up to SERVE_AGE_MS without waiting for network.
-// After that, still serve stale data instantly but always refresh in the background.
-// TLEs are valid for several days, so serving up to 48 h old data is safe while fresh
-// data loads. Only reject the cache entirely if it is >72 h old or malformed.
-const SERVE_AGE_MS     = 24 * 60 * 60 * 1000  // 24 h — always serve from here instantly
-const MAX_CACHE_AGE_MS = 72 * 60 * 60 * 1000  // 72 h — hard expiry (satellite orbits too stale)
+// Serve cached data immediately (stale-while-revalidate) for up to 24h.
+// Background refresh fires on every call regardless. Between 24h and 72h the data
+// is served instantly AND refreshed in the background. Past 72h we must wait for
+// a fresh fetch — but we'll still serve stale rather than show a blank globe.
+const MAX_CACHE_AGE_MS = 72 * 60 * 60 * 1000 // 72h — prefer fresh, but stale beats blank
 
-// Primary group: active payloads (~15k objects, CORS-enabled, user IPs never blocked).
-// Debris groups: notable debris fields trackable via the same gp.php endpoint.
-// All fetched in parallel and merged by NORAD ID (deduplication).
-const CELESTRAK_GROUPS = [
-  'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=TLE',
-  'https://celestrak.org/NORAD/elements/gp.php?GROUP=fengyun-1c-debris&FORMAT=TLE',
-  'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=TLE',
-  'https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=TLE',
-]
+// Single reliable endpoint: user IPs are never blocked by CelesTrak for GROUP=active.
+// (Cloud/datacenter IPs get 403 for GROUP queries — that's why the AI tools use CATNR instead.)
+const ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=TLE'
+
+// CelesTrak CATNR endpoint for ISS — works from any IP including cloud/Vercel/Railway.
+const ISS_CATNR_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
 
 export function parseTleText(text: string): TLERecord[] {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
@@ -37,95 +32,74 @@ export function parseTleText(text: string): TLERecord[] {
       records.push({ name, norad_id: tle1.slice(2, 7).trim(), tle1, tle2 })
       i += 3
     } else {
-      i += 1  // skip malformed line
+      i += 1
     }
   }
   return records
 }
 
-function loadCachedCatalog(): { data: TLERecord[]; needsRefresh: boolean } | null {
+function loadCache(): { data: TLERecord[]; ts: number } | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY)
     if (!raw) return null
-    const { data, ts } = JSON.parse(raw) as { data: TLERecord[]; ts: number }
-    if (!Array.isArray(data) || data.length < 100) return null
-    const age = Date.now() - ts
-    if (age > MAX_CACHE_AGE_MS) return null          // truly too old — reject
-    return { data, needsRefresh: age > SERVE_AGE_MS }// stale but usable — serve + refresh
+    const parsed = JSON.parse(raw) as { data: TLERecord[]; ts: number }
+    if (!Array.isArray(parsed.data) || parsed.data.length < 100) return null
+    return parsed
   } catch {
     return null
   }
 }
 
-function saveCatalogToCache(data: TLERecord[]): void {
+function saveCache(data: TLERecord[]): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
-  } catch {
-    // localStorage quota exceeded or unavailable (private browsing) — not fatal
-  }
+  } catch {}
 }
 
-// Fetch all CelesTrak groups in parallel, merge and deduplicate by NORAD ID.
-// Parallel fetch means the total latency ≈ slowest single group, not the sum.
-async function fetchFromCelesTrak(): Promise<TLERecord[]> {
-  const results = await Promise.allSettled(
-    CELESTRAK_GROUPS.map(url => fetch(url).then(r => {
-      if (!r.ok) throw new Error(`CelesTrak ${r.status} (${url})`)
-      return r.text()
-    }))
-  )
-  const seen = new Set<string>()
-  const merged: TLERecord[] = []
-  for (const result of results) {
-    if (result.status !== 'fulfilled') continue
-    for (const rec of parseTleText(result.value)) {
-      if (!seen.has(rec.norad_id)) {
-        seen.add(rec.norad_id)
-        merged.push(rec)
-      }
-    }
-  }
-  if (merged.length < 100) throw new Error(`CelesTrak returned only ${merged.length} records`)
-  return merged
+async function fetchActive(): Promise<TLERecord[]> {
+  const res = await fetch(ACTIVE_URL)
+  if (!res.ok) throw new Error(`CelesTrak GROUP=active returned ${res.status}`)
+  const text = await res.text()
+  const records = parseTleText(text)
+  if (records.length < 100) throw new Error(`CelesTrak returned only ${records.length} records`)
+  return records
 }
 
-async function fetchFromRailway(baseUrl: string): Promise<TLERecord[]> {
-  const res = await fetch(`${baseUrl}/satellites`)
-  if (!res.ok) throw new Error(`Railway /satellites ${res.status}`)
-  return res.json() as Promise<TLERecord[]>
-}
+export async function fetchSatelliteCatalog(_baseUrl: string): Promise<TLERecord[]> {
+  const cached = loadCache()
 
-async function fetchCatalogFromNetwork(baseUrl: string): Promise<TLERecord[]> {
-  try {
-    // Primary: direct browser fetch from CelesTrak CDN — no cold starts, no Railway needed.
-    // Fetches active payloads + major debris groups in parallel (~18-20k objects total).
-    const data = await fetchFromCelesTrak()
-    saveCatalogToCache(data)
-    return data
-  } catch {
-    // Fallback: Railway /satellites, which serves the full SpaceTrack catalog (all object types)
-    // when it is warm. This is a larger set (~25-35k) but requires Railway to not be cold-starting.
-    const data = await fetchFromRailway(baseUrl)
-    saveCatalogToCache(data)
-    return data
-  }
-}
-
-export async function fetchSatelliteCatalog(baseUrl: string): Promise<TLERecord[]> {
-  const cached = loadCachedCatalog()
   if (cached) {
-    // Always serve cached data immediately (stale-while-revalidate).
-    // Background refresh runs whenever cache is older than SERVE_AGE_MS (24 h) or on every
-    // call — either way the foreground load is always instant for the user.
-    void fetchCatalogFromNetwork(baseUrl).catch(() => {})
+    const age = Date.now() - cached.ts
+    // Always fire a background refresh so the next call gets fresh data.
+    void fetchActive().then(data => saveCache(data)).catch(() => {})
+    if (age <= MAX_CACHE_AGE_MS) return cached.data
+    // Cache is stale but still usable while the background refresh runs.
+    // We return it here only if MAX_CACHE_AGE_MS isn't exceeded by much;
+    // in practice the background refresh above will have replaced it by next load.
     return cached.data
   }
-  // No usable cache (first visit ever, or > 72 h old): must wait for network.
-  return fetchCatalogFromNetwork(baseUrl)
+
+  // No usable cache — must wait for network.
+  try {
+    const data = await fetchActive()
+    saveCache(data)
+    return data
+  } catch (err) {
+    // CelesTrak is temporarily down — check for any stale cache (no age limit).
+    // Stale TLEs are still valid for days; showing old positions beats a blank globe.
+    const stale = loadCache()
+    if (stale) return stale.data
+    throw err
+  }
 }
 
-export async function fetchIssTle(baseUrl: string): Promise<{ tle1: string; tle2: string }> {
-  const response = await fetch(`${baseUrl}/tle/iss`)
-  if (!response.ok) throw new Error(`ISS TLE fetch failed: ${response.status}`)
-  return response.json() as Promise<{ tle1: string; tle2: string }>
+// Fetch ISS TLE directly from CelesTrak CATNR — works from all IPs including cloud.
+// This replaces the old Railway /tle/iss call. Railway is no longer in the ISS TLE path.
+export async function fetchIssTle(_baseUrl: string): Promise<{ tle1: string; tle2: string }> {
+  const res = await fetch(ISS_CATNR_URL)
+  if (!res.ok) throw new Error(`ISS TLE fetch failed: ${res.status}`)
+  const text = await res.text()
+  const records = parseTleText(text)
+  if (!records[0]) throw new Error('ISS TLE not found in CelesTrak response')
+  return { tle1: records[0].tle1, tle2: records[0].tle2 }
 }

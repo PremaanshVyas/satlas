@@ -106,9 +106,7 @@ export class Globe {
   private flyToPos: THREE.Vector3 | null = null
   private flyStartTime: number | null = null
   private catalogCount = 0
-  private keepaliveInterval: ReturnType<typeof setInterval> | null = null
   private issTleInterval: ReturnType<typeof setInterval> | null = null
-  private visibilityHandler: (() => void) | null = null
   private satNames: string[] = []
   private satNoradIds: string[] = []
   private satTles: Array<{ tle1: string; tle2: string }> = []
@@ -202,13 +200,6 @@ export class Globe {
     this.clickCanvas = canvas
     canvas.addEventListener('click', this.onCanvasClick)
     canvas.addEventListener('mousemove', this.onCanvasMouseMove)
-
-    const baseUrl = import.meta.env.VITE_ORBITAL_SERVICE_URL ?? 'http://localhost:8000'
-    const ping = () => fetch(`${baseUrl}/health`).catch(() => undefined)
-    void ping()
-    this.keepaliveInterval = setInterval(ping, 4 * 60 * 1000)
-    this.visibilityHandler = () => { if (!document.hidden) void ping() }
-    document.addEventListener('visibilitychange', this.visibilityHandler)
 
     // Load satellite metadata (country, launch date, etc.) non-blocking.
     void fetchSatcat().then(m => { if (this.mounted) this.satcat = m })
@@ -764,9 +755,7 @@ export class Globe {
     this.mounted = false
     if (this.rafId !== null) cancelAnimationFrame(this.rafId)
     if (this.catalogRefreshInterval !== null) { clearInterval(this.catalogRefreshInterval); this.catalogRefreshInterval = null }
-    if (this.keepaliveInterval !== null) { clearInterval(this.keepaliveInterval); this.keepaliveInterval = null }
     if (this.issTleInterval !== null) { clearInterval(this.issTleInterval); this.issTleInterval = null }
-    if (this.visibilityHandler !== null) { document.removeEventListener('visibilitychange', this.visibilityHandler); this.visibilityHandler = null }
     if (this.clickCanvas !== null) {
       this.clickCanvas.removeEventListener('click', this.onCanvasClick)
       this.clickCanvas.removeEventListener('mousemove', this.onCanvasMouseMove)

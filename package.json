@@ -4,7 +4,8 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
-    "@vercel/node": "^5.7.17"
+    "@vercel/node": "^5.7.17",
+    "satellite.js": "^4.1.4"
   },
   "devDependencies": {
     "@types/node": "^25.6.2",
