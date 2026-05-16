@@ -111,17 +111,25 @@ aussie-sky/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 15 complete — text search on globe, README local dev setup, verification of Session 14 reliability fixes. 53 Vitest tests; tsc clean; lint clean.
+**Current phase:** Post-session-15 reliability sprint — catalog loading overhauled (Space-Track via Vercel edge cache), 20k satellites, correct names and ISS ring. 54 Vitest tests; tsc clean; lint clean.
 
-**Next milestone:** Session 16 — AWS migration: move Python orbital service from Railway to ECS Fargate; ECR image push in CI; RDS PostgreSQL for alert subscriptions; Terraform for all AWS resources; Sentry error monitoring.
+**Next milestone:** Session 16 — AWS migration: ECS Fargate for Python orbital service; ECR image push in CI; RDS PostgreSQL for alert subscriptions; Terraform for all AWS resources; Sentry error monitoring.
 
 **Session 15 completed tasks:**
 - [x] Verified three Session 14 reliability fixes (celestrak legacy fallback, ISS TLE flow, satellite.js in api/chat.ts) — all confirmed correct, no changes needed
-- [x] Text search on globe: type to find any satellite by name or NORAD ID — SearchBar component + Globe.searchCatalog() + Globe.selectCatalogSatellite() + 9 new tests (53 total)
+- [x] Text search on globe: type to find any satellite by name or NORAD ID — SearchBar component + Globe.searchCatalog() + Globe.selectCatalogSatellite() + 9 new tests
 - [x] README local dev setup — complete instructions: clone, install, run frontend, run AI chat locally (Vercel CLI), run tests
-- [x] README tech stack accuracy — added Live/Planned status, correct satellite count (~15k), accurate infra table
+- [x] README tech stack accuracy — added Live/Planned status, correct satellite count, accurate infra table
 
-**Sessions 1–14 (complete, stable):** See `docs/session-14-bootstrap.md` for full task lists. Key highlights: globe, ISS SGP4, agent + tools, 15k catalog, CI/CD, CORS, hover/click, category filters, orbital arcs, agent-driven filter, live satellite info card, Railway eliminated from critical path.
+**Post-session-15 reliability fixes (pre-session-16):**
+- [x] `api/catalog.ts` — new Vercel serverless function: authenticates to Space-Track, returns ~20k TLEs with `Cache-Control: s-maxage=7200` (Vercel CDN edge cache, sub-100ms globally after first call)
+- [x] `celestrak.ts` — `Promise.any()` races /api/catalog and CelesTrak simultaneously; 10s per-source timeout replaces old no-timeout hang; clears legacy v1/v2/v3 localStorage keys on save to eliminate 10k ghost count
+- [x] `api/catalog.ts` — `format/tle` → `format/3le` fixes: satellite names (were showing TLE line 2 data), count (~10k → ~20k), ISS ring position (ISS now reliably found in catalog for TLE update)
+- [x] `SatelliteMesh.ts` — ISS orbital ring hidden until `updateTle()` delivers a fresh TLE; stale March-2024 fallback TLE can no longer produce a visible wrong ring
+- [x] `celestrak.ts` — strips Space-Track's `0 ` line-type prefix from satellite names
+- [x] `GlobeView.tsx` — pulsing "Loading catalog…" badge while catalog is in flight; replaced full-screen "Loading satellite catalog…" overlay text with "Initializing…"
+
+**Sessions 1–14 (complete, stable):** See `docs/session-14-bootstrap.md` for full task lists. Key highlights: globe, ISS SGP4, agent + tools, CI/CD, CORS, hover/click, category filters, orbital arcs, agent-driven filter, live satellite info card, Railway eliminated from critical path.
 
 **Blockers:** None.
 
@@ -228,6 +236,14 @@ Format: date, decision, rationale, rule to remember.
 - **2026-05-15 — Session 15: searchCatalog() checks ISS separately before catalog arrays.** Globe.initCatalog() extracts ISS (NORAD 25544) into a separate SatelliteMesh and removes it from satNoradIds/satNames. Any public method that traverses the catalog arrays will silently miss ISS. Fix pattern: every catalog-traversal method checks this.issName / ISS_NORAD first, then searches satNoradIds. Rule: whenever a special object is split from the catalog for separate rendering, add an explicit early check in all catalog-traversal public methods.
 
 - **2026-05-15 — Session 15: selectCatalogSatellite() dispatches ISS via issSatrec, not showGroundTrack.** showGroundTrack(idx) requires a valid index in satNoradIds — ISS has none after being stripped. For ISS: clearGroundTrack() + handleSatSelect(ISS_NORAD, issSatrec) + onSatelliteClick(). For catalog: showGroundTrack(idx) + onSatelliteClick(). Globe.onSatelliteClick fires through the useGlobe callback chain to GlobeView.onSatelliteSelect — don't call onSatelliteSelect explicitly in the SearchBar.onSelect handler or it fires twice. Rule: any programmatic satellite selection must replicate the exact two-step click-handler flow; don't add extra callback fires at the UI layer.
+
+- **2026-05-16 — Catalog loading: /api/catalog Vercel function with Space-Track + edge caching.** CelesTrak GROUP=active was fetched browser-direct with no timeout — could hang for minutes for Australian users (far from US servers). Fix: `api/catalog.ts` Vercel function authenticates to Space-Track (no IP restrictions), returns TLEs with `Cache-Control: public, s-maxage=7200`. Vercel CDN caches the 2MB response at each edge node — sub-100ms globally after first call. Browser races /api/catalog and CelesTrak direct simultaneously via `Promise.any()`; each source has a 10s AbortSignal timeout. First responder wins. Rule: always race catalog sources in parallel rather than trying sequentially — effective max wait = single timeout, not N × timeout.
+
+- **2026-05-16 — Space-Track 3LE format required; format/tle (2LE) breaks parseTleText.** `format/tle` returns 2-line elements (no name line). `parseTleText()` expects 3LE. With 2LE, TLE line 2 of satellite N becomes the "name" of satellite N+1, norad_id is always N+1's (not N's), and only ~N/2 records are produced. Symptoms: names showed as "2 54702 59.9976 338.8258...", count was ~10k instead of ~20k, ISS sometimes not found for TLE update. Fix: `format/3le`. Rule: always use `format/3le` with Space-Track's gp endpoint — `format/tle` returns 2LE which is incompatible with 3LE parsers.
+
+- **2026-05-16 — ISS orbital ring showed at wrong position because fallback TLE was from March 2024.** SatelliteMesh constructor uses hardcoded TLE constants (ISS_TLE1, ISS_TLE2) as fallback. These have epoch `24087` (March 2024). SGP4 extrapolation 14+ months past epoch gives completely wrong positions. The AI's `highlight_on_globe` tool uses backend-computed lat/lon (correct); the ring was rendered from the stale satrec → ring appeared in a different hemisphere from the dot. Two fixes: (1) `format/3le` ensures ISS is always found in catalog and `updateTle()` called within seconds; (2) `arc.visible = false` in constructor, set to true only after `updateTle()` — stale fallback TLEs never produce a visible wrong ring. Rule: never render a propagated orbit from a TLE whose epoch is more than a few days old; hide until a fresh TLE arrives.
+
+- **2026-05-16 — Space-Track 3LE name lines prefixed with "0 ".** CelesTrak 3LE has plain name lines (`ISS (ZARYA)`). Space-Track 3LE prefixes with line-type indicator (`0 ISS (ZARYA)`). `parseTleText()` now strips leading `"0 "` before storing name. Rule: when switching TLE sources, check name-line format — different providers use different conventions.
 
 ---
 

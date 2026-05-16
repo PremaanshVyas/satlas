@@ -190,7 +190,7 @@ export class Globe {
 
     this.tick()
     // Show the globe (ISS only) on the first rendered frame — don't wait for catalog.
-    // Catalog dots appear when Railway responds; onCatalogRefresh updates the count.
+    // Catalog dots appear when /api/catalog responds; onCatalogRefresh updates the count.
     requestAnimationFrame(() => { if (this.mounted) onReady?.() })
     void this.refreshIssTle()
     this.issTleInterval = setInterval(() => void this.refreshIssTle(), 2 * 60 * 1000)
