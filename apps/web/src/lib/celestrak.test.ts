@@ -2,9 +2,9 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fetchSatelliteCatalog, fetchIssTle, parseTleText } from './celestrak'
 import type { TLERecord } from './celestrak'
 
-const ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=TLE'
-const ISS_URL    = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
-const CACHE_KEY  = 'aussie-sky-catalog-v4'
+const CATALOG_API_URL = '/api/catalog'
+const ISS_URL         = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
+const CACHE_KEY       = 'aussie-sky-catalog-v4'
 
 function makeLocalStorageMock(initial: Record<string, string> = {}) {
   const store: Record<string, string> = { ...initial }
@@ -87,7 +87,7 @@ describe('fetchSatelliteCatalog', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  test('fetches TLE text from CelesTrak GROUP=active when no cache', async () => {
+  test('fetches TLE from /api/catalog (primary source) when no cache', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       text: () => Promise.resolve(makeTleText(110)),
@@ -96,7 +96,7 @@ describe('fetchSatelliteCatalog', () => {
     const result = await fetchSatelliteCatalog()
 
     expect(result.length).toBe(110)
-    expect(fetch).toHaveBeenCalledWith(ACTIVE_URL)
+    expect(fetch).toHaveBeenCalledWith(CATALOG_API_URL, expect.objectContaining({ signal: expect.anything() }))
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
@@ -148,7 +148,7 @@ describe('fetchSatelliteCatalog', () => {
     await fetchSatelliteCatalog()
     await new Promise(r => setTimeout(r, 0))
 
-    expect(fetch).toHaveBeenCalledWith(ACTIVE_URL)
+    expect(fetch).toHaveBeenCalledWith(CATALOG_API_URL, expect.objectContaining({ signal: expect.anything() }))
   })
 })
 
@@ -172,7 +172,7 @@ describe('fetchIssTle', () => {
 
     expect(result.tle1).toMatch(/^1 25544/)
     expect(result.tle2).toMatch(/^2 25544/)
-    expect(fetch).toHaveBeenCalledWith(ISS_URL)
+    expect(fetch).toHaveBeenCalledWith(ISS_URL, expect.objectContaining({ signal: expect.anything() }))
   })
 
   test('throws when CelesTrak returns non-ok status', async () => {

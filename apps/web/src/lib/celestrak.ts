@@ -13,12 +13,20 @@ const CACHE_KEY = 'aussie-sky-catalog-v4'
 // a fresh fetch — but we'll still serve stale rather than show a blank globe.
 const MAX_CACHE_AGE_MS = 72 * 60 * 60 * 1000 // 72h — prefer fresh, but stale beats blank
 
-// Single reliable endpoint: user IPs are never blocked by CelesTrak for GROUP=active.
-// (Cloud/datacenter IPs get 403 for GROUP queries — that's why the AI tools use CATNR instead.)
+// Primary: /api/catalog — Vercel serverless function that authenticates to Space-Track and
+// returns TLEs with edge-cache headers. Vercel CDN serves it globally in <100ms after the
+// first warm-up call. Works from any IP. Falls back to CelesTrak direct if unavailable.
+const CATALOG_API_URL = '/api/catalog'
+
+// CelesTrak direct — browser user IPs are never blocked for GROUP=active.
+// (Cloud/datacenter IPs get 403 — that's why we go through /api/catalog first.)
 const ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=TLE'
 
-// CelesTrak CATNR endpoint for ISS — works from any IP including cloud/Vercel/Railway.
+// CelesTrak CATNR endpoint for ISS — works from any IP including cloud/Vercel.
 const ISS_CATNR_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
+
+// 20s hard cap per fetch attempt. Prevents hanging when a source is slow or unresponsive.
+const FETCH_TIMEOUT_MS = 20_000
 
 export function parseTleText(text: string): TLERecord[] {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
@@ -58,13 +66,33 @@ function saveCache(data: TLERecord[]): void {
   }
 }
 
-async function fetchActive(): Promise<TLERecord[]> {
-  const res = await fetch(ACTIVE_URL)
+// Fetch from /api/catalog — Vercel edge-cached, served in <100ms after first warm call.
+async function fetchFromApi(): Promise<TLERecord[]> {
+  const res = await fetch(CATALOG_API_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+  if (!res.ok) throw new Error(`/api/catalog returned ${res.status}`)
+  const text = await res.text()
+  const records = parseTleText(text)
+  if (records.length < 100) throw new Error(`/api/catalog returned only ${records.length} records`)
+  return records
+}
+
+// Fetch from CelesTrak directly — works from user IPs, sometimes slow for non-US users.
+async function fetchFromCelesTrak(): Promise<TLERecord[]> {
+  const res = await fetch(ACTIVE_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
   if (!res.ok) throw new Error(`CelesTrak GROUP=active returned ${res.status}`)
   const text = await res.text()
   const records = parseTleText(text)
   if (records.length < 100) throw new Error(`CelesTrak returned only ${records.length} records`)
   return records
+}
+
+// Try primary source first, then fall back to secondary.
+async function fetchFresh(): Promise<TLERecord[]> {
+  try {
+    return await fetchFromApi()
+  } catch {
+    return await fetchFromCelesTrak()
+  }
 }
 
 export async function fetchSatelliteCatalog(): Promise<TLERecord[]> {
@@ -73,20 +101,19 @@ export async function fetchSatelliteCatalog(): Promise<TLERecord[]> {
   if (cached) {
     const age = Date.now() - cached.ts
     // Always fire a background refresh so the next call gets fresh data.
-    void fetchActive().then(data => saveCache(data)).catch(() => {})
+    void fetchFresh().then(data => saveCache(data)).catch(() => {})
     if (age <= MAX_CACHE_AGE_MS) return cached.data
     // Cache is stale but still usable while the background refresh runs.
-    // We return it here only if MAX_CACHE_AGE_MS isn't exceeded by much;
-    // in practice the background refresh above will have replaced it by next load.
     return cached.data
   }
 
   // No usable cache — must wait for network.
   try {
-    const data = await fetchActive()
+    const data = await fetchFresh()
     saveCache(data)
     return data
   } catch (err) {
+    // Both sources failed. Fall back to any previous cache key we can find.
     // CelesTrak enforces 1 download per IP per 2-hour update cycle (since Mar 2026).
     // The v4 cache-key bump forced a fresh fetch for all users; if they'd already
     // fetched the v3 data within the same 2h window from the same IP, CelesTrak
@@ -119,7 +146,7 @@ function loadAnyLegacyCache(): TLERecord[] | null {
 // Fetch ISS TLE directly from CelesTrak CATNR — works from all IPs including cloud.
 // This replaces the old Railway /tle/iss call. Railway is no longer in the ISS TLE path.
 export async function fetchIssTle(): Promise<{ tle1: string; tle2: string }> {
-  const res = await fetch(ISS_CATNR_URL)
+  const res = await fetch(ISS_CATNR_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
   if (!res.ok) throw new Error(`ISS TLE fetch failed: ${res.status}`)
   const text = await res.text()
   const records = parseTleText(text)
