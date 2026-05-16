@@ -42,7 +42,9 @@ export function parseTleText(text: string): TLERecord[] {
     const tle1 = lines[i + 1]
     const tle2 = lines[i + 2]
     if (tle1.startsWith('1 ') && tle2.startsWith('2 ')) {
-      records.push({ name, norad_id: tle1.slice(2, 7).trim(), tle1, tle2 })
+      // Space-Track 3LE prefixes name lines with "0 " as a line-type indicator.
+      const cleanName = name.startsWith('0 ') ? name.slice(2) : name
+      records.push({ name: cleanName, norad_id: tle1.slice(2, 7).trim(), tle1, tle2 })
       i += 3
     } else {
       i += 1

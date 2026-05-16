@@ -70,6 +70,18 @@ describe('parseTleText', () => {
     expect(result[0].name).toBe('GOOD SAT')
   })
 
+  test('strips Space-Track "0 " prefix from name lines', () => {
+    const text = [
+      '0 ISS (ZARYA)',
+      '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993',
+      '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
+    ].join('\n')
+
+    const result = parseTleText(text)
+
+    expect(result[0].name).toBe('ISS (ZARYA)')
+  })
+
   test('extracts norad_id from columns 2-7 of TLE line 1', () => {
     const text = makeTleText(3)
     const result = parseTleText(text)
