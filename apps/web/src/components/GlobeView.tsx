@@ -126,11 +126,17 @@ export default function GlobeView({
         {utcClock}
       </div>
 
-      {/* Satellite count — top-right */}
-      {satelliteCount > 0 && (
-        <div className="absolute top-3 right-3 font-mono text-xs text-blue-400 bg-black/50 px-2 py-1 rounded select-none pointer-events-none">
-          Tracking {satelliteCount.toLocaleString()} objects
-        </div>
+      {/* Satellite count / catalog loading indicator — top-right */}
+      {!isLoading && (
+        satelliteCount > 0 ? (
+          <div className="absolute top-3 right-3 font-mono text-xs text-blue-400 bg-black/50 px-2 py-1 rounded select-none pointer-events-none">
+            Tracking {satelliteCount.toLocaleString()} objects
+          </div>
+        ) : (
+          <div className="absolute top-3 right-3 font-mono text-xs text-gray-500 bg-black/50 px-2 py-1 rounded select-none pointer-events-none animate-pulse">
+            Loading catalog…
+          </div>
+        )
       )}
 
       {/* Category filter pills — bottom-center */}
@@ -165,7 +171,7 @@ export default function GlobeView({
       {/* Loading overlay */}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-950 text-gray-400 text-sm tracking-wide">
-          Loading satellite catalog…
+          Initializing…
         </div>
       )}
     </div>

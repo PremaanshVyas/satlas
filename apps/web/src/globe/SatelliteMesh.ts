@@ -34,6 +34,9 @@ export class SatelliteMesh {
       new THREE.BufferGeometry().setFromPoints(this.computeArcPoints()),
       new THREE.LineBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.5 }),
     )
+    // Hide the ring until a fresh TLE is loaded — the hardcoded fallback TLE can be
+    // months old, which propagates to a completely wrong orbital position.
+    this.arc.visible = false
 
     this.group.add(this.dot, this.halo, this.arc)
   }
@@ -104,8 +107,11 @@ export class SatelliteMesh {
 
   updateTle(tle1: string, tle2: string): void {
     this.satrec = satellite.twoline2satrec(tle1, tle2)
-    // Recompute orbital ring immediately — new TLE means new orbital elements
     this.arc.geometry.setFromPoints(this.computeArcPoints())
+    // Show the ring now that we have a verified fresh TLE.
+    this.arc.visible = true
+    // Defer the next periodic recompute in update() by a full cycle.
+    this.lastArcRecompute = Date.now()
   }
 
   startPulse(): void {

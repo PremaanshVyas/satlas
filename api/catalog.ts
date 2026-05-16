@@ -4,12 +4,14 @@ export const config = { maxDuration: 30 }
 
 const LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
 // Active objects with recent TLEs: not decayed, epoch within last 60 days, up to 20k records
+// format/3le returns name + TLE1 + TLE2 (3-line format). format/tle returns 2LE (no name),
+// which breaks parseTleText() — it would treat TLE line 2 of sat N as the name of sat N+1.
 const QUERY_URL =
   'https://www.space-track.org/basicspacedata/query/class/gp' +
   '/DECAY_DATE/null-val' +
   '/EPOCH/%3Enow-60' +
   '/orderby/NORAD_CAT_ID' +
-  '/format/tle' +
+  '/format/3le' +
   '/limit/20000'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
