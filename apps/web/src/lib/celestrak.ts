@@ -25,8 +25,13 @@ const ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FOR
 // CelesTrak CATNR endpoint for ISS — works from any IP including cloud/Vercel.
 const ISS_CATNR_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
 
-// 20s hard cap per fetch attempt. Prevents hanging when a source is slow or unresponsive.
-const FETCH_TIMEOUT_MS = 20_000
+// 10s hard cap per fetch attempt. Sources are raced in parallel, so the effective max
+// wait is 10s (not per-source × number of sources).
+const FETCH_TIMEOUT_MS = 10_000
+
+// Previous cache key versions — may hold stale 10k-era data. Cleaned up on every
+// successful save so they never resurface as a fallback.
+const LEGACY_KEYS = ['aussie-sky-catalog-v3', 'aussie-sky-catalog-v2', 'aussie-sky-catalog-v1']
 
 export function parseTleText(text: string): TLERecord[] {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
@@ -61,6 +66,10 @@ function loadCache(): { data: TLERecord[]; ts: number } | null {
 function saveCache(data: TLERecord[]): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
+    // Remove old cache versions that may hold stale 10k-era data.
+    for (const key of LEGACY_KEYS) {
+      localStorage.removeItem(key)
+    }
   } catch {
     // localStorage quota exceeded or unavailable — not fatal
   }
@@ -86,13 +95,11 @@ async function fetchFromCelesTrak(): Promise<TLERecord[]> {
   return records
 }
 
-// Try primary source first, then fall back to secondary.
+// Race both sources simultaneously — whichever responds first wins.
+// Promise.any() resolves with the first fulfilled result and ignores individual rejections.
+// Effective max wait = FETCH_TIMEOUT_MS (not per-source × N).
 async function fetchFresh(): Promise<TLERecord[]> {
-  try {
-    return await fetchFromApi()
-  } catch {
-    return await fetchFromCelesTrak()
-  }
+  return await Promise.any([fetchFromApi(), fetchFromCelesTrak()])
 }
 
 export async function fetchSatelliteCatalog(): Promise<TLERecord[]> {
@@ -128,7 +135,6 @@ export async function fetchSatelliteCatalog(): Promise<TLERecord[]> {
 
 // Check previous cache key versions in order. TLEs are valid for days, so v3 data
 // is better than nothing even if it's a few hours old.
-const LEGACY_KEYS = ['aussie-sky-catalog-v3', 'aussie-sky-catalog-v2', 'aussie-sky-catalog-v1']
 function loadAnyLegacyCache(): TLERecord[] | null {
   for (const key of LEGACY_KEYS) {
     try {

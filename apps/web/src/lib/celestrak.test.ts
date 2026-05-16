@@ -87,7 +87,7 @@ describe('fetchSatelliteCatalog', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  test('fetches TLE from /api/catalog (primary source) when no cache', async () => {
+  test('fetches TLE when no cache — races /api/catalog and CelesTrak simultaneously', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       text: () => Promise.resolve(makeTleText(110)),
@@ -96,8 +96,8 @@ describe('fetchSatelliteCatalog', () => {
     const result = await fetchSatelliteCatalog()
 
     expect(result.length).toBe(110)
+    // Both sources are raced — the API route must be among the calls
     expect(fetch).toHaveBeenCalledWith(CATALOG_API_URL, expect.objectContaining({ signal: expect.anything() }))
-    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   test('throws when CelesTrak fails and there is no stale cache', async () => {
