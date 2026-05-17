@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -279,12 +280,14 @@ class TestRunMigrations:
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_psycopg2 = MagicMock()
+        mock_psycopg2.connect.return_value = mock_conn
 
-        with patch.dict(os.environ, {'DATABASE_URL': 'postgresql://test'}), \
-             patch('psycopg2.connect', return_value=mock_conn) as mock_connect:
+        with patch.dict(sys.modules, {'psycopg2': mock_psycopg2}), \
+             patch.dict(os.environ, {'DATABASE_URL': 'postgresql://test'}):
             db.run_migrations()
 
-        mock_connect.assert_called_once_with('postgresql://test')
+        mock_psycopg2.connect.assert_called_once_with('postgresql://test')
         mock_cursor.execute.assert_called_once()
         sql_arg = mock_cursor.execute.call_args[0][0]
         assert 'CREATE TABLE IF NOT EXISTS subscribers' in sql_arg
