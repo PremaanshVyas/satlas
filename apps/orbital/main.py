@@ -1,16 +1,24 @@
 import asyncio
+import os
 
+import sentry_sdk
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+
+from db import run_migrations
 from overhead import satellites_overhead
 from passes import predict_passes
-from satellites import get_satellites, get_iss_tle
+from satellites import get_satellites, get_iss_tle, refresh_loop
 from satinfo import satellite_info
+
+sentry_sdk.init(
+    dsn=os.environ.get('SENTRY_DSN', ''),
+    traces_sample_rate=0.2,
+)
 
 app = FastAPI(title='Aussie Sky Orbital Service')
 
 ISS_NORAD_ID = '25544'
-
 _CATEGORY_KEYS = ('STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER')
 
 
@@ -27,10 +35,11 @@ def _classify_satellite(name: str) -> str:
         return 'DEBRIS'
     return 'OTHER'
 
+
 _ALLOWED_ORIGINS = [
     'https://aussie-sky.vercel.app',
-    'http://localhost:5173',   # local Vite dev server
-    'http://localhost:4173',   # vite preview
+    'http://localhost:5173',
+    'http://localhost:4173',
 ]
 
 app.add_middleware(
@@ -41,6 +50,12 @@ app.add_middleware(
 )
 
 
+@app.on_event('startup')
+async def startup_event() -> None:
+    run_migrations()
+    asyncio.create_task(refresh_loop())
+
+
 @app.get('/health')
 async def health() -> dict[str, str]:
     return {'status': 'ok'}
@@ -48,13 +63,12 @@ async def health() -> dict[str, str]:
 
 @app.get('/predict-passes')
 async def get_passes(
-    latitude: float = Query(..., ge=-90, le=90, description='Decimal degrees, south negative'),
-    longitude: float = Query(..., ge=-180, le=180, description='Decimal degrees, west negative'),
-    hours_ahead: int = Query(24, ge=1, le=168, description='Search window in hours (max 7 days)'),
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+    hours_ahead: int = Query(24, ge=1, le=168),
 ) -> dict[str, list[dict]]:
     try:
-        passes = predict_passes(latitude, longitude, hours_ahead)
-        return {'passes': passes}
+        return {'passes': predict_passes(latitude, longitude, hours_ahead)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -73,14 +87,6 @@ async def get_satellite_categories() -> dict[str, int]:
         raise HTTPException(status_code=503, detail=f'Category count failed: {e}')
 
 
-@app.get('/satellites')
-async def get_satellite_catalog() -> list[dict]:
-    try:
-        return await get_satellites()
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f'CelesTrak fetch failed: {e}')
-
-
 @app.get('/tle/iss')
 async def get_iss_tle_endpoint() -> dict[str, str]:
     try:
@@ -91,9 +97,9 @@ async def get_iss_tle_endpoint() -> dict[str, str]:
 
 @app.get('/satellites-overhead')
 async def get_satellites_overhead(
-    latitude: float = Query(..., ge=-90, le=90, description='Observer latitude, decimal degrees'),
-    longitude: float = Query(..., ge=-180, le=180, description='Observer longitude, decimal degrees'),
-    radius_km: float = Query(2000.0, ge=0, le=20000, description='Search radius in km'),
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+    radius_km: float = Query(2000.0, ge=0, le=20000),
 ) -> list[dict]:
     try:
         catalog = await get_satellites()
@@ -107,19 +113,14 @@ async def get_satellite_info(
     query: str = Query(..., description='Satellite name (substring) or NORAD catalog ID'),
 ) -> dict:
     try:
-        # Fetch catalog and fresh ISS TLE in parallel — both are cached so this is fast.
-        # The ISS TLE uses a 5-min cache to match the globe's accuracy; the catalog uses 30 min.
-        # Injecting the fresh TLE via fresh_tles ensures the chatbot and globe agree on ISS position.
         catalog_result, iss_tle_result = await asyncio.gather(
             get_satellites(), get_iss_tle(), return_exceptions=True
         )
         if isinstance(catalog_result, Exception):
             raise catalog_result
-
         fresh_tles = {}
         if not isinstance(iss_tle_result, Exception):
             fresh_tles[ISS_NORAD_ID] = iss_tle_result
-
         result = satellite_info(catalog_result, query, fresh_tles if fresh_tles else None)
         if result is None:
             raise HTTPException(status_code=404, detail=f'Satellite not found: {query}')
