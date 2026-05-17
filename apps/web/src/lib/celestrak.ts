@@ -16,7 +16,7 @@ const MAX_CACHE_AGE_MS = 72 * 60 * 60 * 1000 // 72h — prefer fresh, but stale 
 // Primary: /api/catalog — Vercel serverless function that authenticates to Space-Track and
 // returns TLEs with edge-cache headers. Vercel CDN serves it globally in <100ms after the
 // first warm-up call. Works from any IP. Falls back to CelesTrak direct if unavailable.
-const CATALOG_API_URL = '/api/catalog'
+const CATALOG_API_URL = import.meta.env.VITE_CATALOG_URL || '/api/catalog'
 
 // CelesTrak direct — browser user IPs are never blocked for GROUP=active.
 // (Cloud/datacenter IPs get 403 — that's why we go through /api/catalog first.)
