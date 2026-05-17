@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -261,3 +262,42 @@ class TestHealthEndpoint:
 class TestCacheTTL:
     def test_iss_cache_ttl_is_five_minutes(self):
         assert satellites.ISS_TLE_TTL_SECONDS == 300
+
+
+# ── db.run_migrations ─────────────────────────────────────────────────────────
+
+class TestRunMigrations:
+    def test_skips_when_no_database_url(self):
+        import db
+        # Should not raise even with no DATABASE_URL
+        with patch.dict(os.environ, {}, clear=True):
+            db.run_migrations()  # no exception
+
+    def test_applies_migration_sql(self):
+        import db
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch.dict(os.environ, {'DATABASE_URL': 'postgresql://test'}), \
+             patch('psycopg2.connect', return_value=mock_conn) as mock_connect:
+            db.run_migrations()
+
+        mock_connect.assert_called_once_with('postgresql://test')
+        mock_cursor.execute.assert_called_once()
+        sql_arg = mock_cursor.execute.call_args[0][0]
+        assert 'CREATE TABLE IF NOT EXISTS subscribers' in sql_arg
+        assert 'CREATE EXTENSION IF NOT EXISTS vector' in sql_arg
+        mock_conn.commit.assert_called_once()
+        mock_conn.close.assert_called_once()
+
+    def test_logs_and_continues_on_connection_error(self):
+        import db
+        with patch.dict(os.environ, {'DATABASE_URL': 'postgresql://bad'}), \
+             patch('psycopg2.connect', side_effect=Exception('connection refused')), \
+             patch.object(db.logger, 'error') as mock_log:
+            db.run_migrations()  # must not raise
+
+        mock_log.assert_called_once()
+        assert 'connection refused' in str(mock_log.call_args)
