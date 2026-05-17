@@ -1,21 +1,22 @@
+import asyncio
 import os
 import time
 
+import boto3
 import httpx
 
-CELESTRAK_ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=TLE'
 CELESTRAK_ISS_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
 CELESTRAK_HEADERS = {'User-Agent': 'aussie-sky/1.0 (portfolio project; https://aussie-sky.vercel.app)'}
 
 SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
-# No MEAN_MOTION/ECCENTRICITY filters — those excluded ISS at certain orbital epochs
-SPACETRACK_QUERY_URL = (
+SPACETRACK_CATALOG_URL = (
     'https://www.space-track.org/basicspacedata/query/class/gp'
-    '/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID/limit/35000/format/json'
+    '/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID/format/3le'
 )
 
-CACHE_TTL_SECONDS = 30 * 60
-ISS_TLE_TTL_SECONDS = 5 * 60   # ISS moves 7.66 km/s — 5-min cache ≤ 2,300 km error
+ISS_TLE_TTL_SECONDS = 300   # 5 min — ISS moves 7.66 km/s
+CATALOG_REFRESH_SECONDS = 2 * 60 * 60  # 2 h
+
 ISS_NORAD = '25544'
 
 _cache: dict = {'tles': [], 'fetched_at': 0.0}
@@ -23,110 +24,104 @@ _iss_cache: dict = {'tle': None, 'fetched_at': 0.0}
 
 
 def _parse_tle_text(text: str) -> list:
-    """Parse 3LE text (name / TLE-line-1 / TLE-line-2 triplets) into TLE record dicts."""
+    """Parse 3LE text into TLE record dicts. Strips Space-Track '0 ' name prefix."""
     lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
     result = []
     i = 0
     while i + 2 < len(lines):
         name, tle1, tle2 = lines[i], lines[i + 1], lines[i + 2]
         if tle1.startswith('1 ') and tle2.startswith('2 '):
+            clean_name = name[2:] if name.startswith('0 ') else name
             result.append({
-                'name': name,
+                'name': clean_name,
                 'norad_id': tle1[2:7].strip(),
                 'tle1': tle1,
                 'tle2': tle2,
             })
             i += 3
         else:
-            i += 1  # skip malformed line
+            i += 1
     return result
 
 
-def _parse_gp(items: list) -> list:
-    """Parse space-track.org GP JSON (which does include TLE_LINE1/TLE_LINE2)."""
-    return [
-        {
-            'name': item['OBJECT_NAME'],
-            'norad_id': str(item['NORAD_CAT_ID']),
-            'tle1': item['TLE_LINE1'],
-            'tle2': item['TLE_LINE2'],
-        }
-        for item in items
-    ]
-
-
-async def _fetch_celestrak() -> list:
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        resp = await client.get(CELESTRAK_ACTIVE_URL, headers=CELESTRAK_HEADERS)
-        resp.raise_for_status()
-        return _parse_tle_text(resp.text)
-
-
-async def _fetch_iss_tle() -> dict:
-    """Fetch ISS TLE from CelesTrak CATNR endpoint — not IP-blocked on cloud infrastructure."""
-    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-        resp = await client.get(CELESTRAK_ISS_URL, headers=CELESTRAK_HEADERS)
-        resp.raise_for_status()
-        lines = resp.text.strip().splitlines()
-        if len(lines) < 3:
-            raise ValueError(f'Unexpected TLE response: {resp.text[:100]}')
-        name = lines[0].strip()
-        tle1 = lines[1].strip()
-        tle2 = lines[2].strip()
-        norad_id = tle1[2:7].strip()
-        return {'name': name, 'norad_id': norad_id, 'tle1': tle1, 'tle2': tle2}
-
-
-async def _fetch_spacetrack() -> list:
+async def _fetch_space_track_tles() -> list:
+    """Authenticate to Space-Track and fetch full catalog as 3LE text."""
     user = os.environ.get('SPACETRACK_USER')
     password = os.environ.get('SPACETRACK_PASS')
     if not user or not password:
         raise ValueError('SPACETRACK_USER and SPACETRACK_PASS environment variables must be set')
 
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        login_resp = await client.post(
-            SPACETRACK_LOGIN_URL,
-            data={'identity': user, 'password': password},
-        )
-        login_resp.raise_for_status()
-        data_resp = await client.get(SPACETRACK_QUERY_URL)
-        data_resp.raise_for_status()
-        return _parse_gp(data_resp.json())
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        await client.post(SPACETRACK_LOGIN_URL, data={'identity': user, 'password': password})
+        resp = await client.get(SPACETRACK_CATALOG_URL)
+        resp.raise_for_status()
+        return _parse_tle_text(resp.text)
+
+
+def _s3_put(tle_records: list) -> None:
+    """Write TLE records as 3LE text to S3. No-op if CATALOG_BUCKET is not set."""
+    bucket = os.environ.get('CATALOG_BUCKET')
+    if not bucket:
+        return
+
+    lines = []
+    for r in tle_records:
+        lines.append(r['name'])
+        lines.append(r['tle1'])
+        lines.append(r['tle2'])
+    body = '\n'.join(lines) + '\n'
+
+    s3 = boto3.client('s3')
+    s3.put_object(
+        Bucket=bucket,
+        Key='catalog.tle',
+        Body=body,
+        ContentType='text/plain',
+        CacheControl='public, max-age=7200',
+    )
+
+
+async def _s3_refresh() -> None:
+    """Fetch full catalog from Space-Track, update in-memory cache, write to S3."""
+    tles = await _fetch_space_track_tles()
+    _cache['tles'] = tles
+    _cache['fetched_at'] = time.time()
+    _s3_put(tles)
+
+
+async def refresh_loop() -> None:
+    """Background task: refresh catalog every 2h."""
+    while True:
+        try:
+            await _s3_refresh()
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error('Catalog refresh failed: %s', exc)
+        await asyncio.sleep(CATALOG_REFRESH_SECONDS)
 
 
 async def get_satellites() -> list:
-    now = time.time()
-    if _cache['tles'] and now - _cache['fetched_at'] < CACHE_TTL_SECONDS:
+    """Return cached TLE list. Raises if catalog not yet loaded."""
+    if _cache['tles']:
         return _cache['tles']
+    raise RuntimeError('Catalog not yet loaded — refresh in progress')
 
-    tles = None
-    try:
-        tles = await _fetch_celestrak()
-    except Exception:
-        try:
-            tles = await _fetch_spacetrack()
-        except Exception:
-            # Both live sources failed — serve stale cache so the globe stays populated.
-            # Only raise (producing a 503) if we have never successfully fetched.
-            if _cache['tles']:
-                return _cache['tles']
-            raise
 
-    # Guarantee ISS is in the catalog regardless of source or filter behavior
-    if not any(t['norad_id'] == ISS_NORAD for t in tles):
-        try:
-            iss = await _fetch_iss_tle()
-            tles = [iss] + tles
-        except Exception:
-            pass  # best-effort; return catalog without ISS rather than failing entirely
-
-    _cache['tles'] = tles
-    _cache['fetched_at'] = now
-    return tles
+async def _fetch_iss_tle() -> dict:
+    """Fetch ISS TLE from CelesTrak CATNR — works from cloud IPs (no IP block on CATNR)."""
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+        resp = await client.get(CELESTRAK_ISS_URL, headers=CELESTRAK_HEADERS)
+        resp.raise_for_status()
+        lines = resp.text.strip().splitlines()
+        if len(lines) < 3:
+            raise ValueError(f'Unexpected ISS TLE response: {resp.text[:100]}')
+        tle1, tle2 = lines[1].strip(), lines[2].strip()
+        norad_id = tle1[2:7].strip()
+        return {'name': lines[0].strip(), 'norad_id': norad_id, 'tle1': tle1, 'tle2': tle2}
 
 
 async def get_iss_tle() -> dict:
-    """Return a fresh ISS TLE dict {tle1, tle2}, cached for ISS_TLE_TTL_SECONDS (5 min)."""
+    """Return fresh ISS TLE, cached for ISS_TLE_TTL_SECONDS."""
     now = time.time()
     if _iss_cache['tle'] and now - _iss_cache['fetched_at'] < ISS_TLE_TTL_SECONDS:
         return _iss_cache['tle']

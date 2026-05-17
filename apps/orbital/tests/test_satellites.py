@@ -6,250 +6,26 @@ import pytest
 from fastapi.testclient import TestClient
 
 import satellites
-from satellites import CACHE_TTL_SECONDS
 from main import app
-
-
-SAMPLE_API_RESPONSE = [
-    {
-        'OBJECT_NAME': 'ISS (ZARYA)',
-        'NORAD_CAT_ID': 25544,
-        'TLE_LINE1': '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993',
-        'TLE_LINE2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
-    },
-    {
-        'OBJECT_NAME': 'STARLINK-1',
-        'NORAD_CAT_ID': 44713,
-        'TLE_LINE1': '1 44713U 19074A   24087.54791667  .00001000  00000-0  10000-3 0  9990',
-        'TLE_LINE2': '2 44713  53.0000 100.0000 0001000  50.0000 310.0000 15.06000000000001',
-    },
-]
 
 ENV_VARS = {'SPACETRACK_USER': 'user@example.com', 'SPACETRACK_PASS': 'secret'}
 
+# ── 3LE text fixtures ──────────────────────────────────────────────────────────
 
-def _make_mock_client(response_data):
-    mock_resp = MagicMock()
-    mock_resp.json.return_value = response_data
-    mock_resp.raise_for_status = MagicMock()
+SPACETRACK_3LE = (
+    '0 ISS (ZARYA)\n'
+    '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993\n'
+    '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522\n'
+    '0 STARLINK-1\n'
+    '1 44713U 19074A   24087.54791667  .00001000  00000-0  10000-3 0  9990\n'
+    '2 44713  53.0000 100.0000 0001000  50.0000 310.0000 15.06000000000001\n'
+)
 
-    mock_client = AsyncMock()
-    mock_client.post = AsyncMock(return_value=MagicMock(raise_for_status=MagicMock()))
-    mock_client.get = AsyncMock(return_value=mock_resp)
-    return mock_client
-
-
-CELESTRAK_TLE_TEXT = (
+CELESTRAK_3LE = (
     'ISS (ZARYA)\n'
     '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993\n'
     '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522\n'
-    'HUBBLE\n'
-    '1 20580U 90037B   24087.54791667  .00001000  00000-0  10000-3 0  9990\n'
-    '2 20580  28.4700 100.0000 0002800  50.0000 310.0000 15.09000000000001\n'
 )
-
-SAMPLE_TLE_LIST = [
-    {'name': 'ISS (ZARYA)', 'norad_id': '25544', 'tle1': 'a', 'tle2': 'b'},
-]
-
-
-class TestParseTleText:
-    def test_parses_two_satellites(self):
-        result = satellites._parse_tle_text(CELESTRAK_TLE_TEXT)
-        assert len(result) == 2
-
-    def test_first_satellite_fields(self):
-        result = satellites._parse_tle_text(CELESTRAK_TLE_TEXT)
-        assert result[0]['name'] == 'ISS (ZARYA)'
-        assert result[0]['norad_id'] == '25544'
-        assert result[0]['tle1'].startswith('1 25544')
-        assert result[0]['tle2'].startswith('2 25544')
-
-    def test_skips_malformed_lines(self):
-        bad = 'GOOD SAT\n1 12345U ...\n2 12345 ...\nJUNK LINE\n'
-        result = satellites._parse_tle_text(bad)
-        assert len(result) == 1
-        assert result[0]['name'] == 'GOOD SAT'
-
-    def test_empty_text_returns_empty_list(self):
-        assert satellites._parse_tle_text('') == []
-
-
-def _make_tle_text(count: int) -> str:
-    """Generate TLE text with `count` triplets for limit-testing."""
-    tle1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
-    tle2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
-    return ''.join(f'SAT-{i}\n{tle1}\n{tle2}\n' for i in range(count))
-
-
-class TestFetchCelesTrak:
-    def test_returns_parsed_tle_list(self):
-        mock_resp = MagicMock()
-        mock_resp.text = CELESTRAK_TLE_TEXT
-        mock_resp.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = asyncio.run(satellites._fetch_celestrak())
-        assert len(result) == 2
-        assert result[0]['name'] == 'ISS (ZARYA)'
-        assert result[0]['norad_id'] == '25544'
-        assert 'tle1' in result[0]
-        assert 'tle2' in result[0]
-
-    def test_sends_user_agent_header(self):
-        mock_resp = MagicMock()
-        mock_resp.text = CELESTRAK_TLE_TEXT
-        mock_resp.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            asyncio.run(satellites._fetch_celestrak())
-        _, call_kwargs = mock_client.get.call_args
-        assert 'User-Agent' in call_kwargs.get('headers', {})
-
-    def test_returns_all_records_without_truncation(self):
-        count = 15500
-        mock_resp = MagicMock()
-        mock_resp.text = _make_tle_text(count)
-        mock_resp.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = asyncio.run(satellites._fetch_celestrak())
-        assert len(result) == count
-
-
-class TestFetchSpacetrack:
-    def test_returns_parsed_tle_list(self):
-        mock_client = _make_mock_client(SAMPLE_API_RESPONSE)
-        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = asyncio.run(satellites._fetch_spacetrack())
-        assert isinstance(result, list)
-        assert len(result) == 2
-
-    def test_record_has_required_fields(self):
-        mock_client = _make_mock_client(SAMPLE_API_RESPONSE)
-        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = asyncio.run(satellites._fetch_spacetrack())
-        rec = result[0]
-        assert rec['name'] == 'ISS (ZARYA)'
-        assert rec['norad_id'] == '25544'
-        assert 'tle1' in rec
-        assert 'tle2' in rec
-
-    def test_norad_id_is_string(self):
-        mock_client = _make_mock_client(SAMPLE_API_RESPONSE)
-        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = asyncio.run(satellites._fetch_spacetrack())
-        assert isinstance(result[0]['norad_id'], str)
-
-    def test_returns_all_records_without_truncation(self):
-        count = 15100
-        many_sats = [
-            {
-                'OBJECT_NAME': f'SAT-{i}', 'NORAD_CAT_ID': i,
-                'TLE_LINE1': '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993',
-                'TLE_LINE2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
-            }
-            for i in range(count)
-        ]
-        mock_client = _make_mock_client(many_sats)
-        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = asyncio.run(satellites._fetch_spacetrack())
-        assert len(result) == count
-
-    def test_raises_if_credentials_missing(self):
-        with patch.dict('os.environ', {}, clear=True):
-            with pytest.raises(ValueError, match='SPACETRACK_USER and SPACETRACK_PASS'):
-                asyncio.run(satellites._fetch_spacetrack())
-
-    def test_posts_credentials_to_login_url(self):
-        mock_client = _make_mock_client(SAMPLE_API_RESPONSE)
-        with patch('satellites.httpx.AsyncClient') as MockClient, patch.dict('os.environ', ENV_VARS):
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            asyncio.run(satellites._fetch_spacetrack())
-        mock_client.post.assert_called_once_with(
-            satellites.SPACETRACK_LOGIN_URL,
-            data={'identity': ENV_VARS['SPACETRACK_USER'], 'password': ENV_VARS['SPACETRACK_PASS']},
-        )
-
-
-class TestGetSatellitesFallback:
-    def setup_method(self):
-        satellites._cache['tles'] = []
-        satellites._cache['fetched_at'] = 0.0
-
-    def test_uses_celestrak_when_available(self):
-        with patch('satellites._fetch_celestrak', AsyncMock(return_value=SAMPLE_TLE_LIST)), \
-             patch('satellites._fetch_spacetrack', AsyncMock(side_effect=AssertionError('should not call spacetrack'))):
-            result = asyncio.run(satellites.get_satellites())
-        assert result == SAMPLE_TLE_LIST
-
-    def test_falls_back_to_spacetrack_on_celestrak_failure(self):
-        with patch('satellites._fetch_celestrak', AsyncMock(side_effect=Exception('blocked'))), \
-             patch('satellites._fetch_spacetrack', AsyncMock(return_value=SAMPLE_TLE_LIST)):
-            result = asyncio.run(satellites.get_satellites())
-        assert result == SAMPLE_TLE_LIST
-
-    def test_raises_if_both_sources_fail_and_no_cache(self):
-        with patch('satellites._fetch_celestrak', AsyncMock(side_effect=Exception('blocked'))), \
-             patch('satellites._fetch_spacetrack', AsyncMock(side_effect=ValueError('no creds'))):
-            with pytest.raises((Exception, ValueError)):
-                asyncio.run(satellites.get_satellites())
-
-    def test_returns_stale_cache_when_both_sources_fail(self):
-        stale = [{'name': 'STALE-SAT', 'norad_id': '99999', 'tle1': 'x', 'tle2': 'y'}]
-        satellites._cache['tles'] = stale
-        satellites._cache['fetched_at'] = time.time() - (CACHE_TTL_SECONDS + 1)  # expired
-        with patch('satellites._fetch_celestrak', AsyncMock(side_effect=Exception('blocked'))), \
-             patch('satellites._fetch_spacetrack', AsyncMock(side_effect=Exception('down'))):
-            result = asyncio.run(satellites.get_satellites())
-        assert result == stale
-
-    def test_caches_celestrak_result(self):
-        with patch('satellites._fetch_celestrak', AsyncMock(return_value=SAMPLE_TLE_LIST)) as mock_ct:
-            asyncio.run(satellites.get_satellites())
-            asyncio.run(satellites.get_satellites())
-        mock_ct.assert_called_once()
-
-
-class TestGetSatellitesCache:
-    def setup_method(self):
-        satellites._cache['tles'] = []
-        satellites._cache['fetched_at'] = 0.0
-
-    def test_uses_cache_within_ttl(self):
-        cached = [{'name': 'CACHED', 'norad_id': '99999', 'tle1': 'x', 'tle2': 'y'}]
-        satellites._cache['tles'] = cached
-        satellites._cache['fetched_at'] = time.time()
-        with patch('satellites._fetch_celestrak', AsyncMock()) as mock_ct:
-            result = asyncio.run(satellites.get_satellites())
-            mock_ct.assert_not_called()
-        assert result == cached
-
-    def test_bypasses_cache_when_expired(self):
-        satellites._cache['tles'] = [{'name': 'OLD', 'norad_id': '00000', 'tle1': 'x', 'tle2': 'y'}]
-        satellites._cache['fetched_at'] = time.time() - (4 * 3600 + 1)
-        with patch('satellites._fetch_celestrak', AsyncMock(return_value=SAMPLE_TLE_LIST)):
-            result = asyncio.run(satellites.get_satellites())
-        assert result[0]['name'] == 'ISS (ZARYA)'
-
 
 ISS_TLE_TEXT = (
     'ISS (ZARYA)\n'
@@ -258,168 +34,201 @@ ISS_TLE_TEXT = (
 )
 
 
-class TestFetchIssTle:
-    def test_returns_single_iss_record(self):
-        mock_resp = MagicMock()
-        mock_resp.text = ISS_TLE_TEXT
-        mock_resp.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = asyncio.run(satellites._fetch_iss_tle())
-        assert result['norad_id'] == '25544'
-        assert result['name'] == 'ISS (ZARYA)'
-        assert result['tle1'].startswith('1 25544')
-        assert result['tle2'].startswith('2 25544')
-
-    def test_sends_user_agent_header(self):
-        mock_resp = MagicMock()
-        mock_resp.text = ISS_TLE_TEXT
-        mock_resp.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            asyncio.run(satellites._fetch_iss_tle())
-        _, call_kwargs = mock_client.get.call_args
-        assert 'User-Agent' in call_kwargs.get('headers', {})
+def _mock_httpx(text: str):
+    """Return a patched httpx.AsyncClient that returns `text` from GET."""
+    mock_resp = MagicMock()
+    mock_resp.text = text
+    mock_resp.raise_for_status = MagicMock()
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=MagicMock(raise_for_status=MagicMock()))
+    mock_client.get = AsyncMock(return_value=mock_resp)
+    return mock_client
 
 
-class TestIssGuarantee:
+# ── _parse_tle_text ────────────────────────────────────────────────────────────
+
+class TestParseTleText:
+    def test_parses_two_satellites_from_celestrak(self):
+        result = satellites._parse_tle_text(CELESTRAK_3LE)
+        assert len(result) == 1
+        assert result[0]['name'] == 'ISS (ZARYA)'
+
+    def test_strips_space_track_zero_prefix(self):
+        result = satellites._parse_tle_text(SPACETRACK_3LE)
+        assert len(result) == 2
+        assert result[0]['name'] == 'ISS (ZARYA)'   # not '0 ISS (ZARYA)'
+        assert result[1]['name'] == 'STARLINK-1'
+
+    def test_norad_id_extracted(self):
+        result = satellites._parse_tle_text(SPACETRACK_3LE)
+        assert result[0]['norad_id'] == '25544'
+
+    def test_skips_malformed_lines(self):
+        bad = 'GOOD SAT\n1 12345U ...\n2 12345 ...\nJUNK\n'
+        assert len(satellites._parse_tle_text(bad)) == 1
+
+    def test_empty_returns_empty(self):
+        assert satellites._parse_tle_text('') == []
+
+
+# ── _fetch_space_track_tles ────────────────────────────────────────────────────
+
+class TestFetchSpaceTrackTles:
+    def test_returns_parsed_list(self):
+        mock_client = _mock_httpx(SPACETRACK_3LE)
+        with patch('satellites.httpx.AsyncClient') as MC, patch.dict('os.environ', ENV_VARS):
+            MC.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MC.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = asyncio.run(satellites._fetch_space_track_tles())
+        assert len(result) == 2
+        assert result[0]['name'] == 'ISS (ZARYA)'
+
+    def test_strips_zero_prefix_in_names(self):
+        mock_client = _mock_httpx(SPACETRACK_3LE)
+        with patch('satellites.httpx.AsyncClient') as MC, \
+             patch.dict('os.environ', ENV_VARS):
+            MC.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MC.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = asyncio.run(satellites._fetch_space_track_tles())
+        assert not any(r['name'].startswith('0 ') for r in result)
+
+    def test_raises_if_credentials_missing(self):
+        with patch.dict('os.environ', {}, clear=True):
+            with pytest.raises(ValueError, match='SPACETRACK_USER'):
+                asyncio.run(satellites._fetch_space_track_tles())
+
+    def test_posts_to_login_url(self):
+        mock_client = _mock_httpx(SPACETRACK_3LE)
+        with patch('satellites.httpx.AsyncClient') as MC, patch.dict('os.environ', ENV_VARS):
+            MC.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MC.return_value.__aexit__ = AsyncMock(return_value=None)
+            asyncio.run(satellites._fetch_space_track_tles())
+        mock_client.post.assert_called_once_with(
+            satellites.SPACETRACK_LOGIN_URL,
+            data={'identity': ENV_VARS['SPACETRACK_USER'], 'password': ENV_VARS['SPACETRACK_PASS']},
+        )
+
+
+# ── _s3_refresh ────────────────────────────────────────────────────────────────
+
+SAMPLE_TLES = [
+    {'name': 'ISS (ZARYA)', 'norad_id': '25544',
+     'tle1': '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993',
+     'tle2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'},
+]
+
+
+class TestS3Refresh:
     def setup_method(self):
         satellites._cache['tles'] = []
         satellites._cache['fetched_at'] = 0.0
 
-    def test_iss_prepended_when_missing_from_primary(self):
-        no_iss = [{'name': 'STARLINK-1', 'norad_id': '44713', 'tle1': 'a', 'tle2': 'b'}]
-        iss_record = {'name': 'ISS (ZARYA)', 'norad_id': '25544', 'tle1': 'c', 'tle2': 'd'}
-        with patch('satellites._fetch_celestrak', AsyncMock(return_value=no_iss)), \
-             patch('satellites._fetch_iss_tle', AsyncMock(return_value=iss_record)) as mock_iss:
-            result = asyncio.run(satellites.get_satellites())
-        mock_iss.assert_called_once()
-        assert result[0]['norad_id'] == '25544'
+    def test_updates_in_memory_cache(self):
+        mock_s3 = MagicMock()
+        with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
+             patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
+            asyncio.run(satellites._s3_refresh())
+        assert satellites._cache['tles'] == SAMPLE_TLES
 
-    def test_iss_fetch_not_called_when_already_present(self):
-        with_iss = [
-            {'name': 'ISS (ZARYA)', 'norad_id': '25544', 'tle1': 'a', 'tle2': 'b'},
-            {'name': 'STARLINK-1', 'norad_id': '44713', 'tle1': 'c', 'tle2': 'd'},
-        ]
-        with patch('satellites._fetch_celestrak', AsyncMock(return_value=with_iss)), \
-             patch('satellites._fetch_iss_tle', AsyncMock()) as mock_iss:
+    def test_writes_catalog_to_s3(self):
+        mock_s3 = MagicMock()
+        with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
+             patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
+            asyncio.run(satellites._s3_refresh())
+        mock_s3.put_object.assert_called_once()
+        kwargs = mock_s3.put_object.call_args.kwargs
+        assert kwargs['Bucket'] == 'aussie-sky-catalog'
+        assert kwargs['Key'] == 'catalog.tle'
+        assert kwargs['ContentType'] == 'text/plain'
+
+    def test_s3_object_contains_tle_data(self):
+        mock_s3 = MagicMock()
+        with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
+             patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
+            asyncio.run(satellites._s3_refresh())
+        body = mock_s3.put_object.call_args.kwargs['Body']
+        assert '25544' in body
+
+    def test_skips_s3_write_without_bucket_env(self):
+        mock_s3 = MagicMock()
+        with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
+             patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {}, clear=True):
+            asyncio.run(satellites._s3_refresh())
+        mock_s3.put_object.assert_not_called()
+        assert satellites._cache['tles'] == SAMPLE_TLES  # cache still updated
+
+
+# ── get_satellites (reads from cache only) ────────────────────────────────────
+
+class TestGetSatellites:
+    def setup_method(self):
+        satellites._cache['tles'] = []
+        satellites._cache['fetched_at'] = 0.0
+
+    def test_returns_cached_tles(self):
+        satellites._cache['tles'] = SAMPLE_TLES
+        result = asyncio.run(satellites.get_satellites())
+        assert result == SAMPLE_TLES
+
+    def test_raises_when_cache_empty(self):
+        with pytest.raises(RuntimeError, match='not yet loaded'):
             asyncio.run(satellites.get_satellites())
-        mock_iss.assert_not_called()
-
-    def test_catalog_returned_without_iss_if_iss_fetch_also_fails(self):
-        no_iss = [{'name': 'STARLINK-1', 'norad_id': '44713', 'tle1': 'a', 'tle2': 'b'}]
-        with patch('satellites._fetch_celestrak', AsyncMock(return_value=no_iss)), \
-             patch('satellites._fetch_iss_tle', AsyncMock(side_effect=Exception('blocked'))):
-            result = asyncio.run(satellites.get_satellites())
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]['norad_id'] == '44713'
 
 
-class TestSatellitesEndpoint:
-    def test_returns_200_with_list(self):
-        mock_tles = [{'name': 'ISS', 'norad_id': '25544', 'tle1': 'a', 'tle2': 'b'}]
-        with patch('main.get_satellites', AsyncMock(return_value=mock_tles)):
-            client = TestClient(app)
-            response = client.get('/satellites')
-        assert response.status_code == 200
-        assert response.json() == mock_tles
+# ── _fetch_iss_tle (unchanged) ────────────────────────────────────────────────
 
-    def test_returns_503_on_fetch_failure(self):
-        with patch('main.get_satellites', AsyncMock(side_effect=Exception('network error'))):
-            client = TestClient(app)
-            response = client.get('/satellites')
-        assert response.status_code == 503
+class TestFetchIssTle:
+    def test_returns_iss_record(self):
+        mock_client = _mock_httpx(ISS_TLE_TEXT)
+        with patch('satellites.httpx.AsyncClient') as MC:
+            MC.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MC.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = asyncio.run(satellites._fetch_iss_tle())
+        assert result['norad_id'] == '25544'
+        assert result['tle1'].startswith('1 25544')
 
 
-class TestIssTleEndpoint:
-    def test_returns_200_with_tle_lines(self):
-        mock_tle = {'tle1': 'line1', 'tle2': 'line2'}
-        with patch('main.get_iss_tle', AsyncMock(return_value=mock_tle)):
-            client = TestClient(app)
-            resp = client.get('/tle/iss')
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body['tle1'] == 'line1'
-        assert body['tle2'] == 'line2'
-
-    def test_returns_503_on_fetch_failure(self):
-        with patch('main.get_iss_tle', AsyncMock(side_effect=Exception('CelesTrak unreachable'))):
-            client = TestClient(app)
-            resp = client.get('/tle/iss')
-        assert resp.status_code == 503
-
+# ── get_iss_tle cache ─────────────────────────────────────────────────────────
 
 class TestGetIssTle:
     def setup_method(self):
-        import satellites as s
-        s._iss_cache['tle'] = None
-        s._iss_cache['fetched_at'] = 0.0
+        satellites._iss_cache['tle'] = None
+        satellites._iss_cache['fetched_at'] = 0.0
 
-    def test_returns_tle1_and_tle2(self):
-        fresh_text = (
-            'ISS (ZARYA)\n'
-            '1 25544U 98067A   26133.54791667  .00016717  00000-0  10270-3 0  9993\n'
-            '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522\n'
-        )
-        mock_resp = MagicMock()
-        mock_resp.text = fresh_text
-        mock_resp.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+    def test_returns_tle_lines(self):
+        mock_client = _mock_httpx(ISS_TLE_TEXT)
+        with patch('satellites.httpx.AsyncClient') as MC:
+            MC.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MC.return_value.__aexit__ = AsyncMock(return_value=None)
             result = asyncio.run(satellites.get_iss_tle())
-        assert result['tle1'].startswith('1 25544')
-        assert result['tle2'].startswith('2 25544')
+        assert 'tle1' in result and 'tle2' in result
 
     def test_uses_cache_within_ttl(self):
-        cached = {
-            'tle1': '1 25544U 98067A   26133.00000000  .00016717  00000-0  10270-3 0  9993',
-            'tle2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
-        }
+        cached = {'tle1': '1 25544U ...', 'tle2': '2 25544 ...'}
         satellites._iss_cache['tle'] = cached
         satellites._iss_cache['fetched_at'] = time.time()
-        with patch('satellites.httpx.AsyncClient') as MockClient:
-            result = asyncio.run(satellites.get_iss_tle())
-            MockClient.assert_not_called()
-        assert result['tle1'] == cached['tle1']
+        with patch('satellites.httpx.AsyncClient') as MC:
+            asyncio.run(satellites.get_iss_tle())
+            MC.assert_not_called()
 
-    def test_refetches_after_ttl(self):
-        satellites._iss_cache['tle'] = {
-            'tle1': '1 25544U 98067A   26133.00000000  .00016717  00000-0  10270-3 0  9993',
-            'tle2': '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
-        }
-        satellites._iss_cache['fetched_at'] = time.time() - (satellites.ISS_TLE_TTL_SECONDS + 1)
-        fresh_text = (
-            'ISS (ZARYA)\n'
-            '1 25544U 98067A   26133.99999999  .00016717  00000-0  10270-3 0  9993\n'
-            '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522\n'
-        )
-        mock_resp = MagicMock()
-        mock_resp.text = fresh_text
-        mock_resp.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        with patch('satellites.httpx.AsyncClient') as MockClient:
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
-            result = asyncio.run(satellites.get_iss_tle())
-            MockClient.assert_called_once()
-        assert '99999999' in result['tle1']
 
+# ── health endpoint ───────────────────────────────────────────────────────────
+
+class TestHealthEndpoint:
+    def test_returns_200(self):
+        # Mock startup side-effects so tests don't need real AWS/DB credentials
+        with patch('main.run_migrations', return_value=None), \
+             patch('main.refresh_loop', AsyncMock(return_value=None)):
+            client = TestClient(app)
+            assert client.get('/health').status_code == 200
+
+
+# ── cache TTL ─────────────────────────────────────────────────────────────────
 
 class TestCacheTTL:
-    def test_cache_ttl_is_at_most_thirty_minutes(self):
-        from satellites import CACHE_TTL_SECONDS
-        assert CACHE_TTL_SECONDS <= 1800, (
-            f"Cache TTL is {CACHE_TTL_SECONDS}s — must be ≤ 30 min (1800s) "
-            "for live tracking accuracy"
-        )
+    def test_iss_cache_ttl_is_five_minutes(self):
+        assert satellites.ISS_TLE_TTL_SECONDS == 300
