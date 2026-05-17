@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import time
 
@@ -52,7 +53,8 @@ async def _fetch_space_track_tles() -> list:
         raise ValueError('SPACETRACK_USER and SPACETRACK_PASS environment variables must be set')
 
     async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-        await client.post(SPACETRACK_LOGIN_URL, data={'identity': user, 'password': password})
+        login_resp = await client.post(SPACETRACK_LOGIN_URL, data={'identity': user, 'password': password})
+        login_resp.raise_for_status()
         resp = await client.get(SPACETRACK_CATALOG_URL)
         resp.raise_for_status()
         return _parse_tle_text(resp.text)
@@ -90,14 +92,22 @@ async def _s3_refresh() -> None:
 
 
 async def refresh_loop() -> None:
-    """Background task: refresh catalog every 2h."""
-    while True:
+    """Background task: retry aggressively on startup, then refresh every 2h."""
+    logger = logging.getLogger(__name__)
+    # Startup: retry every 30s until first successful fetch
+    while not _cache['tles']:
         try:
             await _s3_refresh()
         except Exception as exc:
-            import logging
-            logging.getLogger(__name__).error('Catalog refresh failed: %s', exc)
+            logger.error('Catalog startup refresh failed: %s', exc)
+            await asyncio.sleep(30)
+    # Steady state: refresh every 2h
+    while True:
         await asyncio.sleep(CATALOG_REFRESH_SECONDS)
+        try:
+            await _s3_refresh()
+        except Exception as exc:
+            logger.error('Catalog refresh failed: %s', exc)
 
 
 async def get_satellites() -> list:

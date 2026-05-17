@@ -108,6 +108,19 @@ class TestFetchSpaceTrackTles:
             data={'identity': ENV_VARS['SPACETRACK_USER'], 'password': ENV_VARS['SPACETRACK_PASS']},
         )
 
+    def test_raises_on_login_failure(self):
+        mock_failed_resp = MagicMock()
+        mock_failed_resp.raise_for_status = MagicMock(side_effect=Exception('401 Unauthorized'))
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_failed_resp)
+        mock_client.get = AsyncMock()  # should never be called
+        with patch('satellites.httpx.AsyncClient') as MC, patch.dict('os.environ', ENV_VARS):
+            MC.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MC.return_value.__aexit__ = AsyncMock(return_value=None)
+            with pytest.raises(Exception, match='401'):
+                asyncio.run(satellites._fetch_space_track_tles())
+        mock_client.get.assert_not_called()
+
 
 # ── _s3_refresh ────────────────────────────────────────────────────────────────
 
@@ -130,6 +143,7 @@ class TestS3Refresh:
              patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
             asyncio.run(satellites._s3_refresh())
         assert satellites._cache['tles'] == SAMPLE_TLES
+        assert satellites._cache['fetched_at'] > 0
 
     def test_writes_catalog_to_s3(self):
         mock_s3 = MagicMock()
@@ -214,6 +228,21 @@ class TestGetIssTle:
         with patch('satellites.httpx.AsyncClient') as MC:
             asyncio.run(satellites.get_iss_tle())
             MC.assert_not_called()
+
+    def test_refetches_after_ttl(self):
+        satellites._iss_cache['tle'] = {'tle1': '1 25544U old', 'tle2': '2 25544 old'}
+        satellites._iss_cache['fetched_at'] = time.time() - (satellites.ISS_TLE_TTL_SECONDS + 1)
+        fresh_text = (
+            'ISS (ZARYA)\n'
+            '1 25544U 98067A   26133.99999999  .00016717  00000-0  10270-3 0  9993\n'
+            '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522\n'
+        )
+        mock_client = _mock_httpx(fresh_text)
+        with patch('satellites.httpx.AsyncClient') as MC:
+            MC.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MC.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = asyncio.run(satellites.get_iss_tle())
+        assert '99999999' in result['tle1']
 
 
 # ── health endpoint ───────────────────────────────────────────────────────────
