@@ -111,9 +111,18 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 17 complete — visual overhaul + UX improvements. Frontend polished for portfolio. Pending: AWS infra deploy (terraform apply) and related setup steps.
+**Current phase:** Pre-Session 18 housekeeping complete — platform renamed to Satlas, live at `getsatlas.vercel.app`. Pending: AWS infra deploy (terraform apply) and related setup steps.
 
 **Next milestone:** Session 18 — AWS infra deploy: run `terraform apply` in `infra/terraform/`, update Vercel env var `VITE_CATALOG_URL` with CloudFront domain, add Sentry DSN to ECS task env vars. Then resume V1 roadmap.
+
+**Pre-Session 18 housekeeping completed:**
+- [x] Platform renamed from "Aussie Sky" to "Satlas" across all code, infra, and docs
+- [x] GitHub repo renamed to `PremaanshVyas/satlas`, git remote updated
+- [x] Vercel project renamed to `satlas`; interim domain `getsatlas.vercel.app` (satlas.vercel.app taken globally)
+- [x] CORS, User-Agent headers, cache keys, system prompt identity, Terraform resources, CI workflow all updated
+- [x] Env var naming standardised: `SPACE_TRACK_USER`/`SPACE_TRACK_PASS` on Vercel; `SPACETRACK_USER`/`SPACETRACK_PASS` in ECS (mapped via ecs.tf from Secrets Manager)
+- [x] `.env.example` documents all three required Vercel env vars: `ANTHROPIC_API_KEY`, `SPACE_TRACK_USER`, `SPACE_TRACK_PASS`
+- [x] Railway env var remnants removed from Vercel and `.env.example`
 
 **Session 17 completed tasks:**
 - [x] Visual overhaul: `CloudMesh.ts` (clouds.matteason.co.uk, AdditiveBlending at radius 1.012), `StarField.ts` texture (NASA Gaia DR2 8k skybox on BackSide sphere), satellite trails (ECEF 10-min fade, lime→transparent), dot sizing by type (GEO 1.5×, debris 0.6×)
@@ -227,6 +236,10 @@ Pre-Session-12 decisions archived in `docs/decisions-archive.md`.
 - **2026-05-18 — Session 17: Cloud layer uses AdditiveBlending + alphaMap on a second sphere at radius 1.012.** `THREE.AdditiveBlending` means the cloud texture adds light — clouds appear bright over dark ocean, subtly bright over lit land, and invisible (adds zero) in fully transparent areas. `depthWrite: false` prevents the cloud sphere from occluding satellites behind it. Texture from `clouds.matteason.co.uk` (free, CORS enabled, updates every ~3h, stable URL). Browser cache handles freshness. Rule: for atmospheric overlay layers in Three.js, prefer AdditiveBlending over AlphaBlending — AdditiveBlending naturally handles transparency without requiring a separate opacity mask and doesn't darken the globe surface.
 
 - **2026-05-18 — Session 17: AI category counts injected into system prompt — no tool round-trip.** Original approach (`get_category_counts` tool) called the Python backend, which classified its own cached catalog. Problem: Python catalog and browser catalog can diverge (different sources, different caches). Better: `Globe.getAllCategoryCounts()` returns counts from the in-memory `satCategories` array — the same data the globe renders. Fired on `onCatalogRefresh`, flows through `useGlobe` → `onCategoryCounts` prop → `App.tsx` `categoryCounts` state → `handleSendMessage` → `api/chat.ts` `buildSystemPrompt`. System prompt includes a "Live catalog counts" block the AI reads directly. Rule: when the frontend already has computed data that the agent needs, inject it into the system prompt rather than adding a tool call — eliminates network latency and source-of-truth divergence.
+
+- **2026-05-18 — Pre-Session 18: Platform renamed from "Aussie Sky" to "Satlas".** Name was geographically misleading — platform tracks global orbital objects, not just Australian sky. Renamed across all code, infra, docs, GitHub repo, Vercel project. Interim deployment URL: `getsatlas.vercel.app` (`satlas.vercel.app` was already claimed by another Vercel user globally). Plan to move to `satlas.app` once domain is registered. Rule: all cache keys (`satlas-catalog-v4`), old aussie-sky keys added to `LEGACY_KEYS` in `celestrak.ts` so users' browsers clean them up automatically on next load.
+
+- **2026-05-18 — Pre-Session 18: Env var naming split — SPACE_TRACK_ on Vercel, SPACETRACK_ on ECS.** `api/catalog.ts` (Vercel serverless) reads `SPACE_TRACK_USER`/`SPACE_TRACK_PASS` — named that way in the Vercel dashboard. `apps/orbital/satellites.py` (ECS) reads `SPACETRACK_USER`/`SPACETRACK_PASS` — the Secrets Manager secrets are named `SPACE_TRACK_USER`/`SPACE_TRACK_PASS` but `ecs.tf` maps them to `SPACETRACK_USER`/`SPACETRACK_PASS` when injecting into the container. Rule: when env var names differ between platforms, make each file read what its platform actually provides — don't try to force a single name everywhere if one side's naming is already set in a dashboard you don't control.
 
 - **2026-05-18 — Session 17: Mobile viewport — 100dvh container + env(safe-area-inset-*) for overlays.** `100vh` > visible viewport on mobile (browser chrome takes space but `vh` doesn't account for it). `100dvh` (dynamic viewport height, supported in all modern mobile browsers) matches the actual visible area. Safe-area CSS env variables (`env(safe-area-inset-top, 0px)` etc.) handle notch and home bar insets. Pattern for overlay elements: `style={{ top: \`max(0.75rem, calc(${safeTop} + 0.25rem))\` }}` — guarantees minimum clearance even on devices with no notch. The canvas (full bleed, `absolute inset-0`) and overlay wrapper (separate layer, `pointer-events-none`) must be siblings — not nested — so the canvas occupies the full screen while overlays float above it. Rule: for any full-screen web app, use `100dvh` for the container and `env(safe-area-inset-*)` for UI element positioning; never use `100vh` on mobile.
 

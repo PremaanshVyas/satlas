@@ -4,6 +4,26 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Pre-Session 18] — Platform renamed to Satlas (2026-05-18)
+
+### What changed
+
+Platform renamed from "Aussie Sky" to "Satlas" — the name was geographically misleading for a global orbital tracking platform. All references updated across code, infra, and docs in a single commit.
+
+- GitHub repo: `PremaanshVyas/aussie-sky` → `PremaanshVyas/satlas`
+- Vercel project: `aussie-sky` → `satlas`; deployment URL: `getsatlas.vercel.app` (satlas.vercel.app was taken)
+- Browser title, system prompt identity, User-Agent headers, CORS origins, localStorage cache keys
+- Terraform state bucket (`satlas-tfstate`), IAM role (`satlas-ci`), ECR repo (`satlas-orbital`)
+- Old cache keys (`aussie-sky-catalog-v4` etc.) added to `LEGACY_KEYS` in `celestrak.ts` — browsers clean them up automatically on next load
+
+### Env var naming standardised
+
+`api/catalog.ts` (Vercel) reads `SPACE_TRACK_USER`/`SPACE_TRACK_PASS` — matching what's set in the Vercel dashboard. `apps/orbital/satellites.py` (ECS) reads `SPACETRACK_USER`/`SPACETRACK_PASS` — `ecs.tf` maps the Secrets Manager secrets to that name on injection. Both are now correct for their respective runtime environments.
+
+Railway env var remnants (`ORBITAL_SERVICE_URL`, `VITE_ORBITAL_SERVICE_URL`) removed from `.env.example` — those were never used in code.
+
+---
+
 ## [Session 17] — Visual overhaul + UX improvements (2026-05-18)
 
 ### What shipped

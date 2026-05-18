@@ -10,9 +10,9 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 
 ---
 
-## Current state (end of Session 17)
+## Current state (start of Session 18)
 
-- **Frontend:** live at `getsatlas.vercel.app`
+- **Frontend:** live at `getsatlas.vercel.app` (Vercel project renamed to `satlas`)
   - Real-time cloud layer (clouds.matteason.co.uk)
   - NASA Gaia DR2 star field skybox
   - ~20,000 tracked objects at actual orbital altitudes
@@ -20,6 +20,8 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
   - Dot sizing by type (GEO 1.5×, debris 0.6×)
   - Multi-satellite selection tray (NORAD ID keyed Maps)
   - Cloud toggle, AI category counts, mobile-safe layout (100dvh + safe-area)
+- **Platform rename done:** GitHub repo is `PremaanshVyas/satlas`, all code/docs updated. `satlas.app` domain not yet registered — using `getsatlas.vercel.app` until then.
+- **Vercel env vars set:** `ANTHROPIC_API_KEY`, `SPACE_TRACK_USER`, `SPACE_TRACK_PASS` — all active. `VITE_CATALOG_URL` not yet set (added after terraform apply).
 - **Python orbital service:** code ready in `apps/orbital/` — NOT yet running on ECS (pending `terraform apply`)
 - **Catalog:** browser races `/api/catalog` (Vercel function, Space-Track backed) and CelesTrak direct via `Promise.any()`
 - **AWS infra (Terraform code-complete, never applied):**
@@ -50,18 +52,17 @@ Confirm identity: `aws sts get-caller-identity`
 
 ```bash
 cd infra/terraform
-
-# Wave 1 (ECR, IAM OIDC) — no dependencies
-terraform apply -target=module.ecr -target=module.iam
-
-# Wave 2 (VPC, ECS, ALB) — needs wave 1
-terraform apply -target=module.networking -target=module.ecs
-
-# Wave 3 (S3, CloudFront, RDS) — needs wave 2
-terraform apply  # apply everything remaining
+terraform init   # initialises backend (creates satlas-tfstate S3 bucket first if it doesn't exist)
+terraform plan   # review what will be created
+terraform apply  # Terraform resolves dependency order automatically
 ```
 
-Or just `terraform apply` once to apply all at once (Terraform handles dependency order).
+The Terraform uses flat files (no modules), so `-target=module.*` flags don't apply. If the first apply fails partway, re-running `terraform apply` is safe — Terraform is idempotent.
+
+**Before running:** create the S3 state bucket manually if it doesn't exist yet:
+```bash
+aws s3 mb s3://satlas-tfstate --region ap-southeast-2
+```
 
 **Outputs to capture:**
 - `alb_dns_name` — the ALB HTTP URL for the Python service
