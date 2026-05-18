@@ -15,25 +15,24 @@ void main() {
 
   vec4 day = texture2D(dayTexture, vUv);
 
-  // NASA Blue Marble has muted grey-blue oceans and flat land colours.
-  // Brightening alone doesn't fix this — we need to colour-grade each pixel type.
+  // MODIS land_ocean_ice texture has natural vivid colours — only gentle grading needed.
 
   // Detect ocean vs land: open water has blue dominant over red
   float oceanFactor = clamp((day.b - day.r * 1.15) * 3.0, 0.0, 1.0);
 
-  // Ocean → deep iconic blue. Keep a small fraction of the original for foam/cloud detail.
-  vec3 deepOcean = vec3(0.03, 0.16, 0.52);
-  vec3 oceanColor = deepOcean + day.rgb * 0.18;
+  // Ocean → deep navy. Let more original through to preserve shallow-water variation.
+  vec3 deepOcean = vec3(0.04, 0.14, 0.48);
+  vec3 oceanColor = deepOcean + day.rgb * 0.25;
 
-  // Land → strong saturation + contrast boost
+  // Land → gentle saturation nudge only; no brightness multiplier on a natural-colour source.
   float landLuma = dot(day.rgb, vec3(0.2126, 0.7152, 0.0722));
-  vec3 landColor = clamp(mix(vec3(landLuma), day.rgb, 2.1) * 1.7, 0.0, 1.0);
+  vec3 landColor = clamp(mix(vec3(landLuma), day.rgb, 1.2), 0.0, 1.0);
 
   day.rgb = mix(landColor, oceanColor, oceanFactor);
 
-  // S-curve contrast: deepens shadows, pops highlights — the signature of globe renders
-  day.rgb = day.rgb * day.rgb * (3.0 - 2.0 * day.rgb);
-  day.rgb = clamp(day.rgb * 1.6, 0.0, 1.0);
+  // Soft contrast: 40 % S-curve blend — adds depth without blowing out natural colours.
+  vec3 curved = day.rgb * day.rgb * (3.0 - 2.0 * day.rgb);
+  day.rgb = clamp(mix(day.rgb, curved, 0.4), 0.0, 1.0);
 
   // Ocean specular glint — Blinn-Phong highlight on water
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
