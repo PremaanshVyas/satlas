@@ -21,15 +21,16 @@ export class SatelliteField {
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
   }
 
-  update(buffer: Float32Array, activeMask?: Uint8Array | null): void {
+  update(buffer: Float32Array, activeMask?: Uint8Array | null, scales?: Float32Array | null): void {
     const count = buffer.length / 3
     for (let i = 0; i < count; i++) {
       if (activeMask && !activeMask[i]) {
         this.dummy.position.set(0, 0, 0)
         this.dummy.scale.set(0, 0, 0)
       } else {
+        const s = scales ? scales[i] : 1.0
         this.dummy.position.set(buffer[i * 3], buffer[i * 3 + 1], buffer[i * 3 + 2])
-        this.dummy.scale.set(1, 1, 1)
+        this.dummy.scale.set(s, s, s)
       }
       this.dummy.updateMatrix()
       this.mesh.setMatrixAt(i, this.dummy.matrix)

@@ -3,6 +3,7 @@ import * as satellite from 'satellite.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { EarthMesh } from './EarthMesh'
 import { AtmosphereMesh } from './AtmosphereMesh'
+import { CloudMesh } from './CloudMesh'
 import { StarField } from './StarField'
 import { SatelliteMesh } from './SatelliteMesh'
 import { SatelliteField, DEFAULT_COLOR as SAT_DEFAULT_COLOR } from './SatelliteField'
@@ -95,6 +96,7 @@ export class Globe {
   private controls!: OrbitControls
   private earth!: EarthMesh
   private atmosphere!: AtmosphereMesh
+  private clouds!: CloudMesh
   private stars!: StarField
   private iss!: SatelliteMesh
   private field: SatelliteField | null = null
@@ -117,6 +119,9 @@ export class Globe {
   private clickCanvas: HTMLCanvasElement | null = null
   private _projPos = new THREE.Vector3()
 
+  // Per-satellite dot scale (GEO → 1.5×, DEBRIS → 0.6×, others → 1.0)
+  private satScales: Float32Array | null = null
+
   // Category filtering
   private activeCategories: Set<SatCategory> = new Set(ALL_CATEGORIES)
   private activeCategoryMask: Uint8Array | null = null
@@ -128,6 +133,9 @@ export class Globe {
   private groundTrackLine: THREE.LineLoop | null = null
   private selectedSatIdx = -1
   private groundTrackRecomputeInterval: ReturnType<typeof setInterval> | null = null
+
+  // Trail: last 10 min of propagated ECEF path for the selected satellite
+  private trailLine: THREE.Line | null = null
 
   // ISS identity (name captured from catalog; NORAD 25544 is always Zarya)
   private issName = 'ISS (ZARYA)'
@@ -170,10 +178,13 @@ export class Globe {
     this.scene = new THREE.Scene()
 
     this.stars = new StarField()
-    this.scene.add(this.stars.points)
+    this.stars.addToScene(this.scene)
 
     this.earth = new EarthMesh(this.renderer)
     this.scene.add(this.earth.mesh)
+
+    this.clouds = new CloudMesh()
+    this.scene.add(this.clouds.mesh)
 
     this.atmosphere = new AtmosphereMesh()
     this.scene.add(this.atmosphere.mesh)
@@ -243,6 +254,7 @@ export class Globe {
         this.catalogCount = others.length + 1
         this.onCatalogRefresh?.(this.catalogCount)
         this.rebuildCategoryMask()
+        this.buildSatScales()
         if (this.agentFilterCategories) this.applyAgentCategoryColors()
         this.worker.postMessage({ type: 'init', tles: others })
         return
@@ -265,6 +277,7 @@ export class Globe {
       this.catalogCount = others.length + 1
       this.onCatalogRefresh?.(this.catalogCount)
       this.rebuildCategoryMask()
+      this.buildSatScales()
 
       // Deselect ground track and hover — all indices are stale after a full rebuild
       this.clearGroundTrack()
@@ -282,7 +295,7 @@ export class Globe {
         const msg = e.data as { type: string; buffer?: Float32Array }
         if (msg.type === 'positions' && msg.buffer && this.field) {
           this.lastPositionBuffer = msg.buffer
-          this.field.update(msg.buffer, this.activeCategoryMask)
+          this.field.update(msg.buffer, this.activeCategoryMask, this.satScales)
         }
       }
       this.worker.onerror = (e: ErrorEvent) => {
@@ -301,7 +314,7 @@ export class Globe {
     this.activeCategories = cats
     this.rebuildCategoryMask()
     if (this.field && this.lastPositionBuffer) {
-      this.field.update(this.lastPositionBuffer, this.activeCategoryMask)
+      this.field.update(this.lastPositionBuffer, this.activeCategoryMask, this.satScales)
     }
     if (this.field) this.field.setCategoryColors([], null)  // reset to default blue
     if (this.hoveredIdx >= 0) this.refreshInstanceColor(this.hoveredIdx)
@@ -315,7 +328,7 @@ export class Globe {
     this.activeCategories = new Set(cats)
     this.rebuildCategoryMask()
     if (this.field && this.lastPositionBuffer) {
-      this.field.update(this.lastPositionBuffer, this.activeCategoryMask)
+      this.field.update(this.lastPositionBuffer, this.activeCategoryMask, this.satScales)
     }
     this.applyAgentCategoryColors()
   }
@@ -338,6 +351,24 @@ export class Globe {
 
   getCategoryCount(cat: SatCategory): number {
     return this.satCategories.filter(c => c === cat).length
+  }
+
+  private buildSatScales(): void {
+    const count = this.satTles.length
+    const scales = new Float32Array(count)
+    for (let i = 0; i < count; i++) {
+      const cat = this.satCategories[i]
+      if (cat === 'DEBRIS') {
+        scales[i] = 0.6
+      } else {
+        // Mean motion in rev/day is at TLE line 2 characters 52-62.
+        // GEO ≈ 1.0 rev/day. Use < 1.5 to safely capture GEO and HEO objects.
+        const tle2 = this.satTles[i]?.tle2 ?? ''
+        const motionRevDay = parseFloat(tle2.substring(52, 63))
+        scales[i] = (!isNaN(motionRevDay) && motionRevDay < 1.5) ? 1.5 : 1.0
+      }
+    }
+    this.satScales = scales
   }
 
   private rebuildCategoryMask(): void {
@@ -422,6 +453,7 @@ export class Globe {
     const oldSelected = this.selectedSatIdx
     this.selectedSatIdx = -1
     if (oldSelected >= 0) this.refreshInstanceColor(oldSelected)
+    this.clearTrail()
     this.stopLiveTick()
     this.onSatelliteDeselect?.()
   }
@@ -429,6 +461,61 @@ export class Globe {
   // Public — called from App.tsx when the user clicks ✕ on the info card.
   clearSelection(): void {
     this.clearGroundTrack()
+  }
+
+  private showTrail(satrec: satellite.SatRec): void {
+    this.clearTrail()
+    const now = new Date()
+    const nowMs = now.getTime()
+    const gmst = satellite.gstime(now)
+    const cosG = Math.cos(gmst)
+    const sinG = Math.sin(gmst)
+
+    const TRAIL_POINTS = 60
+    const TRAIL_MS = 10 * 60 * 1000  // 10 minutes
+    const positions: number[] = []
+    const colors: number[] = []
+
+    for (let i = 0; i < TRAIL_POINTS; i++) {
+      const t = new Date(nowMs - (TRAIL_POINTS - 1 - i) * (TRAIL_MS / TRAIL_POINTS))
+      const posVel = satellite.propagate(satrec, t)
+      if (!posVel.position || typeof posVel.position !== 'object') continue
+      const pos = posVel.position as satellite.EciVec3<number>
+      const mag = Math.sqrt(pos.x ** 2 + pos.y ** 2 + pos.z ** 2)
+      if (mag < 1) continue
+      const r = mag / R_EARTH_KM
+      // ECI → Three.js ECEF (same transform as computeArcPoints)
+      const ex = (pos.x * cosG + pos.y * sinG) / mag
+      const ey = (-pos.x * sinG + pos.y * cosG) / mag
+      const ez = pos.z / mag
+      positions.push(ex * r, ez * r, -ey * r)
+      // Fade from black (oldest) to lime-400 (current) — AdditiveBlending makes black invisible
+      const alpha = i / (TRAIL_POINTS - 1)
+      colors.push(0x4a / 255 * alpha, 0xde / 255 * alpha, 0x80 / 255 * alpha)
+    }
+
+    if (positions.length < 6) return
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    const mat = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+    this.trailLine = new THREE.Line(geo, mat)
+    this.scene.add(this.trailLine)
+  }
+
+  private clearTrail(): void {
+    if (this.trailLine) {
+      this.scene.remove(this.trailLine)
+      this.trailLine.geometry.dispose()
+      ;(this.trailLine.material as THREE.Material).dispose()
+      this.trailLine = null
+    }
   }
 
   searchCatalog(query: string, maxResults = 8): SearchResult[] {
@@ -449,6 +536,7 @@ export class Globe {
   selectCatalogSatellite(noradId: string): void {
     if (noradId === ISS_NORAD) {
       this.clearGroundTrack()  // ISS already has its own arc via SatelliteMesh
+      this.showTrail(this.issSatrec)
       this.handleSatSelect(ISS_NORAD, this.issSatrec)
       this.onSatelliteClick?.(this.issName, ISS_NORAD)
       return
@@ -474,15 +562,17 @@ export class Globe {
     const mat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6 })
     this.groundTrackLine = new THREE.LineLoop(geo, mat)
     this.scene.add(this.groundTrackLine)
-    this.refreshInstanceColor(idx)  // highlight selected dot
+    this.refreshInstanceColor(idx)
+    this.showTrail(satrec)
 
-    // Recompute every 60s to keep the arc aligned with GMST drift
+    // Recompute arc and trail every 60s to stay aligned with GMST drift
     this.groundTrackRecomputeInterval = setInterval(() => {
-      if (this.groundTrackLine && this.selectedSatIdx >= 0) {
+      if (this.selectedSatIdx >= 0) {
         const t = this.satTles[this.selectedSatIdx]
         if (t) {
           const sr = satellite.twoline2satrec(t.tle1, t.tle2)
-          this.groundTrackLine.geometry.setFromPoints(computeArcPoints(sr))
+          if (this.groundTrackLine) this.groundTrackLine.geometry.setFromPoints(computeArcPoints(sr))
+          this.showTrail(sr)
         }
       }
     }, 60 * 1000)
@@ -537,6 +627,7 @@ export class Globe {
         const dotRadiusPx = (0.008 / depth) * fovFactor  // 0.008 = ISS dot radius
         if (screenDist <= dotRadiusPx + 2) {
           this.clearGroundTrack()  // ISS already has its own arc via SatelliteMesh
+          this.showTrail(this.issSatrec)
           this.handleSatSelect(ISS_NORAD, this.issSatrec)
           this.onSatelliteClick(this.issName, ISS_NORAD)
           return
@@ -795,7 +886,9 @@ export class Globe {
     this.worker = null
     this.controls.dispose()
     this.earth.dispose()
+    this.clouds.dispose()
     this.atmosphere.dispose()
+    this.stars.removeFromScene(this.scene)
     this.stars.dispose()
     this.iss.dispose()
     this.field?.dispose()

@@ -1,58 +1,90 @@
 import * as THREE from 'three'
 
-const STAR_COUNT = 8000
-const STAR_RADIUS = 50
+// Three size tiers give the illusion of depth without a texture asset.
+// Background: dense, tiny, dim.  Mid: moderate density, normal size.  Bright: sparse, large.
+const TIERS = [
+  { count: 44000, size: 0.055, opacity: 0.65 },
+  { count:  5000, size: 0.11,  opacity: 0.85 },
+  { count:   300, size: 0.20,  opacity: 1.00 },
+]
+const STAR_RADIUS = 90
+
+function randomOnSphere(): [number, number, number] {
+  let x, y, z, len
+  do {
+    x = Math.random() * 2 - 1
+    y = Math.random() * 2 - 1
+    z = Math.random() * 2 - 1
+    len = Math.sqrt(x * x + y * y + z * z)
+  } while (len > 1 || len < 0.001)
+  const r = STAR_RADIUS / len
+  return [x * r, y * r, z * r]
+}
+
+function starColor(colors: Float32Array, base: number): void {
+  const tint = Math.random()
+  if (tint < 0.08) {
+    // Hot blue-white (O/B type)
+    colors[base] = 0.75; colors[base + 1] = 0.85; colors[base + 2] = 1.0
+  } else if (tint < 0.18) {
+    // Warm orange-red (K/M type)
+    colors[base] = 1.0; colors[base + 1] = 0.75; colors[base + 2] = 0.55
+  } else if (tint < 0.26) {
+    // Yellow-white (F/G type like our sun)
+    colors[base] = 1.0; colors[base + 1] = 0.97; colors[base + 2] = 0.82
+  } else {
+    // Pure white (A type, most common appearance)
+    colors[base] = 1.0; colors[base + 1] = 1.0; colors[base + 2] = 1.0
+  }
+}
 
 export class StarField {
-  readonly points: THREE.Points
+  private tiers: THREE.Points[]
+
+  get points(): THREE.Points {
+    return this.tiers[0]
+  }
 
   constructor() {
-    const positions = new Float32Array(STAR_COUNT * 3)
-    const colors = new Float32Array(STAR_COUNT * 3)
+    this.tiers = TIERS.map(({ count, size, opacity }) => {
+      const positions = new Float32Array(count * 3)
+      const colors = new Float32Array(count * 3)
 
-    for (let i = 0; i < STAR_COUNT; i++) {
-      // Uniform distribution on sphere surface via rejection sampling
-      let x, y, z, len
-      do {
-        x = Math.random() * 2 - 1
-        y = Math.random() * 2 - 1
-        z = Math.random() * 2 - 1
-        len = Math.sqrt(x * x + y * y + z * z)
-      } while (len > 1 || len < 0.001)
-      const r = STAR_RADIUS / len
-      positions[i * 3]     = x * r
-      positions[i * 3 + 1] = y * r
-      positions[i * 3 + 2] = z * r
-
-      // Slight colour variation: mostly white, occasional blue-white or warm tints
-      const tint = Math.random()
-      if (tint < 0.15) {
-        colors[i * 3] = 0.9; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 1.0  // blue-white
-      } else if (tint < 0.25) {
-        colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 0.75 // warm orange
-      } else {
-        colors[i * 3] = 1.0; colors[i * 3 + 1] = 1.0; colors[i * 3 + 2] = 1.0  // pure white
+      for (let i = 0; i < count; i++) {
+        const [x, y, z] = randomOnSphere()
+        positions[i * 3] = x; positions[i * 3 + 1] = y; positions[i * 3 + 2] = z
+        starColor(colors, i * 3)
       }
-    }
 
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
 
-    const material = new THREE.PointsMaterial({
-      size: 0.12,
-      vertexColors: true,
-      sizeAttenuation: true,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false,
+      const mat = new THREE.PointsMaterial({
+        size,
+        vertexColors: true,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+      })
+
+      return new THREE.Points(geo, mat)
     })
+  }
 
-    this.points = new THREE.Points(geometry, material)
+  addToScene(scene: THREE.Scene): void {
+    for (const tier of this.tiers) scene.add(tier)
+  }
+
+  removeFromScene(scene: THREE.Scene): void {
+    for (const tier of this.tiers) scene.remove(tier)
   }
 
   dispose(): void {
-    this.points.geometry.dispose()
-    ;(this.points.material as THREE.Material).dispose()
+    for (const tier of this.tiers) {
+      tier.geometry.dispose()
+      ;(tier.material as THREE.Material).dispose()
+    }
   }
 }
