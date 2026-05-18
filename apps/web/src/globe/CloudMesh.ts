@@ -20,7 +20,7 @@ export class CloudMesh {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      opacity: 0.5,
+      opacity: 0.75,
     })
     this.mesh = new THREE.Mesh(geometry, this.material)
   }

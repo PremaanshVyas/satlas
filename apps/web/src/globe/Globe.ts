@@ -4,7 +4,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { EarthMesh } from './EarthMesh'
 import { AtmosphereMesh } from './AtmosphereMesh'
 import { CloudMesh } from './CloudMesh'
-import { SunMesh } from './SunMesh'
 import { StarField } from './StarField'
 import { SatelliteMesh } from './SatelliteMesh'
 import { SatelliteField, DEFAULT_COLOR as SAT_DEFAULT_COLOR } from './SatelliteField'
@@ -98,7 +97,6 @@ export class Globe {
   private earth!: EarthMesh
   private atmosphere!: AtmosphereMesh
   private clouds!: CloudMesh
-  private sun!: SunMesh
   private stars!: StarField
   private iss!: SatelliteMesh
   private field: SatelliteField | null = null
@@ -187,9 +185,6 @@ export class Globe {
 
     this.clouds = new CloudMesh()
     this.scene.add(this.clouds.mesh)
-
-    this.sun = new SunMesh()
-    this.sun.addToScene(this.scene)
 
     this.atmosphere = new AtmosphereMesh()
     this.scene.add(this.atmosphere.mesh)
@@ -847,7 +842,6 @@ export class Globe {
 
     const sunDir = getSunDirection(now)
     this.earth.update(sunDir)
-    this.sun.update(sunDir)
     this.iss.update(now)
 
     if (this.worker && nowMs - this.lastFieldTickMs >= FIELD_TICK_MS) {
@@ -894,8 +888,6 @@ export class Globe {
     this.controls.dispose()
     this.earth.dispose()
     this.clouds.dispose()
-    this.sun.removeFromScene(this.scene)
-    this.sun.dispose()
     this.atmosphere.dispose()
     this.stars.removeFromScene(this.scene)
     this.stars.dispose()
