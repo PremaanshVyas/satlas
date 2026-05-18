@@ -234,8 +234,8 @@ Built by Premaansh ("mickey"), software engineering student at RMIT in Melbourne
 
 If you're hiring software engineering interns in Australia and what you've just read interests you — get in touch.
 
-LinkedIn: _add link_  
-Email: _add email_
+LinkedIn: [LinkedIn](https://www.linkedin.com/in/premaansh-vyas-30b3b2221/) 
+Email: premaanshvyas04@gmail.com
 
 ---
 
