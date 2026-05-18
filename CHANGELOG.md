@@ -4,6 +4,90 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 17] — Visual overhaul + UX improvements (2026-05-18)
+
+### What shipped
+Full visual overhaul: real-time cloud layer, NASA star field, satellite trails, dot sizing by type, colour-graded Earth. UX improvements: multi-satellite selection tray, cloud toggle, AI category counts, mobile viewport fix, chat close button moved to bottom.
+
+### Cloud layer iteration — three commits to get opacity right
+
+The cloud layer (`CloudMesh.ts`) uses `clouds.matteason.co.uk` — a free service updated every ~3h with a stable URL. The implementation is a second `SphereGeometry` at radius `1.012` with the cloud texture as an `alphaMap`, `transparent: true`, `depthWrite: false`, and `THREE.AdditiveBlending`.
+
+**Commit 1 (037ba1d):** Initial cloud layer. Too faint — clouds barely visible over the ocean where they should be most prominent. Root cause: initial texture loading parameters didn't account for how the engine handles the alpha channel under `AdditiveBlending`.
+
+**Commit 2 (55c364a):** Added a `SunMesh` (icosahedron + point light) to add dramatic lighting. The sun object looked wrong in the Three.js scene — a bright floating sphere in space. Removed in the next commit. Lesson: a directional light behind the earth is the right approach for solar illumination; a physical sun mesh in scene-space is distracting.
+
+**Commit 3 (e8d4616):** Denser clouds (adjusted texture brightness + colour grade on Earth shader). Removed the sun mesh, kept the directional light approach. Final result: clouds visible, not distracting, transparent over oceans.
+
+### Multi-satellite selection — NORAD ID keyed Maps, not buffer indices
+
+The previous single-selection state used `selectedSatIdx: number` (the InstancedMesh buffer index). Multi-selection needed to handle both catalog satellites (have an index) and ISS (extracted from catalog into a separate SatelliteMesh — no buffer index). Using buffer indices for a Map key doesn't generalize.
+
+Fix: `selectedNoradIds: Set<string>` and `groundTrackLines: Map<string, THREE.LineLoop>` keyed by NORAD ID. Works uniformly for both. `selectedIdxs: Set<number>` maintained in parallel only for `refreshInstanceColor()` performance.
+
+**React/Three.js state sync:** `clearAllSelections()` (called on catalog rebuild) iterates `selectedNoradIds` and fires `onSatelliteRemove` for each, so App.tsx React state (`selectedSats` array, `cardSat`) stays in sync with Globe's Three.js state. Without this, a 30-minute catalog refresh would silently leave the tray showing satellites with no orbit rings.
+
+### Mobile viewport — `100vh` is wrong on mobile browsers
+
+The chat close button was behind the browser tab bar on iOS and some Android browsers. Initial fix: `env(safe-area-inset-top)` on the chat header padding. Still broken. Root cause: `100vh` on mobile browsers equals the *total* viewport including browser chrome (address bar, tab bar), which can be 80–90px more than the actual visible area. The chat panel was taller than the screen before the user could see the close button at the top.
+
+**Fix:** Change container from `h-screen` (which maps to `100vh`) to `style={{ height: '100dvh' }}`. `dvh` (dynamic viewport height) tracks the actual visible area and updates as browser chrome shows/hides. Pair with `env(safe-area-inset-top, 0px)` and `env(safe-area-inset-bottom, 0px)` for notch and home bar clearance on all overlay elements. The close button was also moved from the chat panel header to the bottom input bar (left of Send) — it's now always within reach on any screen height.
+
+### AI category counts — system prompt injection, not a tool call
+
+Original approach: `get_category_counts` tool called the Python backend `/satellite-categories` endpoint. Problem: the Python catalog and the browser's rendered catalog can diverge (different sources, different cache TTLs). A "how many Starlink?" answer from Python might be inconsistent with what the globe is actually showing.
+
+Fix: `Globe.getAllCategoryCounts()` returns counts from the in-memory `satCategories` array — the same data driving the rendered dots. Fired on `onCatalogRefresh`, the counts flow through `useGlobe` → `onCategoryCounts` prop → `App.tsx` `categoryCounts` state → `handleSendMessage` → `api/chat.ts` `buildSystemPrompt`. The system prompt includes a "Live catalog counts" block:
+
+```
+Live catalog counts (from the tracking globe — use these directly when asked):
+  STARLINK: 6,247
+  DEBRIS: 4,891
+  OTHER: 5,032
+  GPS: 74
+  IRIDIUM: 66
+```
+
+AI reads it directly from context. No network round-trip, no source-of-truth divergence.
+
+---
+
+## [Session 16] — AWS infrastructure foundation (2026-05-17)
+
+### What shipped
+Full Terraform across 3 waves (ECR + IAM OIDC, VPC + ECS Fargate + ALB, S3 + CloudFront + RDS). GitHub Actions `ecr-push` job using OIDC — no long-lived AWS keys in GitHub. `/api/catalog` Vercel function: Space-Track auth + `Cache-Control: s-maxage=7200` for Vercel CDN edge caching. Python orbital service rewritten to fetch Space-Track → write `catalog.tle` to S3 → CloudFront serves globally. Railway decommissioned.
+
+### Space-Track 3LE format bug — `format/tle` vs `format/3le`
+
+`format/tle` returns 2-line elements with no name line. The existing `parseTleText()` parser expects 3LE (name / TLE1 / TLE2 triplets). With 2LE: TLE line 2 of satellite N becomes the "name" of satellite N+1, count halved (~10k instead of ~20k), ISS intermittently missing for TLE update.
+
+Fix: `format/3le`. Rule: always use `format/3le` with the Space-Track GP endpoint.
+
+**Name line prefix:** CelesTrak 3LE has plain name lines (`ISS (ZARYA)`). Space-Track 3LE prefixes with `0 ` (`0 ISS (ZARYA)`). `parseTleText()` strips leading `"0 "` before storing name.
+
+### CloudFront + public S3 bucket — OAI breaks, custom_origin_config works
+
+The catalog S3 bucket uses a public read bucket policy (Principal: `*`). Terraform's `s3_origin_config` requires an OAI string — passing an empty string caused an apply error. For a public bucket no OAI/OAC is needed; the correct Terraform pattern is `custom_origin_config` pointing at the bucket's regional REST API endpoint with `https-only`. Rule: use OAI/OAC only for private buckets.
+
+---
+
+## [Session 13] — Catalog reliability + picking accuracy (2026-05-14)
+
+### What shipped
+Soft catalog refresh (no InstancedMesh teardown on background update), 72h stale-serve cache, hemisphere occlusion check for hover/click, Z-ordering fix (depth wins over screen distance), system prompt hardened against training-data fallback on tool errors.
+
+### Hover triggering on satellites behind Earth
+
+Satellites on the far hemisphere project to valid 2D screen coordinates — they are in front of the camera in screen space but physically behind the Earth mesh. Before the fix, hovering the globe surface would frequently show a tooltip for a satellite on the opposite side of the planet.
+
+Fix: `if (satX*camX + satY*camY + satZ*camZ <= 0) continue`. The dot product of the satellite's world position and the camera's world position (both from Earth centre) is negative when they are on opposite hemispheres. O(1) check per satellite.
+
+### Soft catalog refresh — no satellite flash on background update
+
+Every 30 minutes `initCatalog` disposed the InstancedMesh and rebuilt it. During the ~1–3s worker re-init, all dots disappeared. Fix: if the mesh and worker already exist and the new count is within 200 of the old count, skip mesh teardown and just re-post `{ type: 'init', tles }` to the existing worker. The worker atomically replaces `satrecs`; dots update on the next tick. No flash.
+
+---
+
 ## [Session 12] — CI/CD setup + ESLint strict-mode fixes (2026-05-14)
 
 ### What shipped

@@ -5,16 +5,16 @@
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
 **Live demo:** [aussie-sky.vercel.app](https://aussie-sky.vercel.app)  
-Open the site — ~15,000 active satellites orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker.  
+Open the site — ~20,000 tracked objects orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker. A real-time cloud layer drapes the globe; a star field from NASA's Gaia DR2 catalog fills the background.  
 Ask: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
 Ask: _"Show all Starlink satellites"_ — it highlights every Starlink dot in violet while dimming everything else.  
-Ask: _"How many GPS satellites are tracked?"_ — it queries the live catalog and tells you.  
-Ask: _"What satellites are overhead right now from Sydney?"_ — it queries the catalog and tells you what's up there.  
-Hover any dot for name + altitude. Click a dot to see the info card; hit "Ask AI" to query it without cluttering the globe view.  
-Category filter pills toggle entire groups on/off. Click a dot to see its orbital arc.  
+Ask: _"How many GPS satellites are tracked?"_ — reads the live count from the globe, no tool call needed.  
+Ask: _"What satellites are overhead right now from Sydney?"_ — it queries the catalog and tells you.  
+Hover any dot for name + altitude. Click to select (multiple selections supported) — see the info card with live lat/lon/altitude/velocity; hit "Ask AI" to query it. Click a satellite's trail to see where it's been.  
+Category filter pills toggle entire groups on/off. Cloud layer toggle in the top-right corner.  
 The agent remembers conversation context — follow-up questions work.  
-**Status:** MVP+ — full-screen globe, floating AI chat overlay, hover tooltips, category filters, orbital arcs, group highlight via AI, 6 agent tools
+**Status:** MVP+ — full-screen globe with cloud layer + star field, multi-satellite selection tray, floating AI chat, satellite trails, 6 agent tools, AWS infrastructure code-complete
 
 ---
 
@@ -68,12 +68,12 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 | Layer | Tech | Status |
 |---|---|---|
 | Frontend | TypeScript, React, Three.js, Tailwind, Vite | Live |
-| Agent | Anthropic Claude API (Haiku) with tool use | Live |
-| Orbital compute | satellite.js in Vercel Node.js and browser Web Worker | Live |
-| CI/CD | GitHub Actions — lint + typecheck + vitest + pytest + Docker build | Live |
-| Infra | Vercel (frontend + AI function), Railway (Python service, migrating to AWS) | Live |
-| Database | None yet — planned: PostgreSQL with pgvector | Planned |
-| AWS | ECS Fargate, RDS, ECR, ALB, Secrets Manager, Terraform | Planned |
+| Agent | Anthropic Claude API (Haiku + Sonnet) with tool use | Live |
+| Orbital compute | satellite.js in Vercel Node.js function and browser Web Worker | Live |
+| CI/CD | GitHub Actions — lint + typecheck + vitest + pytest + Docker build + ECR push | Live |
+| Infra (code) | Terraform: ECS Fargate, RDS PostgreSQL, S3+CloudFront, ALB, ECR, Secrets Manager | Code-complete |
+| Frontend hosting | Vercel — frontend + AI agent function | Live |
+| Database | PostgreSQL 15 + pgvector + PostGIS (RDS) — schema migrated, pending first apply | Code-complete |
 
 ---
 
@@ -90,39 +90,45 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 ## Roadmap
 
 ### What's working now
-- [x] 3D Earth with ISS rendered in real time (TLE propagation via satellite.js)
-- [x] ~15,000 active catalog satellites at actual orbital altitudes (LEO/MEO/GEO shells visually distinct)
-- [x] Full-screen globe with floating overlays (AI chat, satellite info card, category filters)
-- [x] Hover tooltip — satellite name + altitude on mouse-over
-- [x] Category filter pills — toggle Starlink / GPS / Iridium / Debris / Other with Uint8Array mask
-- [x] Click-to-select — shows info card (name + NORAD ID); click "Ask AI" to query
-- [x] Orbital arc — clicking any satellite draws its ECI+GMST orbit ring
-- [x] AI agent answers questions with real orbital mechanics (skyfield pass prediction)
-- [x] Agent-driven globe interaction — asking about a satellite flies the camera and pulses it
-- [x] **Agent-controlled category filter (Session 11)** — "show Starlink" highlights that group in violet; "show Starlink and GPS" adds GPS in emerald; "only show debris" replaces. Manual pill toggle clears agent colours. Current filter state passed to agent on every message for additive logic.
-- [x] **Category counts (Session 11)** — "how many GPS satellites are tracked?" calls the live catalog
-- [x] Multi-turn conversation history (follow-up questions work)
-- [x] Find satellites overhead from any location
-- [x] Look up any satellite by name or NORAD ID — get orbital snapshot and globe highlight
-- [x] Melbourne-accurate timestamps (computed server-side, not guessed by Claude)
-- [x] Deployed and auto-deploying at [aussie-sky.vercel.app](https://aussie-sky.vercel.app)
+- [x] 3D Earth with real-time cloud layer (clouds.matteason.co.uk, updates ~3h, AdditiveBlending)
+- [x] NASA Gaia DR2 star field skybox — denser and higher quality than procedural stars
+- [x] ~20,000 tracked objects at actual orbital altitudes (LEO/MEO/GEO shells visually distinct)
+- [x] ISS rendered separately with yellow dot; catalog satellites colour-coded by type
+- [x] Dot sizing by type: GEO satellites 1.5× base size, debris 0.6× and dimmer
+- [x] Satellite trails — last 10 minutes of ECEF path on selected satellite, lime→transparent fade
+- [x] Multi-satellite selection tray — click multiple satellites; each gets its own orbit ring; tray chip ✕ removes; card ✕ closes info only
+- [x] Satellite info card — live lat/lon/altitude/velocity + orbital parameters + metadata (country, launch date, status)
+- [x] Text search — type to find any satellite by name or NORAD ID; keyboard-navigable results
+- [x] Hover tooltip — satellite name + altitude; hovered/selected satellites highlight lime green
+- [x] Category filter pills — Starlink / GPS / Iridium / Debris / Other with instant Uint8Array mask
+- [x] Cloud layer toggle — show/hide real-time cloud layer from the globe overlay
+- [x] AI agent answers questions with real orbital mechanics (skyfield pass prediction, satellite lookup)
+- [x] Agent-driven globe interaction — "show me the ISS" flies the camera and pulses it
+- [x] Agent-controlled category filter — "show only Starlink" applies filter + colours; pill state stays in sync
+- [x] AI category counts — "how many GPS satellites?" reads live counts from globe (no tool call)
+- [x] Multi-turn conversation history — follow-up questions work
+- [x] Find satellites overhead from any location ("what's visible from Sydney right now?")
+- [x] Look up any satellite by name or NORAD ID — live orbital snapshot + globe highlight
+- [x] Melbourne-accurate timestamps (computed server-side, never guessed by the AI)
+- [x] Mobile-friendly layout — 100dvh + safe-area insets so overlays clear browser chrome on iOS/Android
+- [x] Auto-deploying at [aussie-sky.vercel.app](https://aussie-sky.vercel.app)
 
-### MVP (weeks 1–4)
-- [x] Project scaffolding
-- [x] Live TLE catalog (~15,000 satellites, InstancedMesh + web worker)
-- [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info, highlight_catalog_group, get_category_counts
-- [x] Click satellite → details (click-to-select with exact NORAD ID lookup)
-- [x] Hover tooltip (satellite name + altitude on mouse hover)
-- [x] Filter by category (Starlink, GPS, Iridium, Debris, Other)
-- [x] CI/CD wired up (GitHub Actions — lint + typecheck + vitest + pytest + Docker build)
+### MVP (complete)
+- [x] Project scaffolding, monorepo, CI/CD
+- [x] Live TLE catalog (~20,000 objects, InstancedMesh + web worker)
+- [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info, set_category_filter
+- [x] Click satellite → details; multi-satellite selection tray; orbital arc + trail
+- [x] Hover tooltip; category filter pills; text search
+- [x] Cloud layer, star field, dot sizing by type
+- [x] Mobile-responsive layout (100dvh + safe-area insets)
+- [x] AWS infra: Terraform code-complete (ECS Fargate, RDS, S3+CloudFront, ALB, ECR)
 
-### V1 (weeks 5–8)
-- [ ] Full TLE catalog (~30k objects)
-- [ ] Pass predictor for any user location
-- [ ] Search and filter UI
-- [ ] AI agent v1 — natural-language questions, calls orbital tools
+### V1 — next up
+- [ ] AWS infra first apply (`terraform apply` — blocked on AWS card verification)
+- [ ] Pass predictor for any user location (exposed in UI)
 - [ ] Public API with docs
 - [ ] Rate limiting
+- [ ] Custom domain + HTTPS on ALB
 
 ### V2 (weeks 9–14) — the differentiator
 - [ ] Conjunction analysis service
@@ -209,7 +215,7 @@ Then add `VITE_CHAT_URL=http://localhost:3000/api/chat` to `apps/web/.env.local`
 
 ```bash
 cd apps/web
-npx vitest run               # 53 unit tests
+npx vitest run               # 54 unit tests
 npx tsc -b --noEmit          # TypeScript type check
 npx eslint .                 # lint
 ```
