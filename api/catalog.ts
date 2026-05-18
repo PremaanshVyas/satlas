@@ -15,8 +15,8 @@ const QUERY_URL =
   '/limit/20000'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const user = process.env.SPACETRACK_USER
-  const pass = process.env.SPACETRACK_PASS
+  const user = process.env.SPACE_TRACK_USER
+  const pass = process.env.SPACE_TRACK_PASS
 
   if (!user || !pass) {
     res.status(503).json({ error: 'Catalog service not configured' })
