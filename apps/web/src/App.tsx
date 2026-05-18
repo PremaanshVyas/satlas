@@ -110,7 +110,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-gray-950">
+    <div className="relative w-screen overflow-hidden bg-gray-950" style={{ height: '100dvh' }}>
       {/* Globe — full screen */}
       <GlobeView
         highlight={highlight}
@@ -127,7 +127,7 @@ export default function App() {
 
       {/* Selection tray — collapsible panel, bottom-left above category pills */}
       {selectedSats.length > 0 && (
-        <div className="absolute bottom-14 left-3 z-20 w-52 sm:w-56">
+        <div className="absolute left-3 z-20 w-52 sm:w-56" style={{ bottom: 'max(3.5rem, calc(env(safe-area-inset-bottom, 0px) + 3rem))' }}>
           {/* Header — tap to expand/collapse */}
           <button
             onClick={() => setTrayOpen(o => !o)}
@@ -319,7 +319,8 @@ export default function App() {
       {!chatOpen && (
         <button
           onClick={() => setChatOpen(true)}
-          className="absolute bottom-16 right-4 z-30 w-12 h-12 rounded-full bg-blue-600 active:bg-blue-700 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center transition-colors touch-manipulation"
+          className="absolute right-4 z-30 w-12 h-12 rounded-full bg-blue-600 active:bg-blue-700 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center transition-colors touch-manipulation"
+          style={{ bottom: 'max(4rem, calc(env(safe-area-inset-bottom, 0px) + 3.5rem))' }}
           aria-label="Open AI chat"
         >
           {messages.length > 0 ? (
@@ -333,7 +334,7 @@ export default function App() {
       )}
 
       {!chatOpen && messages.length > 0 && (
-        <div className="absolute bottom-[74px] right-3 z-40 w-3 h-3 rounded-full bg-blue-400 border-2 border-gray-950" />
+        <div className="absolute right-3 z-40 w-3 h-3 rounded-full bg-blue-400 border-2 border-gray-950" style={{ bottom: 'max(5.25rem, calc(env(safe-area-inset-bottom, 0px) + 4.75rem))' }} />
       )}
     </div>
   )

@@ -122,85 +122,109 @@ export default function GlobeView({
 
   const tooltipOffset = 14
 
+  // Safe-area inset values for overlay positioning (avoids browser chrome overlap)
+  const safeTop = 'env(safe-area-inset-top, 0px)'
+  const safeBottom = 'env(safe-area-inset-bottom, 0px)'
+
   return (
     <div className="w-full h-full relative">
-      <div ref={containerRef} className="w-full h-full" />
+      {/* Canvas — full bleed, behind everything */}
+      <div ref={containerRef} className="absolute inset-0" />
 
-      {/* Search bar — top-center overlay */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
-        <SearchBar
-          onSearch={searchCatalog}
-          onSelect={(noradId) => {
-            selectCatalogSatellite(noradId)
-          }}
-        />
-      </div>
+      {/* Overlay layer — all UI chips/buttons live here, inset from safe areas */}
+      <div className="absolute inset-0 pointer-events-none">
 
-      {/* UTC clock — top-left */}
-      <div className="absolute top-3 left-3 font-mono text-xs text-gray-400 bg-black/50 px-2 py-1 rounded select-none pointer-events-none">
-        {utcClock}
-      </div>
-
-      {/* Satellite count — top-right */}
-      {!isLoading && (
-        satelliteCount > 0 ? (
-          <div className="absolute top-3 right-3 font-mono text-xs text-blue-400 bg-black/50 px-2 py-1 rounded select-none pointer-events-none">
-            <span className="hidden sm:inline">Tracking </span>
-            {satelliteCount.toLocaleString()}
-            <span className="hidden sm:inline"> objects</span>
-          </div>
-        ) : (
-          <div className="absolute top-3 right-3 font-mono text-xs text-gray-500 bg-black/50 px-2 py-1 rounded select-none pointer-events-none animate-pulse">
-            <span className="sm:hidden">Loading…</span>
-            <span className="hidden sm:inline">Loading catalog…</span>
-          </div>
-        )
-      )}
-
-      {/* Cloud toggle — top-right, below satellite count */}
-      <button
-        onClick={toggleClouds}
-        title={cloudsVisible ? 'Hide clouds' : 'Show clouds'}
-        className={`absolute top-10 right-3 z-20 flex items-center gap-1 px-2 py-1 rounded text-xs border transition-colors touch-manipulation ${
-          cloudsVisible
-            ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
-            : 'bg-gray-800/60 border-gray-700 text-gray-500'
-        }`}
-      >
-        <span>☁</span>
-        <span className="hidden sm:inline">{cloudsVisible ? 'On' : 'Off'}</span>
-      </button>
-
-      {/* Category filter pills — bottom-center */}
-      <div className="absolute bottom-4 left-0 right-0 flex gap-1.5 justify-center px-4 flex-wrap sm:flex-nowrap overflow-x-auto scrollbar-none">
-        {ALL_CATEGORIES.map(cat => (
-          <button
-            key={cat}
-            data-active={activeCategories.has(cat)}
-            onClick={() => toggleCategory(cat)}
-            className={`px-2.5 py-1.5 sm:py-1 rounded-full text-xs font-medium border transition-all select-none touch-manipulation ${CATEGORY_COLORS[cat]}`}
-          >
-            {CATEGORY_LABELS[cat]}
-          </button>
-        ))}
-      </div>
-
-      {/* Hover tooltip */}
-      {hoverInfo && (
+        {/* Search bar — top-center */}
         <div
-          className="absolute pointer-events-none z-10 bg-gray-900/90 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-gray-200 whitespace-nowrap shadow-lg"
-          style={{
-            left: hoverInfo.screenX + tooltipOffset,
-            top: hoverInfo.screenY - tooltipOffset,
-            transform: 'translateY(-100%)',
-          }}
+          className="absolute left-1/2 -translate-x-1/2 z-20 pointer-events-auto"
+          style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
         >
-          <div className="font-medium text-white">{hoverInfo.name}</div>
-          <div className="text-gray-400">{hoverInfo.altKm.toLocaleString()} km</div>
+          <SearchBar
+            onSearch={searchCatalog}
+            onSelect={(noradId) => { selectCatalogSatellite(noradId) }}
+          />
         </div>
-      )}
 
-      {/* Loading overlay */}
+        {/* UTC clock — top-left */}
+        <div
+          className="absolute left-3 font-mono text-xs text-gray-400 bg-black/50 px-2 py-1 rounded select-none"
+          style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
+        >
+          {utcClock}
+        </div>
+
+        {/* Satellite count — top-right */}
+        {!isLoading && (
+          satelliteCount > 0 ? (
+            <div
+              className="absolute right-3 font-mono text-xs text-blue-400 bg-black/50 px-2 py-1 rounded select-none"
+              style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
+            >
+              <span className="hidden sm:inline">Tracking </span>
+              {satelliteCount.toLocaleString()}
+              <span className="hidden sm:inline"> objects</span>
+            </div>
+          ) : (
+            <div
+              className="absolute right-3 font-mono text-xs text-gray-500 bg-black/50 px-2 py-1 rounded select-none animate-pulse"
+              style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
+            >
+              <span className="sm:hidden">Loading…</span>
+              <span className="hidden sm:inline">Loading catalog…</span>
+            </div>
+          )
+        )}
+
+        {/* Cloud toggle — top-right, below satellite count */}
+        <button
+          onClick={toggleClouds}
+          title={cloudsVisible ? 'Hide clouds' : 'Show clouds'}
+          className={`absolute right-3 z-20 flex items-center gap-1 px-2 py-1 rounded text-xs border transition-colors pointer-events-auto touch-manipulation ${
+            cloudsVisible
+              ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
+              : 'bg-gray-800/60 border-gray-700 text-gray-500'
+          }`}
+          style={{ top: `max(2.5rem, calc(${safeTop} + 2rem))` }}
+        >
+          <span>☁</span>
+          <span className="hidden sm:inline">{cloudsVisible ? 'On' : 'Off'}</span>
+        </button>
+
+        {/* Category filter pills — bottom-center */}
+        <div
+          className="absolute left-0 right-0 flex gap-1.5 justify-center px-4 flex-wrap sm:flex-nowrap overflow-x-auto scrollbar-none pointer-events-auto"
+          style={{ bottom: `max(1rem, calc(${safeBottom} + 0.5rem))` }}
+        >
+          {ALL_CATEGORIES.map(cat => (
+            <button
+              key={cat}
+              data-active={activeCategories.has(cat)}
+              onClick={() => toggleCategory(cat)}
+              className={`px-2.5 py-1.5 sm:py-1 rounded-full text-xs font-medium border transition-all select-none touch-manipulation ${CATEGORY_COLORS[cat]}`}
+            >
+              {CATEGORY_LABELS[cat]}
+            </button>
+          ))}
+        </div>
+
+        {/* Hover tooltip — screen-space positioned, pointer-events-none */}
+        {hoverInfo && (
+          <div
+            className="absolute z-10 bg-gray-900/90 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-gray-200 whitespace-nowrap shadow-lg"
+            style={{
+              left: hoverInfo.screenX + tooltipOffset,
+              top: hoverInfo.screenY - tooltipOffset,
+              transform: 'translateY(-100%)',
+            }}
+          >
+            <div className="font-medium text-white">{hoverInfo.name}</div>
+            <div className="text-gray-400">{hoverInfo.altKm.toLocaleString()} km</div>
+          </div>
+        )}
+
+      </div>{/* /overlay layer */}
+
+      {/* Loading overlay — full bleed, outside the safe-area wrapper */}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-950 text-gray-400 text-sm tracking-wide">
           Initializing…
