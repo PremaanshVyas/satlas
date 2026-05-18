@@ -26,6 +26,24 @@ function parseTleText(text: string): TleRecord[] {
   return out
 }
 
+// ── Catalog fetch for bulk queries (overhead) ────────────────────────────────
+
+const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://getsatlas.vercel.app'
+
+async function fetchCatalogTles(): Promise<TleRecord[]> {
+  const res = await fetch(`${CATALOG_BASE}/api/catalog`, { signal: AbortSignal.timeout(8000) })
+  if (!res.ok) throw new Error(`Catalog fetch failed: ${res.status}`)
+  const tles = parseTleText(await res.text())
+  // Space-Track prefixes name lines with "0 " — strip it
+  return tles.map(r => ({ ...r, name: r.name.replace(/^0 /, '') }))
+}
+
+function isDebrisOrRocketBody(name: string): boolean {
+  const n = name.toUpperCase()
+  return n.endsWith(' DEB') || n.includes(' DEB ') || n.includes('DEBRIS') ||
+         n.endsWith(' R/B') || n.endsWith(' RB') || n.includes('ROCKET BODY')
+}
+
 // CelesTrak CATNR and NAME queries work from cloud/Vercel IPs (ADR: only GROUP=active is blocked).
 async function fetchTle(query: string): Promise<TleRecord | null> {
   const isNorad = /^\d+$/.test(query.trim())
@@ -164,6 +182,53 @@ async function toolPredictPasses(
   return { satellite: rec.name, norad_id: rec.noradId, passes }
 }
 
+async function toolFindSatellitesOverhead(
+  lat: number,
+  lon: number,
+  minElevation: number,
+): Promise<unknown> {
+  const tles = await fetchCatalogTles()
+  const observerGd = {
+    latitude: satellite.degreesToRadians(lat),
+    longitude: satellite.degreesToRadians(lon),
+    height: 0.01,
+  }
+  const now = new Date()
+  // Compute GMST once — all satellites are propagated to the same instant
+  const gmst = satellite.gstime(now)
+
+  const overhead: Array<{ name: string; norad_id: string; elevation: number; direction: string }> = []
+
+  for (const rec of tles) {
+    if (isDebrisOrRocketBody(rec.name)) continue
+    try {
+      const satrec = satellite.twoline2satrec(rec.tle1, rec.tle2)
+      const posVel = satellite.propagate(satrec, now)
+      if (!posVel.position || typeof posVel.position === 'boolean') continue
+      const ecf = satellite.eciToEcf(posVel.position as satellite.EciVec3<number>, gmst)
+      const look = satellite.ecfToLookAngles(observerGd, ecf)
+      const elDeg = look.elevation * (180 / Math.PI)
+      if (elDeg >= minElevation) {
+        overhead.push({
+          name: rec.name,
+          norad_id: rec.noradId,
+          elevation: Math.round(elDeg),
+          direction: azToCompass(look.azimuth * (180 / Math.PI)),
+        })
+      }
+    } catch { continue }
+  }
+
+  overhead.sort((a, b) => b.elevation - a.elevation)
+  const top = overhead.slice(0, 25)
+  return {
+    location: { latitude: lat, longitude: lon },
+    count: overhead.length,
+    satellites: top,
+    ...(overhead.length > 25 ? { note: `Showing top 25 of ${overhead.length} above ${minElevation}°` } : {}),
+  }
+}
+
 // ── System prompt ─────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(now: Date, shownCategories: string[], categoryCounts: Record<string, number>): string {
@@ -193,6 +258,7 @@ TOOL USAGE RULES:\
 \n  * "Hide X" = REMOVE X. Call with current minus X.\
 \n  * "Show all" / "reset" = call with all 5 categories.\
 \n  * ALWAYS call immediately — never argue about current state.\
+\n- find_satellites_overhead: call when the user asks what satellites are currently overhead, above, or passing over a location right now. Infer lat/lon from well-known cities (Sydney: -33.87, 151.21; Melbourne: -37.81, 144.96; London: 51.51, -0.13; New York: 40.71, -74.01; Tokyo: 35.68, 139.69). Ask if the location is ambiguous.\
 \n\nIMPORTANT — you are the PRESENTER, not the calculator. Every value you show must come from a tool result. Never compute or guess position, altitude, pass times, or any data value.\
 \n\nIF ANY TOOL RETURNS AN ERROR: respond with exactly "The live data service is temporarily unavailable — please try again in a moment." Do NOT use training knowledge.\
 \n\nCurrent time (pre-computed): UTC: ${utcTime} | Melbourne (AEST/AEDT): ${melbourneTime}\
@@ -260,7 +326,21 @@ const SET_FILTER_TOOL: Anthropic.Tool = {
   },
 }
 
-const TOOLS = [GET_SAT_INFO_TOOL, PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL, SET_FILTER_TOOL]
+const FIND_OVERHEAD_TOOL: Anthropic.Tool = {
+  name: 'find_satellites_overhead',
+  description: 'Find all satellites currently above the horizon at a given location, sorted by elevation. Use when the user asks what satellites are visible, overhead, or passing over a location right now.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      latitude:      { type: 'number', description: 'Observer latitude in decimal degrees. South is negative. Melbourne is -37.8136.' },
+      longitude:     { type: 'number', description: 'Observer longitude in decimal degrees. West is negative. Melbourne is 144.9631.' },
+      min_elevation: { type: 'number', description: 'Minimum elevation in degrees above the horizon. Default 10.' },
+    },
+    required: ['latitude', 'longitude'],
+  },
+}
+
+const TOOLS = [GET_SAT_INFO_TOOL, PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL, SET_FILTER_TOOL, FIND_OVERHEAD_TOOL]
 
 // ── Input interfaces ──────────────────────────────────────────────────────────
 
@@ -268,6 +348,7 @@ interface SatInfoInput   { query: string }
 interface PassesInput    { satellite: string; latitude: number; longitude: number; hours_ahead?: number }
 interface HighlightInput { norad_id: string; satellite_name: string; latitude?: number; longitude?: number }
 interface SetFilterInput { categories: ('STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER')[] }
+interface OverheadInput  { latitude: number; longitude: number; min_elevation?: number }
 interface HistoryMessage { role: 'user' | 'assistant'; content: string }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -339,6 +420,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } else if (block.name === 'set_category_filter') {
           pendingSetFilter = block.input as SetFilterInput
           toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: 'ok' })
+
+        } else if (block.name === 'find_satellites_overhead') {
+          const input = block.input as OverheadInput
+          const result = await toolFindSatellitesOverhead(input.latitude, input.longitude, input.min_elevation ?? 10)
+          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
 
         } else {
           toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: 'error: unknown tool', is_error: true })

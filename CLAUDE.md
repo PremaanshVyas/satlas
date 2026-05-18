@@ -111,9 +111,9 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Pre-Session 18 housekeeping complete — platform renamed to Satlas, live at `getsatlas.vercel.app`. Pending: AWS infra deploy (terraform apply) and related setup steps.
+**Current phase:** Session 18 in progress — AWS card pending (tonight). `find_satellites_overhead` AI tool shipped. Pending: `terraform apply` and related setup.
 
-**Next milestone:** Session 18 — AWS infra deploy: run `terraform apply` in `infra/terraform/`, update Vercel env var `VITE_CATALOG_URL` with CloudFront domain, add Sentry DSN to ECS task env vars. Then resume V1 roadmap.
+**Next milestone:** Session 18 cont. — run `terraform apply` in `infra/terraform/`, update Vercel env var `VITE_CATALOG_URL` with CloudFront domain, add Sentry DSN to ECS task env vars. Then resume V1 roadmap.
 
 **Pre-Session 18 housekeeping completed:**
 - [x] Platform renamed from "Aussie Sky" to "Satlas" across all code, infra, and docs
@@ -139,7 +139,11 @@ satlas/
 
 **Sessions 1–15 (complete, stable):** See `docs/session-14-bootstrap.md`. Key: globe, ISS SGP4, agent + tools, CI/CD, CORS, hover/click, category filters, orbital arcs, agent category filter, search bar, Railway eliminated.
 
-**Blockers:** None. AWS card verification needed before `terraform apply`.
+**Session 18 completed so far:**
+- [x] `find_satellites_overhead` AI tool: fetches full catalog via `/api/catalog` (Vercel CDN cached), skips debris/rocket bodies, propagates ~5-8k payloads with a single GMST snapshot, returns top 25 by elevation with compass direction. Fixes README gap — "overhead" queries now actually work.
+- [x] Country borders feature spec: `docs/superpowers/specs/2026-05-19-country-borders-feature.md` — Natural Earth TopoJSON borders at radius 1.001, click → centroid lookup → overhead panel, `/api/overhead` Vercel function. Added to README V2 roadmap.
+
+**Blockers:** AWS card verification needed before `terraform apply`.
 
 ---
 
@@ -240,6 +244,8 @@ Pre-Session-12 decisions archived in `docs/decisions-archive.md`.
 - **2026-05-18 — Pre-Session 18: Platform renamed from "Aussie Sky" to "Satlas".** Name was geographically misleading — platform tracks global orbital objects, not just Australian sky. Renamed across all code, infra, docs, GitHub repo, Vercel project. Interim deployment URL: `getsatlas.vercel.app` (`satlas.vercel.app` was already claimed by another Vercel user globally). Plan to move to `satlas.app` once domain is registered. Rule: all cache keys (`satlas-catalog-v4`), old aussie-sky keys added to `LEGACY_KEYS` in `celestrak.ts` so users' browsers clean them up automatically on next load.
 
 - **2026-05-18 — Pre-Session 18: Env var naming split — SPACE_TRACK_ on Vercel, SPACETRACK_ on ECS.** `api/catalog.ts` (Vercel serverless) reads `SPACE_TRACK_USER`/`SPACE_TRACK_PASS` — named that way in the Vercel dashboard. `apps/orbital/satellites.py` (ECS) reads `SPACETRACK_USER`/`SPACETRACK_PASS` — the Secrets Manager secrets are named `SPACE_TRACK_USER`/`SPACE_TRACK_PASS` but `ecs.tf` maps them to `SPACETRACK_USER`/`SPACETRACK_PASS` when injecting into the container. Rule: when env var names differ between platforms, make each file read what its platform actually provides — don't try to force a single name everywhere if one side's naming is already set in a dashboard you don't control.
+
+- **2026-05-19 — Session 18: `find_satellites_overhead` implemented in Node.js, not Python.** The README and chat UI claimed "find satellites overhead" worked — it didn't. The `api/chat.ts` only had 4 tools; there was no overhead search tool at all. Fix: added a 5th tool to `chat.ts` that (1) fetches the full catalog from `/api/catalog` (Vercel CDN-cached, ~50ms warm), (2) strips debris/rocket bodies by name heuristic reducing ~20k to ~5-8k payloads, (3) propagates all of them to the same `now` instant with a single pre-computed GMST, and (4) returns the top 25 by elevation with compass direction. Key design: computing GMST once before the loop (not inside) is correct — all satellites are evaluated at the same instant. `CATALOG_BASE` env var allows local dev override. Total tool execution: ~1-2s warm, ~5-6s cold — within Vercel Hobby's 10s limit. Rule: for bulk propagation to the same instant, compute GMST once outside the loop; per-satellite GMST computation is wasted work since the time doesn't change between satellites.
 
 - **2026-05-18 — Session 17: Mobile viewport — 100dvh container + env(safe-area-inset-*) for overlays.** `100vh` > visible viewport on mobile (browser chrome takes space but `vh` doesn't account for it). `100dvh` (dynamic viewport height, supported in all modern mobile browsers) matches the actual visible area. Safe-area CSS env variables (`env(safe-area-inset-top, 0px)` etc.) handle notch and home bar insets. Pattern for overlay elements: `style={{ top: \`max(0.75rem, calc(${safeTop} + 0.25rem))\` }}` — guarantees minimum clearance even on devices with no notch. The canvas (full bleed, `absolute inset-0`) and overlay wrapper (separate layer, `pointer-events-none`) must be siblings — not nested — so the canvas occupies the full screen while overlays float above it. Rule: for any full-screen web app, use `100dvh` for the container and `env(safe-area-inset-*)` for UI element positioning; never use `100vh` on mobile.
 

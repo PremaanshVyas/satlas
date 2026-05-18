@@ -14,7 +14,7 @@ Ask: _"What satellites are overhead right now from Sydney?"_ — it queries the 
 Hover any dot for name + altitude. Click to select (multiple selections supported) — see the info card with live lat/lon/altitude/velocity; hit "Ask AI" to query it. Click a satellite's trail to see where it's been.  
 Category filter pills toggle entire groups on/off. Cloud layer toggle in the top-right corner.  
 The agent remembers conversation context — follow-up questions work.  
-**Status:** MVP+ — full-screen globe with cloud layer + star field, multi-satellite selection tray, floating AI chat, satellite trails, 6 agent tools, AWS infrastructure code-complete
+**Status:** MVP+ — full-screen globe with cloud layer + star field, multi-satellite selection tray, floating AI chat, satellite trails, 5 agent tools (incl. real-time overhead search), AWS infrastructure code-complete
 
 ---
 
@@ -133,6 +133,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 ### V2 (weeks 9–14) — the differentiator
 - [ ] Conjunction analysis service
 - [ ] Alert subscriptions (email/SMS for ISS pass, debris near asset, etc.)
+- [ ] Country borders overlay — click any country to see overhead satellites + upcoming passes (spec: `docs/superpowers/specs/2026-05-19-country-borders-feature.md`)
 - [ ] Vision pipeline integration — Sentinel-2 imagery on demand
 - [ ] First CV use case: bushfire scar detection in Australian regions
 - [ ] Vector RAG over space documentation
