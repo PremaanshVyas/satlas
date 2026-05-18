@@ -258,7 +258,7 @@ export default function App() {
       {/* Floating chat panel — right side overlay; full-width on mobile */}
       {chatOpen && (
         <div className="absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0">
+          <div className="flex items-center justify-between px-4 pb-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-blue-500" />
               <span className="text-sm font-medium text-gray-200">AI Assistant</span>
