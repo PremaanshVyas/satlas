@@ -1157,7 +1157,7 @@ Expected: Vercel builds and deploys within ~60 seconds.
 
 - [ ] **Step 3: Verify deployment**
 
-Open https://satlas.vercel.app in a browser. Type: "Show me where the ISS is right now"
+Open https://getsatlas.vercel.app in a browser. Type: "Show me where the ISS is right now"
 
 Expected:
 1. Bouncing dots appear while streaming.
@@ -1174,7 +1174,7 @@ Also test: "When does the ISS pass over Melbourne?" → text only, no camera mov
 In the "Session 3 tasks" checklist, mark all items as `[x]`. Update "Last session ended at":
 
 ```
-**Last session ended at:** Session 3 complete. highlight_on_globe tool shipped. Chat and globe are now one surface — asking about the ISS drives camera fly-to + pulse animation. Deployed at https://satlas.vercel.app.
+**Last session ended at:** Session 3 complete. highlight_on_globe tool shipped. Chat and globe are now one surface — asking about the ISS drives camera fly-to + pulse animation. Deployed at https://getsatlas.vercel.app.
 ```
 
 Update "Next milestone":

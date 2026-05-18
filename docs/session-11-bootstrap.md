@@ -8,7 +8,7 @@ Portfolio project for landing a SWE internship in Australia. Read CLAUDE.md full
 
 Where we left off (end of Session 10 + ISS hotfix):
 
-WHAT'S LIVE at https://satlas.vercel.app:
+WHAT'S LIVE at https://getsatlas.vercel.app:
 - Full-screen 3D globe (Three.js, NASA 8K day + 3.6K night textures, GLSL day/night shader)
 - Atmospheric rim glow, 8,000-star background
 - ~9,000–10,000 live satellites from CelesTrak/space-track (30-min catalog cache + stale fallback)

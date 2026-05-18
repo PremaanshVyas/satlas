@@ -680,7 +680,7 @@ import boto3
 import httpx
 
 CELESTRAK_ISS_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
-CELESTRAK_HEADERS = {'User-Agent': 'satlas/1.0 (portfolio project; https://satlas.vercel.app)'}
+CELESTRAK_HEADERS = {'User-Agent': 'satlas/1.0 (portfolio project; https://getsatlas.vercel.app)'}
 
 SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
 SPACETRACK_CATALOG_URL = (
@@ -870,7 +870,7 @@ def _classify_satellite(name: str) -> str:
 
 
 _ALLOWED_ORIGINS = [
-    'https://satlas.vercel.app',
+    'https://getsatlas.vercel.app',
     'http://localhost:5173',
     'http://localhost:4173',
 ]
@@ -1563,7 +1563,7 @@ Trigger a Vercel redeploy (push a commit or manually redeploy).
 
 - [ ] **Step 5: Verify globe shows 30k+ satellites**
 
-Open `https://satlas.vercel.app` and check the satellite count badge. Expected: 25,000–30,000 satellites.
+Open `https://getsatlas.vercel.app` and check the satellite count badge. Expected: 25,000–30,000 satellites.
 
 - [ ] **Step 6: Commit**
 
@@ -1621,7 +1621,7 @@ Trigger redeploy.
 
 - [ ] **Step 2: Verify AI chat still works**
 
-Open satlas.vercel.app → click the chat button → ask "Where is ISS right now?".
+Open getsatlas.vercel.app → click the chat button → ask "Where is ISS right now?".
 Expected: agent calls the satellite info tool and returns a real position.
 
 - [ ] **Step 3: Delete Railway service**

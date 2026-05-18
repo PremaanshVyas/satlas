@@ -8,7 +8,7 @@ Portfolio project for landing a SWE internship in Australia. Read CLAUDE.md full
 
 Where we left off (end of Session 13 — reliability fixes only, V1 features not yet started):
 
-WHAT'S LIVE at https://satlas.vercel.app:
+WHAT'S LIVE at https://getsatlas.vercel.app:
 - Globe tracks ~9k active satellites from CelesTrak GROUP=active (clean, no debris)
 - Cache key: satlas-catalog-v3. Stale-serve up to 72h — satellites always instant on reload
 - Soft catalog refresh: 30-min background refresh re-inits worker TLEs in place, no InstancedMesh teardown, no satellite gap

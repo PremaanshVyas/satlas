@@ -7,7 +7,7 @@ We're working on Satlas — a real-time 3D satellite tracker with an AI agent ch
 
 Where we left off (end of Session 9):
 
-WHAT'S LIVE at https://satlas.vercel.app:
+WHAT'S LIVE at https://getsatlas.vercel.app:
 - 3D Earth globe (Three.js, NASA 8K day + 3.6K night textures, GLSL day/night shader)
 - Atmospheric rim glow (Fresnel shader), 8,000-star background
 - ~9,000–10,000 live satellites from CelesTrak/space-track (30-min catalog cache; stale-cache fallback prevents blank globe on source outage)

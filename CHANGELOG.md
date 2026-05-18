@@ -101,7 +101,7 @@ Added `.github/workflows/ci.yml` with 4 parallel jobs: web (lint + tsc + vite bu
 **`react-hooks/set-state-in-effect`:** Two effects called `setState` inside their body — `AgentPanel` (syncing `prefill` prop to local input state) and `GlobeView` (syncing an agent filter directive to pill UI state). Both are genuinely correct — they fire on external prop changes and don't cascade. Restructuring them would require lifting state or adding complexity that doesn't serve the codebase. Fixed with `// eslint-disable-next-line react-hooks/set-state-in-effect` + a one-line explanation at each site.
 
 ### CORS tightened
-Changed `allow_origins=['*']` in FastAPI middleware to `['https://satlas.vercel.app', 'http://localhost:5173', 'http://localhost:4173']`. The open wildcard was a temporary MVP shortcut.
+Changed `allow_origins=['*']` in FastAPI middleware to `['https://getsatlas.vercel.app', 'http://localhost:5173', 'http://localhost:4173']`. The open wildcard was a temporary MVP shortcut.
 
 ---
 

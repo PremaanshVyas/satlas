@@ -8,7 +8,7 @@ Portfolio project for landing a SWE internship in Australia. Read CLAUDE.md full
 
 Where we left off (end of Session 12, all post-session fixes included):
 
-WHAT'S LIVE at https://satlas.vercel.app:
+WHAT'S LIVE at https://getsatlas.vercel.app:
 - Globe tracks ~15,432 active objects (full CelesTrak GROUP=active catalog, no truncation)
 - Hover/select dot highlight: hovered and selected satellites turn lime green (0x4ade80)
 - Click-when-hovering fix: clicking when tooltip is visible always fires, no precision needed

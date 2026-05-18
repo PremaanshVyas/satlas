@@ -111,7 +111,7 @@ These are the exact credits from the platform Mickey wants to match. Every techn
 
 ## Current state (end of Session 15)
 
-- Frontend live at `satlas.vercel.app`
+- Frontend live at `getsatlas.vercel.app`
 - AI chat: Vercel serverless (`api/chat.ts`) using satellite.js directly — no Railway dependency
 - Railway: hosts Python FastAPI (`apps/orbital/`) — currently idle, will be replaced by ECS in Session 16
 - Catalog: browser fetches CelesTrak `GROUP=active` directly (user IPs not blocked); localStorage v4 cache, 72h stale-serve

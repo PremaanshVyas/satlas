@@ -4,7 +4,7 @@
 
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
-**Live demo:** [satlas.vercel.app](https://satlas.vercel.app)  
+**Live demo:** [getsatlas.vercel.app](https://getsatlas.vercel.app)  
 Open the site — ~20,000 tracked objects orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker. A real-time cloud layer drapes the globe; a star field from NASA's Gaia DR2 catalog fills the background.  
 Ask: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
@@ -111,7 +111,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Look up any satellite by name or NORAD ID — live orbital snapshot + globe highlight
 - [x] Melbourne-accurate timestamps (computed server-side, never guessed by the AI)
 - [x] Mobile-friendly layout — 100dvh + safe-area insets so overlays clear browser chrome on iOS/Android
-- [x] Auto-deploying at [satlas.vercel.app](https://satlas.vercel.app)
+- [x] Auto-deploying at [getsatlas.vercel.app](https://getsatlas.vercel.app)
 
 ### MVP (complete)
 - [x] Project scaffolding, monorepo, CI/CD

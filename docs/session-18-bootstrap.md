@@ -12,7 +12,7 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 
 ## Current state (end of Session 17)
 
-- **Frontend:** live at `satlas.vercel.app`
+- **Frontend:** live at `getsatlas.vercel.app`
   - Real-time cloud layer (clouds.matteason.co.uk)
   - NASA Gaia DR2 star field skybox
   - ~20,000 tracked objects at actual orbital altitudes

@@ -13,7 +13,7 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 
 ## Current state (end of Session 16)
 
-- Frontend live at `satlas.vercel.app`
+- Frontend live at `getsatlas.vercel.app`
 - Python orbital service: running on AWS ECS Fargate (`apps/orbital/`) — always warm, static IP
 - Catalog: 25-30k satellites from Space-Track, served by S3+CloudFront; browser races CloudFront + CelesTrak direct
 - RDS PostgreSQL: `subscribers` table + pgvector extension (empty, ready for Session 19+)

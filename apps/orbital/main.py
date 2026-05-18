@@ -37,7 +37,7 @@ def _classify_satellite(name: str) -> str:
 
 
 _ALLOWED_ORIGINS = [
-    'https://satlas.vercel.app',
+    'https://getsatlas.vercel.app',
     'http://localhost:5173',
     'http://localhost:4173',
 ]

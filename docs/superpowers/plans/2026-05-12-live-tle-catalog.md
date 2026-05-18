@@ -947,7 +947,7 @@ curl "https://<your-railway-url>/satellites" | python3 -c "import sys,json; d=js
 
 If Railway needs the updated image (httpx added), push a redeploy from the Railway dashboard or by re-pushing to the branch Railway tracks.
 
-- [ ] **Step 3: Visual verification at satlas.vercel.app**
+- [ ] **Step 3: Visual verification at getsatlas.vercel.app**
 
 Open the site. Verify:
 1. The loading overlay ("Loading satellite catalog…") appears on first load.
