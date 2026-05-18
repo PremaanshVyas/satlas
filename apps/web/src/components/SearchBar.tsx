@@ -47,7 +47,7 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
 
   return (
     <div className="relative" onMouseDown={e => e.stopPropagation()}>
-      <div className="flex items-center gap-2 bg-gray-900/90 backdrop-blur-sm border border-gray-700/80 rounded-lg px-3 py-2 shadow-lg w-64">
+      <div className="flex items-center gap-2 bg-gray-900/90 backdrop-blur-sm border border-gray-700/80 rounded-lg px-3 py-2 shadow-lg w-36 sm:w-64">
         <svg className="w-4 h-4 text-gray-500 flex-shrink-0" viewBox="0 0 24 24" fill="none">
           <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="1.8"/>
           <path d="m21 21-4.35-4.35" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>

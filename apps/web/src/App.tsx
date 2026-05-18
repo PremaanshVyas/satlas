@@ -87,7 +87,7 @@ export default function App() {
 
       {/* Selected satellite info card — top-left, below clock */}
       {selectedSat && (
-        <div className="absolute top-10 left-3 mt-2 w-64 bg-gray-900/95 backdrop-blur-sm border border-gray-700/80 rounded-lg shadow-2xl z-20 overflow-hidden">
+        <div className="absolute top-10 left-3 mt-2 w-[calc(100%-1.5rem)] sm:w-64 bg-gray-900/95 backdrop-blur-sm border border-gray-700/80 rounded-lg shadow-2xl z-20 overflow-hidden">
           {/* Header */}
           <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 border-b border-gray-800">
             <div className="min-w-0">
@@ -108,7 +108,7 @@ export default function App() {
             </div>
             <button
               onClick={handleDismissSat}
-              className="text-gray-600 hover:text-gray-300 text-xl leading-none flex-shrink-0 mt-0.5 transition-colors"
+              className="text-gray-600 hover:text-gray-300 text-xl leading-none flex-shrink-0 mt-0.5 transition-colors touch-manipulation"
               aria-label="Dismiss"
             >
               ×
@@ -197,7 +197,7 @@ export default function App() {
           <div className="px-3 py-2">
             <button
               onClick={handleAskAI}
-              className="w-full text-xs font-medium bg-blue-600/80 hover:bg-blue-500 text-white rounded-md py-1.5 transition-colors"
+              className="w-full text-xs font-medium bg-blue-600/80 hover:bg-blue-500 active:bg-blue-700 text-white rounded-md py-2 sm:py-1.5 transition-colors touch-manipulation"
             >
               Ask AI about this satellite
             </button>
@@ -205,9 +205,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating chat panel — right side overlay */}
+      {/* Floating chat panel — right side overlay; full-width on mobile */}
       {chatOpen && (
-        <div className="absolute top-0 right-0 h-full w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col">
+        <div className="absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-blue-500" />
@@ -239,7 +239,7 @@ export default function App() {
       {!chatOpen && (
         <button
           onClick={() => setChatOpen(true)}
-          className="absolute bottom-16 right-4 z-30 w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center transition-colors"
+          className="absolute bottom-16 right-4 z-30 w-12 h-12 sm:w-12 sm:h-12 rounded-full bg-blue-600 active:bg-blue-700 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center transition-colors touch-manipulation"
           aria-label="Open AI chat"
         >
           {messages.length > 0 ? (

@@ -130,23 +130,26 @@ export default function GlobeView({
       {!isLoading && (
         satelliteCount > 0 ? (
           <div className="absolute top-3 right-3 font-mono text-xs text-blue-400 bg-black/50 px-2 py-1 rounded select-none pointer-events-none">
-            Tracking {satelliteCount.toLocaleString()} objects
+            <span className="hidden sm:inline">Tracking </span>
+            {satelliteCount.toLocaleString()}
+            <span className="hidden sm:inline"> objects</span>
           </div>
         ) : (
           <div className="absolute top-3 right-3 font-mono text-xs text-gray-500 bg-black/50 px-2 py-1 rounded select-none pointer-events-none animate-pulse">
-            Loading catalog…
+            <span className="sm:hidden">Loading…</span>
+            <span className="hidden sm:inline">Loading catalog…</span>
           </div>
         )
       )}
 
-      {/* Category filter pills — bottom-center */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 flex-wrap justify-center px-4">
+      {/* Category filter pills — bottom-center; scrollable row on mobile */}
+      <div className="absolute bottom-4 left-0 right-0 flex gap-1.5 justify-center px-4 flex-wrap sm:flex-nowrap overflow-x-auto scrollbar-none">
         {ALL_CATEGORIES.map(cat => (
           <button
             key={cat}
             data-active={activeCategories.has(cat)}
             onClick={() => toggleCategory(cat)}
-            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all select-none ${CATEGORY_COLORS[cat]}`}
+            className={`px-2.5 py-1.5 sm:py-1 rounded-full text-xs font-medium border transition-all select-none touch-manipulation ${CATEGORY_COLORS[cat]}`}
           >
             {CATEGORY_LABELS[cat]}
           </button>
