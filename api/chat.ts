@@ -166,7 +166,7 @@ async function toolPredictPasses(
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(now: Date, shownCategories: string[]): string {
+function buildSystemPrompt(now: Date, shownCategories: string[], categoryCounts: Record<string, number>): string {
   const utcTime = now.toUTCString()
   const melbourneTime = now.toLocaleString('en-AU', {
     timeZone: 'Australia/Melbourne',
@@ -174,6 +174,12 @@ function buildSystemPrompt(now: Date, shownCategories: string[]): string {
     timeStyle: 'long',
   })
   const shownList = shownCategories.join(', ')
+  const countLines = Object.entries(categoryCounts).length > 0
+    ? Object.entries(categoryCounts)
+        .sort(([, a], [, b]) => b - a)
+        .map(([cat, n]) => `  ${cat}: ${n.toLocaleString()}`)
+        .join('\n')
+    : '  (loading…)'
   return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
 Help users track satellites and understand orbital mechanics.\n\n\
 TOOL USAGE RULES:\
@@ -190,6 +196,8 @@ TOOL USAGE RULES:\
 \n\nIMPORTANT — you are the PRESENTER, not the calculator. Every value you show must come from a tool result. Never compute or guess position, altitude, pass times, or any data value.\
 \n\nIF ANY TOOL RETURNS AN ERROR: respond with exactly "The live data service is temporarily unavailable — please try again in a moment." Do NOT use training knowledge.\
 \n\nCurrent time (pre-computed): UTC: ${utcTime} | Melbourne (AEST/AEDT): ${melbourneTime}\
+\n\nLive catalog counts (from the tracking globe — use these directly when asked about how many of each type):\
+\n${countLines}\
 \n\nFor pass times (UTC ISO 8601), convert to local timezone only when you have been given the offset. For Australian locations use the Melbourne time above as reference.\
 \nBe concise: list each pass on one line with local time, max elevation, and compass direction.`
 }
@@ -267,10 +275,10 @@ interface HistoryMessage { role: 'user' | 'assistant'; content: string }
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') { res.status(405).send('Method not allowed'); return }
 
-  const { message, history = [], shownCategories = ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'] } =
-    req.body as { message: string; history?: HistoryMessage[]; shownCategories?: string[] }
+  const { message, history = [], shownCategories = ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'], categoryCounts = {} } =
+    req.body as { message: string; history?: HistoryMessage[]; shownCategories?: string[]; categoryCounts?: Record<string, number> }
 
-  const systemPrompt = buildSystemPrompt(new Date(), shownCategories)
+  const systemPrompt = buildSystemPrompt(new Date(), shownCategories, categoryCounts)
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache')
 

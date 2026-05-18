@@ -7,9 +7,10 @@ interface AgentPanelProps {
   sendMessage: (content: string) => void
   prefill?: string | null
   onClearPrefill?: () => void
+  onClose?: () => void
 }
 
-export default function AgentPanel({ messages, isLoading, sendMessage, prefill, onClearPrefill }: AgentPanelProps) {
+export default function AgentPanel({ messages, isLoading, sendMessage, prefill, onClearPrefill, onClose }: AgentPanelProps) {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -84,6 +85,17 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
       {/* Input */}
       <div className="border-t border-gray-800 p-3">
         <div className="flex gap-2">
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-gray-900 text-gray-500 hover:text-gray-300 active:text-white transition-colors touch-manipulation"
+              aria-label="Close chat"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+          )}
           <input
             ref={inputRef}
             type="text"
@@ -97,7 +109,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors touch-manipulation"
           >
             Send
           </button>

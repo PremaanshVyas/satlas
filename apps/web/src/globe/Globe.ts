@@ -852,6 +852,16 @@ export class Globe {
     return this.catalogCount
   }
 
+  getAllCategoryCounts(): Record<string, number> {
+    const counts: Record<string, number> = { STARLINK: 0, GPS: 0, IRIDIUM: 0, DEBRIS: 0, OTHER: 0 }
+    for (const cat of this.satCategories) counts[cat] = (counts[cat] ?? 0) + 1
+    return counts
+  }
+
+  setCloudVisibility(visible: boolean): void {
+    this.clouds.mesh.visible = visible
+  }
+
   private tick(): void {
     this.rafId = requestAnimationFrame(() => this.tick())
     const now = new Date()

@@ -32,7 +32,9 @@ interface GlobeViewProps {
   onLivePosition?: (pos: LivePosition | null) => void
   onSatelliteRemove?: (noradId: string) => void
   onCategoriesChange?: (cats: string[]) => void
+  onCategoryCounts?: (counts: Record<string, number>) => void
   onRemoveReady?: (remove: (noradId: string) => void) => void
+  onSelectReady?: (select: (noradId: string) => void) => void
 }
 
 export default function GlobeView({
@@ -43,23 +45,30 @@ export default function GlobeView({
   onLivePosition,
   onSatelliteRemove,
   onCategoriesChange,
+  onCategoryCounts,
   onRemoveReady,
+  onSelectReady,
 }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(
     new Set(ALL_CATEGORIES),
   )
+  const [cloudsVisible, setCloudsVisible] = useState(true)
 
-  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, searchCatalog, selectCatalogSatellite } = useGlobe(
+  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite } = useGlobe(
     containerRef,
     highlight,
-    { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove },
+    { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove, onCategoryCounts },
   )
 
-  // Expose removeFromSelection to App.tsx (needed for tray ✕ button)
+  // Expose removeFromSelection + selectCatalogSatellite to App.tsx via callback refs
   const onRemoveReadyRef = useRef(onRemoveReady)
   useEffect(() => { onRemoveReadyRef.current = onRemoveReady })
   useEffect(() => { onRemoveReadyRef.current?.(removeFromSelection) }, [removeFromSelection])
+
+  const onSelectReadyRef = useRef(onSelectReady)
+  useEffect(() => { onSelectReadyRef.current = onSelectReady })
+  useEffect(() => { onSelectReadyRef.current?.(selectCatalogSatellite) }, [selectCatalogSatellite])
 
   // Agent directive: update filter pills AND apply category colours
   useEffect(() => {
@@ -105,6 +114,12 @@ export default function GlobeView({
     })
   }, [setActiveCategories, onCategoriesChange])
 
+  function toggleClouds() {
+    const next = !cloudsVisible
+    setCloudsVisible(next)
+    setCloudVisibility(next)
+  }
+
   const tooltipOffset = 14
 
   return (
@@ -126,7 +141,7 @@ export default function GlobeView({
         {utcClock}
       </div>
 
-      {/* Satellite count / catalog loading indicator — top-right */}
+      {/* Satellite count — top-right */}
       {!isLoading && (
         satelliteCount > 0 ? (
           <div className="absolute top-3 right-3 font-mono text-xs text-blue-400 bg-black/50 px-2 py-1 rounded select-none pointer-events-none">
@@ -142,7 +157,21 @@ export default function GlobeView({
         )
       )}
 
-      {/* Category filter pills — bottom-center; scrollable row on mobile */}
+      {/* Cloud toggle — top-right, below satellite count */}
+      <button
+        onClick={toggleClouds}
+        title={cloudsVisible ? 'Hide clouds' : 'Show clouds'}
+        className={`absolute top-10 right-3 z-20 flex items-center gap-1 px-2 py-1 rounded text-xs border transition-colors touch-manipulation ${
+          cloudsVisible
+            ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
+            : 'bg-gray-800/60 border-gray-700 text-gray-500'
+        }`}
+      >
+        <span>☁</span>
+        <span className="hidden sm:inline">{cloudsVisible ? 'On' : 'Off'}</span>
+      </button>
+
+      {/* Category filter pills — bottom-center */}
       <div className="absolute bottom-4 left-0 right-0 flex gap-1.5 justify-center px-4 flex-wrap sm:flex-nowrap overflow-x-auto scrollbar-none">
         {ALL_CATEGORIES.map(cat => (
           <button

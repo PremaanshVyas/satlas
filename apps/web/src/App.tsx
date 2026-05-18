@@ -30,19 +30,22 @@ export default function App() {
 
   // Multi-satellite selection tray
   const [selectedSats, setSelectedSats] = useState<SelectedSat[]>([])
-  // The satellite whose info card is currently shown (most recently clicked)
+  const [trayOpen, setTrayOpen] = useState(false)
+  // The satellite whose info card is currently shown
   const [cardSat, setCardSat] = useState<SelectedSat | null>(null)
   const [livePosition, setLivePosition] = useState<LivePosition | null>(null)
   const [selectedOrbital, setSelectedOrbital] = useState<OrbitalParams | null>(null)
   const [selectedMeta, setSelectedMeta] = useState<SatcatEntry | null>(null)
   const [shownCategories, setShownCategories] = useState<string[]>([...ALL_CATEGORIES])
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
 
-  // removeFromSelectionRef: called when tray chip ✕ is clicked
+  // Globe function refs — exposed from GlobeView via onRemoveReady / onSelectReady
   const removeFromSelectionRef = useRef<((noradId: string) => void) | null>(null)
+  const selectSatRef = useRef<((noradId: string) => void) | null>(null)
 
   const handleSendMessage = useCallback((content: string) => {
-    sendMessage(content, shownCategories)
-  }, [sendMessage, shownCategories])
+    sendMessage(content, shownCategories, categoryCounts)
+  }, [sendMessage, shownCategories, categoryCounts])
 
   // Called every time a satellite is clicked — adds to tray + shows card
   function handleSatelliteSelect(name: string, noradId: string) {
@@ -50,6 +53,7 @@ export default function App() {
       prev.find(s => s.noradId === noradId) ? prev : [...prev, { name, noradId }]
     )
     setCardSat({ name, noradId })
+    setTrayOpen(true)
   }
 
   function handleSatelliteSelectInfo(orbital: OrbitalParams, meta: SatcatEntry | null) {
@@ -61,9 +65,13 @@ export default function App() {
     setLivePosition(pos)
   }
 
-  // Globe fires this when a satellite is removed from selection (tray ✕ or catalog rebuild)
+  // Globe fires this when a satellite is removed from selection
   function handleSatelliteRemove(noradId: string) {
-    setSelectedSats(prev => prev.filter(s => s.noradId !== noradId))
+    setSelectedSats(prev => {
+      const next = prev.filter(s => s.noradId !== noradId)
+      if (next.length === 0) setTrayOpen(false)
+      return next
+    })
     setCardSat(prev => {
       if (prev?.noradId === noradId) {
         setLivePosition(null)
@@ -75,7 +83,7 @@ export default function App() {
     })
   }
 
-  // Card ✕ — closes the info card, keeps the satellite in the tray + orbit line on globe
+  // Card ✕ — closes the info card only; orbit line stays on globe
   function handleDismissCard() {
     setCardSat(null)
     setLivePosition(null)
@@ -86,7 +94,13 @@ export default function App() {
   // Tray chip ✕ — removes satellite from globe selection + tray
   function handleRemoveFromTray(noradId: string) {
     removeFromSelectionRef.current?.(noradId)
-    // Globe fires onSatelliteRemove which updates selectedSats and cardSat
+    // Globe fires onSatelliteRemove → handleSatelliteRemove updates React state
+  }
+
+  // Tray chip tap — reopens the info card and restarts live tick on Globe
+  function handleTrayChipClick(sat: SelectedSat) {
+    selectSatRef.current?.(sat.noradId)
+    setCardSat(sat)
   }
 
   function handleAskAI() {
@@ -106,32 +120,58 @@ export default function App() {
         onLivePosition={handleLivePosition}
         onSatelliteRemove={handleSatelliteRemove}
         onCategoriesChange={setShownCategories}
+        onCategoryCounts={setCategoryCounts}
         onRemoveReady={(fn) => { removeFromSelectionRef.current = fn }}
+        onSelectReady={(fn) => { selectSatRef.current = fn }}
       />
 
-      {/* Selection tray — bottom-left, above category pills, scrollable chips */}
+      {/* Selection tray — collapsible panel, bottom-left above category pills */}
       {selectedSats.length > 0 && (
-        <div className="absolute bottom-14 left-3 z-20 flex gap-1.5 flex-wrap max-w-[calc(100vw-1.5rem)] sm:max-w-sm">
-          {selectedSats.map(sat => (
-            <div
-              key={sat.noradId}
-              onClick={() => setCardSat(sat)}
-              className={`flex items-center gap-1 pl-2 pr-1 py-1 rounded-full text-xs border cursor-pointer transition-colors touch-manipulation ${
-                cardSat?.noradId === sat.noradId
-                  ? 'bg-blue-600/80 border-blue-500 text-white'
-                  : 'bg-gray-900/90 border-gray-700 text-gray-300 hover:border-gray-500'
-              }`}
+        <div className="absolute bottom-14 left-3 z-20 w-52 sm:w-56">
+          {/* Header — tap to expand/collapse */}
+          <button
+            onClick={() => setTrayOpen(o => !o)}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-gray-900/95 border border-gray-700/80 rounded-lg backdrop-blur-sm text-xs text-gray-300 touch-manipulation"
+          >
+            <span className="font-medium text-white">{selectedSats.length} Selected</span>
+            <svg
+              width="12" height="12" viewBox="0 0 12 12" fill="none"
+              className={`flex-shrink-0 transition-transform duration-200 ${trayOpen ? 'rotate-180' : ''}`}
             >
-              <span className="truncate max-w-[100px] sm:max-w-[140px]">{sat.name}</span>
-              <button
-                onClick={(e) => { e.stopPropagation(); handleRemoveFromTray(sat.noradId) }}
-                className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors touch-manipulation"
-                aria-label={`Remove ${sat.name}`}
-              >
-                ×
-              </button>
+              <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+
+          {/* Expanded list */}
+          {trayOpen && (
+            <div className="mt-1 bg-gray-900/95 border border-gray-700/80 rounded-lg backdrop-blur-sm overflow-hidden">
+              <div className="max-h-44 overflow-y-auto divide-y divide-gray-800/60">
+                {selectedSats.map(sat => (
+                  <div
+                    key={sat.noradId}
+                    className={`flex items-center gap-2 px-3 py-3 sm:py-2.5 transition-colors ${
+                      cardSat?.noradId === sat.noradId ? 'bg-blue-900/30' : 'active:bg-gray-800'
+                    }`}
+                  >
+                    <button
+                      className="flex-1 min-w-0 text-left touch-manipulation"
+                      onClick={() => handleTrayChipClick(sat)}
+                    >
+                      <div className="text-xs text-gray-200 truncate leading-tight">{sat.name}</div>
+                      <div className="text-[10px] text-gray-600 mt-0.5">{sat.noradId}</div>
+                    </button>
+                    <button
+                      onClick={() => handleRemoveFromTray(sat.noradId)}
+                      className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-300 active:text-white rounded touch-manipulation"
+                      aria-label={`Remove ${sat.name}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -158,7 +198,7 @@ export default function App() {
             </div>
             <button
               onClick={handleDismissCard}
-              className="text-gray-600 hover:text-gray-300 text-xl leading-none flex-shrink-0 mt-0.5 transition-colors touch-manipulation w-8 h-8 flex items-center justify-center"
+              className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-300 text-xl leading-none transition-colors touch-manipulation"
               aria-label="Dismiss card"
             >
               ×
@@ -258,20 +298,9 @@ export default function App() {
       {/* Floating chat panel — right side overlay; full-width on mobile */}
       {chatOpen && (
         <div className="absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col">
-          <div className="flex items-center justify-between px-4 pb-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-500" />
-              <span className="text-sm font-medium text-gray-200">AI Assistant</span>
-            </div>
-            <button
-              onClick={() => setChatOpen(false)}
-              className="text-gray-500 hover:text-gray-300 transition-colors w-10 h-10 flex items-center justify-center rounded touch-manipulation"
-              aria-label="Close chat"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </button>
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+            <span className="text-sm font-medium text-gray-200">AI Assistant</span>
           </div>
           <div className="flex-1 min-h-0">
             <AgentPanel
@@ -280,6 +309,7 @@ export default function App() {
               sendMessage={handleSendMessage}
               prefill={prefill}
               onClearPrefill={() => setPrefill(null)}
+              onClose={() => setChatOpen(false)}
             />
           </div>
         </div>

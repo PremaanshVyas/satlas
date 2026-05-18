@@ -21,6 +21,7 @@ interface UseGlobeCallbacks {
   onSatelliteSelectInfo?: (orbital: OrbitalParams, meta: SatcatEntry | null) => void
   onLivePosition?: (pos: LivePosition | null) => void
   onSatelliteRemove?: (noradId: string) => void
+  onCategoryCounts?: (counts: Record<string, number>) => void
 }
 
 export function useGlobe(
@@ -34,6 +35,7 @@ export function useGlobe(
   setActiveCategories: (cats: Set<SatCategory>) => void
   applyAgentFilter: (cats: SatCategory[]) => void
   removeFromSelection: (noradId: string) => void
+  setCloudVisibility: (visible: boolean) => void
   searchCatalog: (query: string) => SearchResult[]
   selectCatalogSatellite: (noradId: string) => void
 } {
@@ -56,7 +58,10 @@ export function useGlobe(
     const globe = new Globe()
     globe.mount(canvas, () => setIsLoading(false))
 
-    globe.onCatalogRefresh = (count) => setSatelliteCount(count)
+    globe.onCatalogRefresh = (count) => {
+      setSatelliteCount(count)
+      callbacksRef.current.onCategoryCounts?.(globe.getAllCategoryCounts())
+    }
     globe.onSatelliteClick = (name, noradId) => callbacksRef.current.onSatelliteClick?.(name, noradId)
     globe.onSatelliteHover = (name, altKm, screenX, screenY) => {
       if (name !== null && altKm !== null) setHoverInfo({ name, altKm, screenX, screenY })
@@ -100,6 +105,10 @@ export function useGlobe(
     globeRef.current?.removeFromSelection(noradId)
   }, [])
 
+  const setCloudVisibility = useCallback((visible: boolean): void => {
+    globeRef.current?.setCloudVisibility(visible)
+  }, [])
+
   const searchCatalog = useCallback((query: string): SearchResult[] => {
     return globeRef.current?.searchCatalog(query) ?? []
   }, [])
@@ -108,5 +117,5 @@ export function useGlobe(
     globeRef.current?.selectCatalogSatellite(noradId)
   }, [])
 
-  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, searchCatalog, selectCatalogSatellite }
+  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite }
 }

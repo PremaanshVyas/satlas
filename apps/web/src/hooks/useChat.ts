@@ -41,7 +41,7 @@ export function useChat() {
   const [highlight, setHighlight] = useState<HighlightDirective | null>(null)
   const [setFilter, setSetFilter] = useState<SetFilterDirective | null>(null)
 
-  const sendMessage = useCallback(async (content: string, shownCategories?: string[]) => {
+  const sendMessage = useCallback(async (content: string, shownCategories?: string[], categoryCounts?: Record<string, number>) => {
     // Reset directives at the start of every new message
     setHighlight(null)
     setSetFilter(null)
@@ -70,6 +70,7 @@ export function useChat() {
     try {
       const body: Record<string, unknown> = { message: content, history }
       if (shownCategories !== undefined) body.shownCategories = shownCategories
+      if (categoryCounts !== undefined && Object.keys(categoryCounts).length > 0) body.categoryCounts = categoryCounts
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
