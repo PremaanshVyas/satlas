@@ -366,7 +366,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (pendingSetFilter) res.write(`\n__SET_FILTER__:${JSON.stringify(pendingSetFilter)}\n`)
     res.end()
   } catch (err) {
-    res.write(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    if (err instanceof Anthropic.APIError) {
+      if (err.status === 529 || err.status === 503) {
+        res.write("The AI is overloaded right now — please try again in a moment.")
+      } else if (err.status === 429) {
+        res.write("Rate limit reached — please wait a moment and try again.")
+      } else if (err.status === 401) {
+        res.write("AI service configuration error — please contact support.")
+      } else {
+        res.write("The AI service returned an error — please try again.")
+      }
+    } else {
+      res.write("Something went wrong — please try again.")
+    }
     res.end()
   }
 }

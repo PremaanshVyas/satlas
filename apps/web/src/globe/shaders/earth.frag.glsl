@@ -15,21 +15,25 @@ void main() {
 
   vec4 day = texture2D(dayTexture, vUv);
 
-  // Brightness boost — NASA Blue Marble is photographic and looks dim at default
-  day.rgb *= 1.35;
+  // Aggressive brightness — makes the planet look vivid like other globe sites
+  day.rgb *= 2.1;
 
-  // Saturation boost — pulls ocean blue and land green further from grey
+  // Saturation boost — pulls ocean blue and land green far from grey
   float luma = dot(day.rgb, vec3(0.2126, 0.7152, 0.0722));
-  day.rgb = clamp(mix(vec3(luma), day.rgb, 1.3), 0.0, 1.0);
+  day.rgb = clamp(mix(vec3(luma), day.rgb, 1.7), 0.0, 1.0);
 
-  // Ocean specular glint — blue-dominant pixels are water, add Blinn-Phong highlight
-  // cameraPosition is a Three.js built-in uniform (world space)
+  // Deep-blue push for ocean pixels (blue > red signals open water)
+  float oceanMask = clamp(day.b - day.r * 0.8, 0.0, 1.0);
+  day.rgb += vec3(0.0, 0.03, 0.09) * oceanMask;
+  day.rgb = clamp(day.rgb, 0.0, 1.0);
+
+  // Ocean specular glint — Blinn-Phong highlight on water
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
   vec3 halfVec = normalize(sunDir + viewDir);
   float spec = pow(max(dot(vNormal, halfVec), 0.0), 60.0);
   float waterMask = clamp(day.b * 2.0 - day.r - day.g * 0.5, 0.0, 1.0);
   float onDay = clamp(cosAngle * 5.0, 0.0, 1.0);
-  day.rgb += spec * waterMask * 0.18 * onDay * vec3(0.85, 0.92, 1.0);
+  day.rgb += spec * waterMask * 0.22 * onDay * vec3(0.85, 0.92, 1.0);
 
   // City lights: brightened and tinted slightly blue for atmospheric scatter
   vec4 nightSample = texture2D(nightTexture, vUv);

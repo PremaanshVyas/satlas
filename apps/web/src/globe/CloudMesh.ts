@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 
-const CLOUD_URL = 'https://clouds.matteason.co.uk/image/4096x2048.jpg'
+// NASA Visible Earth cloud texture (same server as earth-day/night, always available)
+const CLOUD_URL = '/textures/earth-clouds.jpg'
 
 export class CloudMesh {
   readonly mesh: THREE.Mesh
