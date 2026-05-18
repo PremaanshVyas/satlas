@@ -64,7 +64,7 @@ jobs:
   ecr-push:
     name: Orbital — ECR push
     needs: orbital-docker
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.AWS_ACCOUNT_ID != ''
     runs-on: ubuntu-latest
     permissions:
       id-token: write
