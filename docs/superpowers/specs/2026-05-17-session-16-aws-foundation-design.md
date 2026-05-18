@@ -60,11 +60,11 @@ Eliminate all remaining reliability issues. Move the Python orbital service from
 
 ## Section 1 — AWS CLI + IAM Setup
 
-**IAM user:** `aussie-sky-deploy` with programmatic access only (no console login). Attach an inline policy covering:
-- ECR: `ecr:*` on `arn:aws:ecr:ap-southeast-2:*:repository/aussie-sky-orbital`
+**IAM user:** `satlas-deploy` with programmatic access only (no console login). Attach an inline policy covering:
+- ECR: `ecr:*` on `arn:aws:ecr:ap-southeast-2:*:repository/satlas-orbital`
 - ECS: `ecs:*`
 - EC2: VPC, subnets, security groups, ALB
-- S3: `s3:*` on `arn:aws:s3:::aussie-sky-*`
+- S3: `s3:*` on `arn:aws:s3:::satlas-*`
 - CloudFront: `cloudfront:*`
 - RDS: `rds:*`
 - Secrets Manager: `secretsmanager:*`
@@ -73,13 +73,13 @@ Eliminate all remaining reliability issues. Move the Python orbital service from
 Configure locally:
 ```
 aws configure
-  AWS Access Key ID: <aussie-sky-deploy key>
-  AWS Secret Access Key: <aussie-sky-deploy secret>
+  AWS Access Key ID: <satlas-deploy key>
+  AWS Secret Access Key: <satlas-deploy secret>
   Default region name: ap-southeast-2
   Default output format: json
 ```
 
-**GitHub OIDC:** Create OIDC identity provider for `token.actions.githubusercontent.com` once at account level. Create IAM role `aussie-sky-ci` with trust policy limited to `repo:PremaanshVyas/aussie-sky:ref:refs/heads/main`. Attach ECR push permissions. This role is assumed by GitHub Actions — no long-lived secrets stored in GitHub.
+**GitHub OIDC:** Create OIDC identity provider for `token.actions.githubusercontent.com` once at account level. Create IAM role `satlas-ci` with trust policy limited to `repo:PremaanshVyas/satlas:ref:refs/heads/main`. Attach ECR push permissions. This role is assumed by GitHub Actions — no long-lived secrets stored in GitHub.
 
 ---
 
@@ -91,8 +91,8 @@ Three-wave incremental apply. Each wave has a verification step before moving on
 infra/terraform/
   main.tf          — provider (aws, ap-southeast-2), S3 backend for tfstate
   variables.tf     — region, account_id, app_name, environment
-  iam.tf           — OIDC provider, aussie-sky-ci role, ECS task execution role
-  ecr.tf           — ECR repository aussie-sky-orbital
+  iam.tf           — OIDC provider, satlas-ci role, ECS task execution role
+  ecr.tf           — ECR repository satlas-orbital
   secrets.tf       — Secrets Manager: SPACE_TRACK_USER, SPACE_TRACK_PASS,
                      ANTHROPIC_API_KEY, SENTRY_DSN, DATABASE_URL
   vpc.tf           — VPC (10.0.0.0/16), public subnets ×2, private subnets ×2,
@@ -101,14 +101,14 @@ infra/terraform/
                      Fargate service (desired=1), CloudWatch log group
   alb.tf           — ALB, HTTPS listener (443), HTTP→HTTPS redirect,
                      target group, security group
-  s3.tf            — S3 bucket aussie-sky-catalog, bucket policy (public read)
+  s3.tf            — S3 bucket satlas-catalog, bucket policy (public read)
   cloudfront.tf    — CloudFront distribution → S3 bucket,
                      Cache-Control: public, max-age=7200
   rds.tf           — RDS db.t3.micro, PostgreSQL 15, single-AZ,
                      private subnet group, security group (ECS SG → RDS SG)
 ```
 
-**S3 backend bucket:** `aussie-sky-tfstate` (create manually before first `terraform init`).
+**S3 backend bucket:** `satlas-tfstate` (create manually before first `terraform init`).
 
 **Wave 1:** `ecr.tf` + `secrets.tf` + `iam.tf` (OIDC + CI role only)  
 **Wave 2:** `vpc.tf` + `ecs.tf` + `alb.tf`  
@@ -199,12 +199,12 @@ ecr-push:
     - uses: actions/checkout@v4
     - uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/aussie-sky-ci
+        role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/satlas-ci
         aws-region: ap-southeast-2
     - uses: aws-actions/amazon-ecr-login@v2
     - name: Build and push
       run: |
-        IMAGE_URI=${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/aussie-sky-orbital:latest
+        IMAGE_URI=${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/satlas-orbital:latest
         docker build -t $IMAGE_URI apps/orbital/
         docker push $IMAGE_URI
 ```
@@ -215,7 +215,7 @@ ecr-push:
 
 ## Verification checklist
 
-- [ ] `aws ecr list-images --repository-name aussie-sky-orbital` shows an image
+- [ ] `aws ecr list-images --repository-name satlas-orbital` shows an image
 - [ ] `curl https://<ALB_DNS>/health` returns `{"status":"ok"}`
 - [ ] `curl https://<CF_URL>/catalog.tle | head -3` returns 3LE data in <1s
 - [ ] Globe shows 30k+ satellite count

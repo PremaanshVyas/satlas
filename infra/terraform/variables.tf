@@ -7,5 +7,5 @@ variable "account_id" {
 }
 
 variable "app_name" {
-  default = "aussie-sky"
+  default = "satlas"
 }

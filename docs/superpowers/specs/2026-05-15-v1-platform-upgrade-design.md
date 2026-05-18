@@ -1,4 +1,4 @@
-# Aussie Sky V1 Platform Upgrade — Design Spec
+# Satlas V1 Platform Upgrade — Design Spec
 
 **Date:** 2026-05-15  
 **Author:** Premaansh ("mickey") + Claude  
@@ -8,7 +8,7 @@
 
 ## What we're building
 
-Transform Aussie Sky from a working MVP into a polished, full-featured satellite tracking platform that rivals satellitemap.space visually and surpasses it through the AI agent — which no satellite tracker currently has. The platform stays Australian in identity and builds toward V2 bushfire scar detection as its unique differentiator.
+Transform Satlas from a working MVP into a polished, full-featured satellite tracking platform that rivals satellitemap.space visually and surpasses it through the AI agent — which no satellite tracker currently has. The platform stays Australian in identity and builds toward V2 bushfire scar detection as its unique differentiator.
 
 ---
 
@@ -57,7 +57,7 @@ These are the exact libraries, data sources, and tools used by satellitemap.spac
 
 ---
 
-## What Aussie Sky adopts vs what it skips
+## What Satlas adopts vs what it skips
 
 ### Adopted (fits our stack and goals)
 | Credit item | How we use it | Session |
@@ -143,7 +143,7 @@ These are the exact libraries, data sources, and tools used by satellitemap.spac
 
 ### Session 17 — Visual Overhaul
 
-**Goal:** someone opening Aussie Sky immediately sees a planet, not a diagram.
+**Goal:** someone opening Satlas immediately sees a planet, not a diagram.
 
 **What ships:**
 
@@ -281,7 +281,7 @@ These are the exact libraries, data sources, and tools used by satellitemap.spac
 
 ---
 
-## Aussie Sky's identity
+## Satlas's identity
 
 **Not a clone — the differences:**
 1. The AI is the front door, not a sidebar. You talk to the platform. satellitemap.space has no AI.

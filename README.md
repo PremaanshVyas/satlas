@@ -1,10 +1,10 @@
-# Aussie Sky
+# Satlas
 
 > Real-time space situational awareness, with an AI agent at the front door.
 
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
-**Live demo:** [aussie-sky.vercel.app](https://aussie-sky.vercel.app)  
+**Live demo:** [satlas.vercel.app](https://satlas.vercel.app)  
 Open the site — ~20,000 tracked objects orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker. A real-time cloud layer drapes the globe; a star field from NASA's Gaia DR2 catalog fills the background.  
 Ask: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
@@ -22,7 +22,7 @@ The agent remembers conversation context — follow-up questions work.
 
 Existing space situational awareness (SSA) tools are either expensive enterprise systems sold to defence and large operators, or fragmented amateur sites that show one slice of the picture. Most students, amateur astronomers, journalists, and curious people don't have a unified, modern view of what's overhead.
 
-Aussie Sky changes that. You open the site and see Earth, with every tracked object orbiting in real time. You ask: _"What's that bright thing crossing Melbourne tonight?"_ The AI agent reasons over orbital data, satellite imagery, and a knowledge base, and tells you — while highlighting the object on the globe.
+Satlas changes that. You open the site and see Earth, with every tracked object orbiting in real time. You ask: _"What's that bright thing crossing Melbourne tonight?"_ The AI agent reasons over orbital data, satellite imagery, and a knowledge base, and tells you — while highlighting the object on the globe.
 
 That's the front door. Behind it sits a stack of services that any developer can also call directly:
 
@@ -111,7 +111,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Look up any satellite by name or NORAD ID — live orbital snapshot + globe highlight
 - [x] Melbourne-accurate timestamps (computed server-side, never guessed by the AI)
 - [x] Mobile-friendly layout — 100dvh + safe-area insets so overlays clear browser chrome on iOS/Android
-- [x] Auto-deploying at [aussie-sky.vercel.app](https://aussie-sky.vercel.app)
+- [x] Auto-deploying at [satlas.vercel.app](https://satlas.vercel.app)
 
 ### MVP (complete)
 - [x] Project scaffolding, monorepo, CI/CD
@@ -179,8 +179,8 @@ Full debugging history is in [`CHANGELOG.md`](CHANGELOG.md). A few highlights:
 ### Install
 
 ```bash
-git clone https://github.com/PremaanshVyas/aussie-sky.git
-cd aussie-sky
+git clone https://github.com/PremaanshVyas/satlas.git
+cd satlas
 npm install                  # root deps (Anthropic SDK, satellite.js)
 cd apps/web && npm install   # frontend deps
 ```

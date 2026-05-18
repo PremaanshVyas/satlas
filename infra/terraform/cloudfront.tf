@@ -1,7 +1,7 @@
 resource "aws_cloudfront_distribution" "catalog" {
   enabled         = true
   is_ipv6_enabled = true
-  comment         = "Aussie Sky TLE catalog"
+  comment         = "Satlas TLE catalog"
 
   origin {
     domain_name = aws_s3_bucket.catalog.bucket_regional_domain_name

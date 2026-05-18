@@ -3,7 +3,7 @@
 // All data is optional — if the fetch fails, the info card still shows TLE-derived params.
 
 const SATCAT_URL = 'https://celestrak.org/pub/satcat.csv'
-const SATCAT_CACHE_KEY = 'aussie-sky-satcat-v1'
+const SATCAT_CACHE_KEY = 'satlas-satcat-v1'
 const SATCAT_CACHE_TTL_MS = 24 * 60 * 60 * 1000  // 24 h
 
 export interface SatcatEntry {

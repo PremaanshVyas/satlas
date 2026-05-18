@@ -142,7 +142,7 @@ class TestS3Refresh:
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
-             patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
             asyncio.run(satellites._s3_refresh())
         assert satellites._cache['tles'] == SAMPLE_TLES
         assert satellites._cache['fetched_at'] > 0
@@ -151,11 +151,11 @@ class TestS3Refresh:
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
-             patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
             asyncio.run(satellites._s3_refresh())
         mock_s3.put_object.assert_called_once()
         kwargs = mock_s3.put_object.call_args.kwargs
-        assert kwargs['Bucket'] == 'aussie-sky-catalog'
+        assert kwargs['Bucket'] == 'satlas-catalog'
         assert kwargs['Key'] == 'catalog.tle'
         assert kwargs['ContentType'] == 'text/plain'
 
@@ -163,7 +163,7 @@ class TestS3Refresh:
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
-             patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
             asyncio.run(satellites._s3_refresh())
         body = mock_s3.put_object.call_args.kwargs['Body']
         assert '25544' in body

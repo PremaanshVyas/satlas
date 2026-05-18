@@ -1,4 +1,4 @@
-# Session 17 Bootstrap — Aussie Sky Visual Overhaul
+# Session 17 Bootstrap — Satlas Visual Overhaul
 
 Read `CLAUDE.md` fully before doing anything else. That is the source of truth.  
 Then read `docs/superpowers/specs/2026-05-15-v1-platform-upgrade-design.md` — the approved V1 design that governs Sessions 16–20.
@@ -13,7 +13,7 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 
 ## Current state (end of Session 16)
 
-- Frontend live at `aussie-sky.vercel.app`
+- Frontend live at `satlas.vercel.app`
 - Python orbital service: running on AWS ECS Fargate (`apps/orbital/`) — always warm, static IP
 - Catalog: 25-30k satellites from Space-Track, served by S3+CloudFront; browser races CloudFront + CelesTrak direct
 - RDS PostgreSQL: `subscribers` table + pgvector extension (empty, ready for Session 19+)
@@ -26,7 +26,7 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 
 ## Session 17 mission: Visual Overhaul
 
-**Goal:** someone opening Aussie Sky immediately sees a planet, not a diagram.
+**Goal:** someone opening Satlas immediately sees a planet, not a diagram.
 
 ### 1. Real-time cloud layer (clouds.matteason.co.uk)
 

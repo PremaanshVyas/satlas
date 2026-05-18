@@ -1,4 +1,4 @@
-# Aussie Sky — Engineering Changelog
+# Satlas — Engineering Changelog
 
 A record of significant problems encountered during development, how they were diagnosed, and what actually fixed them. Written for two audiences: reviewers who want to understand the depth of engineering involved, and future contributors who need to understand why the code is shaped the way it is.
 
@@ -101,7 +101,7 @@ Added `.github/workflows/ci.yml` with 4 parallel jobs: web (lint + tsc + vite bu
 **`react-hooks/set-state-in-effect`:** Two effects called `setState` inside their body — `AgentPanel` (syncing `prefill` prop to local input state) and `GlobeView` (syncing an agent filter directive to pill UI state). Both are genuinely correct — they fire on external prop changes and don't cascade. Restructuring them would require lifting state or adding complexity that doesn't serve the codebase. Fixed with `// eslint-disable-next-line react-hooks/set-state-in-effect` + a one-line explanation at each site.
 
 ### CORS tightened
-Changed `allow_origins=['*']` in FastAPI middleware to `['https://aussie-sky.vercel.app', 'http://localhost:5173', 'http://localhost:4173']`. The open wildcard was a temporary MVP shortcut.
+Changed `allow_origins=['*']` in FastAPI middleware to `['https://satlas.vercel.app', 'http://localhost:5173', 'http://localhost:4173']`. The open wildcard was a temporary MVP shortcut.
 
 ---
 
@@ -361,7 +361,7 @@ CelesTrak actively rate-limits and blocks requests originating from cloud provid
 A previous attempt to add a `User-Agent` header fixed a different CelesTrak block (their bot detection), but had no effect on the IP-range block.
 
 ### What We Tried
-1. Added `User-Agent: aussie-sky/1.0` header — fixed bot detection 403, but not the IP-range block.
+1. Added `User-Agent: satlas/1.0` header — fixed bot detection 403, but not the IP-range block.
 2. Switched to space-track.org as the primary data source — worked, but introduced credential management and strict orbital filters that caused a different bug (see next entry).
 3. Switched back to CelesTrak as primary with space-track fallback — 403 still fires from Railway, so fallback always activates.
 

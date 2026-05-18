@@ -16,7 +16,7 @@ sentry_sdk.init(
     traces_sample_rate=0.2,
 )
 
-app = FastAPI(title='Aussie Sky Orbital Service')
+app = FastAPI(title='Satlas Orbital Service')
 
 ISS_NORAD_ID = '25544'
 _CATEGORY_KEYS = ('STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER')
@@ -37,7 +37,7 @@ def _classify_satellite(name: str) -> str:
 
 
 _ALLOWED_ORIGINS = [
-    'https://aussie-sky.vercel.app',
+    'https://satlas.vercel.app',
     'http://localhost:5173',
     'http://localhost:4173',
 ]

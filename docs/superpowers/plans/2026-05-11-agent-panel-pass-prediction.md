@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire the Aussie Sky agent panel to the Claude API with a single ISS pass prediction tool, so a user can type "when does the ISS pass over Melbourne tonight?" and get a real answer backed by orbital math.
+**Goal:** Wire the Satlas agent panel to the Claude API with a single ISS pass prediction tool, so a user can type "when does the ISS pass over Melbourne tonight?" and get a real answer backed by orbital math.
 
 **Architecture:** A Python FastAPI service (`apps/orbital/`) uses skyfield to compute ISS passes and exposes `GET /predict-passes`, deployed to Railway. A Vercel Edge Function (`api/chat.ts`) receives the user's chat message, calls Claude with the `predict_iss_passes` tool definition, executes any tool call against the Railway service, then streams Claude's final text response back to the browser. The React frontend replaces the static `AgentPanel` placeholder with a real streaming chat UI. The Vercel function lives at the repo root `api/` directory — Vercel auto-detects it alongside the existing `vercel.json` static build.
 
@@ -229,7 +229,7 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from passes import predict_passes
 
-app = FastAPI(title='Aussie Sky Orbital Service')
+app = FastAPI(title='Satlas Orbital Service')
 
 # TODO: tighten allow_origins to the Vercel domain before V1 production
 app.add_middleware(
@@ -327,7 +327,7 @@ Prompt caching is applied to the system prompt on both Claude calls — same sys
 Create `package.json` at the repo root:
 ```json
 {
-  "name": "aussie-sky",
+  "name": "satlas",
   "private": true
 }
 ```
@@ -372,7 +372,7 @@ const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL!
 const MODEL = 'claude-sonnet-4-6' // fall back to 'claude-sonnet-4-5' if this returns a model-not-found error
 
 function buildSystemPrompt(): string {
-  return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
+  return `You are Satlas's AI assistant specialising in space situational awareness. \
 Help users track satellites and understand orbital mechanics. \
 When asked about ISS passes, sightings, or visibility from any location, call predict_iss_passes. \
 Format pass times in the user's likely local timezone (Melbourne queries → AEST/AEDT). \
@@ -919,7 +919,7 @@ git push
 
 Manual steps:
 1. Go to [railway.app](https://railway.app), create a new project
-2. "Deploy from GitHub repo" → select `PremaanshVyas/aussie-sky`
+2. "Deploy from GitHub repo" → select `PremaanshVyas/satlas`
 3. Set **Root Directory** to `apps/orbital`
 4. Railway detects the `Dockerfile` and builds automatically
 5. Once deployed, click **Settings > Networking → Generate Domain** to get a public URL
@@ -928,7 +928,7 @@ Manual steps:
 
 - [ ] **Step 6: Add env vars to Vercel**
 
-In the Vercel dashboard for `aussie-sky`:
+In the Vercel dashboard for `satlas`:
 1. Settings → Environment Variables
 2. Add `ANTHROPIC_API_KEY` = your Anthropic API key
 3. Add `ORBITAL_SERVICE_URL` = the Railway URL from Step 5 (no trailing slash)

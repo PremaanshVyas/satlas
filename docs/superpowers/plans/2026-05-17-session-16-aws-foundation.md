@@ -43,7 +43,7 @@
 
 - [ ] **Step 1: Create IAM user**
 
-In AWS Console → IAM → Users → Create user `aussie-sky-deploy`. Attach this inline policy:
+In AWS Console → IAM → Users → Create user `satlas-deploy`. Attach this inline policy:
 
 ```json
 {
@@ -85,9 +85,9 @@ Expected output: JSON with your account ID (note this — needed as Terraform va
 - [ ] **Step 3: Create Terraform state bucket**
 
 ```bash
-aws s3 mb s3://aussie-sky-tfstate --region ap-southeast-2
+aws s3 mb s3://satlas-tfstate --region ap-southeast-2
 aws s3api put-bucket-versioning \
-  --bucket aussie-sky-tfstate \
+  --bucket satlas-tfstate \
   --versioning-configuration Status=Enabled
 ```
 
@@ -119,7 +119,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket = "aussie-sky-tfstate"
+    bucket = "satlas-tfstate"
     key    = "terraform.tfstate"
     region = "ap-southeast-2"
   }
@@ -142,7 +142,7 @@ variable "account_id" {
 }
 
 variable "app_name" {
-  default = "aussie-sky"
+  default = "satlas"
 }
 ```
 
@@ -174,7 +174,7 @@ resource "aws_iam_role" "ci" {
       Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
-        StringLike  = { "token.actions.githubusercontent.com:sub" = "repo:PremaanshVyas/aussie-sky:*" }
+        StringLike  = { "token.actions.githubusercontent.com:sub" = "repo:PremaanshVyas/satlas:*" }
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
       }
     }]
@@ -306,16 +306,16 @@ Expected: ~7 resources created (OIDC provider, 2 IAM roles, 3 IAM policies, ECR 
 - [ ] **Step 7: Verify ECR exists**
 
 ```bash
-aws ecr describe-repositories --repository-names aussie-sky-orbital --query 'repositories[0].repositoryUri' --output text
+aws ecr describe-repositories --repository-names satlas-orbital --query 'repositories[0].repositoryUri' --output text
 ```
 
-Expected: `<account_id>.dkr.ecr.ap-southeast-2.amazonaws.com/aussie-sky-orbital`
+Expected: `<account_id>.dkr.ecr.ap-southeast-2.amazonaws.com/satlas-orbital`
 
 - [ ] **Step 8: Populate secret values**
 
 ```bash
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-APP=aussie-sky
+APP=satlas
 
 # Set your real Space-Track credentials
 aws secretsmanager put-secret-value \
@@ -371,12 +371,12 @@ Append to `.github/workflows/ci.yml` after the `orbital-docker` job:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/aussie-sky-ci
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/satlas-ci
           aws-region: ap-southeast-2
       - uses: aws-actions/amazon-ecr-login@v2
       - name: Build and push
         run: |
-          IMAGE_URI=${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/aussie-sky-orbital:latest
+          IMAGE_URI=${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/satlas-orbital:latest
           docker build -t $IMAGE_URI apps/orbital/
           docker push $IMAGE_URI
 ```
@@ -397,7 +397,7 @@ git push
 
 Expected: CI runs, `ecr-push` job passes, image appears in ECR.
 
-Verify: `aws ecr describe-images --repository-name aussie-sky-orbital --query 'imageDetails[0].imageTags'`
+Verify: `aws ecr describe-images --repository-name satlas-orbital --query 'imageDetails[0].imageTags'`
 
 ---
 
@@ -550,7 +550,7 @@ class TestS3Refresh:
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
-             patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
             asyncio.run(satellites._s3_refresh())
         assert satellites._cache['tles'] == SAMPLE_TLES
 
@@ -558,11 +558,11 @@ class TestS3Refresh:
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
-             patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
             asyncio.run(satellites._s3_refresh())
         mock_s3.put_object.assert_called_once()
         kwargs = mock_s3.put_object.call_args.kwargs
-        assert kwargs['Bucket'] == 'aussie-sky-catalog'
+        assert kwargs['Bucket'] == 'satlas-catalog'
         assert kwargs['Key'] == 'catalog.tle'
         assert kwargs['ContentType'] == 'text/plain'
 
@@ -570,7 +570,7 @@ class TestS3Refresh:
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
-             patch.dict('os.environ', {'CATALOG_BUCKET': 'aussie-sky-catalog'}):
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
             asyncio.run(satellites._s3_refresh())
         body = mock_s3.put_object.call_args.kwargs['Body']
         assert '25544' in body
@@ -680,7 +680,7 @@ import boto3
 import httpx
 
 CELESTRAK_ISS_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
-CELESTRAK_HEADERS = {'User-Agent': 'aussie-sky/1.0 (portfolio project; https://aussie-sky.vercel.app)'}
+CELESTRAK_HEADERS = {'User-Agent': 'satlas/1.0 (portfolio project; https://satlas.vercel.app)'}
 
 SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
 SPACETRACK_CATALOG_URL = (
@@ -849,7 +849,7 @@ sentry_sdk.init(
     traces_sample_rate=0.2,
 )
 
-app = FastAPI(title='Aussie Sky Orbital Service')
+app = FastAPI(title='Satlas Orbital Service')
 
 ISS_NORAD_ID = '25544'
 _CATEGORY_KEYS = ('STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER')
@@ -870,7 +870,7 @@ def _classify_satellite(name: str) -> str:
 
 
 _ALLOWED_ORIGINS = [
-    'https://aussie-sky.vercel.app',
+    'https://satlas.vercel.app',
     'http://localhost:5173',
     'http://localhost:4173',
 ]
@@ -1283,7 +1283,7 @@ Expected: plan shows ~20 new resources (VPC, subnets, IGW, NAT, route tables, SG
 ```bash
 cd ../..  # repo root
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-ECR_URI=$ACCOUNT_ID.dkr.ecr.ap-southeast-2.amazonaws.com/aussie-sky-orbital
+ECR_URI=$ACCOUNT_ID.dkr.ecr.ap-southeast-2.amazonaws.com/satlas-orbital
 
 aws ecr get-login-password --region ap-southeast-2 | \
   docker login --username AWS --password-stdin $ECR_URI
@@ -1316,7 +1316,7 @@ Expected: `{"status":"ok"}`
 
 If 502: ECS task hasn't started yet. Check CloudWatch logs:
 ```bash
-aws logs tail /ecs/aussie-sky-orbital --follow
+aws logs tail /ecs/satlas-orbital --follow
 ```
 
 - [ ] **Step 8: Commit Wave 2**
@@ -1380,7 +1380,7 @@ Create `infra/terraform/cloudfront.tf`:
 resource "aws_cloudfront_distribution" "catalog" {
   enabled         = true
   is_ipv6_enabled = true
-  comment         = "Aussie Sky TLE catalog"
+  comment         = "Satlas TLE catalog"
 
   origin {
     domain_name = aws_s3_bucket.catalog.bucket_regional_domain_name
@@ -1477,8 +1477,8 @@ Expected: resources created. Note `cloudfront_domain` output.
 
 ```bash
 aws ecs update-service \
-  --cluster aussie-sky \
-  --service aussie-sky-orbital \
+  --cluster satlas \
+  --service satlas-orbital \
   --force-new-deployment \
   --region ap-southeast-2
 ```
@@ -1499,7 +1499,7 @@ Expected: three lines of 3LE data (name, TLE line 1, TLE line 2).
 
 ```bash
 DB_URL=$(aws secretsmanager get-secret-value \
-  --secret-id aussie-sky/DATABASE_URL \
+  --secret-id satlas/DATABASE_URL \
   --query SecretString --output text)
 psql "$DB_URL" -c '\dt'
 psql "$DB_URL" -c '\dx'
@@ -1554,7 +1554,7 @@ Expected: all tests pass (VITE_CATALOG_URL not set in test env → falls back to
 
 - [ ] **Step 4: Set VITE_CATALOG_URL in Vercel**
 
-In Vercel dashboard → aussie-sky project → Settings → Environment Variables:
+In Vercel dashboard → satlas project → Settings → Environment Variables:
 - Name: `VITE_CATALOG_URL`
 - Value: `https://<cloudfront_domain_from_step_7_above>/catalog.tle`
 - Environment: Production
@@ -1563,7 +1563,7 @@ Trigger a Vercel redeploy (push a commit or manually redeploy).
 
 - [ ] **Step 5: Verify globe shows 30k+ satellites**
 
-Open `https://aussie-sky.vercel.app` and check the satellite count badge. Expected: 25,000–30,000 satellites.
+Open `https://satlas.vercel.app` and check the satellite count badge. Expected: 25,000–30,000 satellites.
 
 - [ ] **Step 6: Commit**
 
@@ -1579,22 +1579,22 @@ git commit -m "feat(web): use VITE_CATALOG_URL for CloudFront catalog, fallback 
 
 - [ ] **Step 1: Create Sentry project**
 
-Go to sentry.io → Create Project → Python → name it `aussie-sky-orbital`.  
+Go to sentry.io → Create Project → Python → name it `satlas-orbital`.  
 Copy the DSN (looks like `https://abc123@o123456.ingest.sentry.io/789012`).
 
 - [ ] **Step 2: Update SENTRY_DSN secret**
 
 ```bash
 aws secretsmanager put-secret-value \
-  --secret-id aussie-sky/SENTRY_DSN \
+  --secret-id satlas/SENTRY_DSN \
   --secret-string "https://abc123@o123456.ingest.sentry.io/789012"
 ```
 
 Force ECS redeploy to pick up the new secret:
 ```bash
 aws ecs update-service \
-  --cluster aussie-sky \
-  --service aussie-sky-orbital \
+  --cluster satlas \
+  --service satlas-orbital \
   --force-new-deployment \
   --region ap-southeast-2
 ```
@@ -1621,7 +1621,7 @@ Trigger redeploy.
 
 - [ ] **Step 2: Verify AI chat still works**
 
-Open aussie-sky.vercel.app → click the chat button → ask "Where is ISS right now?".
+Open satlas.vercel.app → click the chat button → ask "Where is ISS right now?".
 Expected: agent calls the satellite info tool and returns a real position.
 
 - [ ] **Step 3: Delete Railway service**
@@ -1666,7 +1666,7 @@ git commit -m "docs: session 16 complete — update CLAUDE.md scope, add ADRs, s
 
 ## Verification checklist (final)
 
-- [ ] `aws ecr list-images --repository-name aussie-sky-orbital` shows an image
+- [ ] `aws ecr list-images --repository-name satlas-orbital` shows an image
 - [ ] `curl http://<ALB_DNS>/health` returns `{"status":"ok"}`
 - [ ] `curl https://<CF_DOMAIN>/catalog.tle | head -3` returns 3LE data in <1s
 - [ ] Globe shows 25k+ satellite count

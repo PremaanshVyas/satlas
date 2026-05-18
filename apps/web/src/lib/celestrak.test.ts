@@ -4,7 +4,7 @@ import type { TLERecord } from './celestrak'
 
 const CATALOG_API_URL = '/api/catalog'
 const ISS_URL         = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
-const CACHE_KEY       = 'aussie-sky-catalog-v4'
+const CACHE_KEY       = 'satlas-catalog-v4'
 
 function makeLocalStorageMock(initial: Record<string, string> = {}) {
   const store: Record<string, string> = { ...initial }

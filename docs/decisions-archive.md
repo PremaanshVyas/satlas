@@ -1,11 +1,11 @@
-# Aussie Sky — Decisions Archive (Sessions 1–11)
+# Satlas — Decisions Archive (Sessions 1–11)
 
 These ADR-lite entries were migrated from CLAUDE.md to keep the main file under the 40k character limit.
 Rules that are still active are summarised in the relevant sections below.
 
 ---
 
-- **2026-05-10 — Project initialized.** Aussie Sky concept (3D SSA + AI agent), monorepo, AWS. Alternatives rejected: pure Earth Observation (less visually striking), ML-only bushfire pipeline (narrower stack). Bushfire detection folded in as V2 vision-pipeline use case.
+- **2026-05-10 — Project initialized.** Satlas concept (3D SSA + AI agent), monorepo, AWS. Alternatives rejected: pure Earth Observation (less visually striking), ML-only bushfire pipeline (narrower stack). Bushfire detection folded in as V2 vision-pipeline use case.
 
 - **2026-05-10 — AI agent is the primary interface, not a side feature.** Every user query goes through Claude with tool use. Avoids the "AI bolted on" pattern that dominates current portfolio projects.
 

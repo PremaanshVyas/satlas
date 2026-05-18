@@ -1,4 +1,4 @@
-# Session 16 Bootstrap — Aussie Sky V1 Platform Upgrade
+# Session 16 Bootstrap — Satlas V1 Platform Upgrade
 
 Read `CLAUDE.md` fully before doing anything else. That is the source of truth.  
 Then read `docs/superpowers/specs/2026-05-15-v1-platform-upgrade-design.md` — this is the approved V1 design that governs Sessions 16–20.
@@ -13,9 +13,9 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 
 ## Why this session matters
 
-Session 15 completed the MVP: 3D globe, ~15k satellites, text search, AI chat, CI/CD. Mickey then discovered satellitemap.space and wants Aussie Sky to match it visually and surpass it through the AI agent — which no satellite tracker currently has.
+Session 15 completed the MVP: 3D globe, ~15k satellites, text search, AI chat, CI/CD. Mickey then discovered satellitemap.space and wants Satlas to match it visually and surpass it through the AI agent — which no satellite tracker currently has.
 
-The approved plan is a 5-session roadmap (Sessions 16–20) to transform Aussie Sky from MVP into a polished, full-featured platform with its own identity. **Session 16 is the AWS foundation that unlocks everything else.**
+The approved plan is a 5-session roadmap (Sessions 16–20) to transform Satlas from MVP into a polished, full-featured platform with its own identity. **Session 16 is the AWS foundation that unlocks everything else.**
 
 ---
 
@@ -64,7 +64,7 @@ These are the exact credits from the platform Mickey wants to match. Every techn
 
 ---
 
-## What Aussie Sky adopts vs skips from those credits
+## What Satlas adopts vs skips from those credits
 
 ### Adopted — per session
 
@@ -111,7 +111,7 @@ These are the exact credits from the platform Mickey wants to match. Every techn
 
 ## Current state (end of Session 15)
 
-- Frontend live at `aussie-sky.vercel.app`
+- Frontend live at `satlas.vercel.app`
 - AI chat: Vercel serverless (`api/chat.ts`) using satellite.js directly — no Railway dependency
 - Railway: hosts Python FastAPI (`apps/orbital/`) — currently idle, will be replaced by ECS in Session 16
 - Catalog: browser fetches CelesTrak `GROUP=active` directly (user IPs not blocked); localStorage v4 cache, 72h stale-serve
@@ -131,7 +131,7 @@ CelesTrak has a 1-download-per-IP-per-2h rate limit (since March 2026). Cloud IP
 
 ### Step 1 — ECR + CI push
 
-1. Create ECR repository `aussie-sky-orbital` in `ap-southeast-2` (Sydney)
+1. Create ECR repository `satlas-orbital` in `ap-southeast-2` (Sydney)
 2. Add `ecr-push` job to `.github/workflows/ci.yml` after `orbital-docker`:
    - OIDC-based auth (no long-lived AWS keys in GitHub secrets)
    - `docker tag ... && docker push <ECR_URI>:latest`
@@ -153,7 +153,7 @@ Set `VITE_ORBITAL_SERVICE_URL` to ALB DNS.
 
 In `apps/orbital/`:
 - Add `SPACE_TRACK_USER` / `SPACE_TRACK_PASS` env vars
-- ECS startup: authenticate to Space-Track session API, fetch `Group=active` + supplemental debris groups, merge, write as TLE text to S3 bucket `aussie-sky-catalog`
+- ECS startup: authenticate to Space-Track session API, fetch `Group=active` + supplemental debris groups, merge, write as TLE text to S3 bucket `satlas-catalog`
 - Schedule refresh every 2h via ECS task or cron-triggered Lambda
 - Add CloudFront distribution in front of the S3 bucket
 
@@ -230,7 +230,7 @@ Add subscribe form UI in the AI chat panel (email + city, small, below input).
 
 ## Verification checklist before ending Session 16
 
-- [ ] ECR: `aws ecr list-images --repository-name aussie-sky-orbital` shows an image
+- [ ] ECR: `aws ecr list-images --repository-name satlas-orbital` shows an image
 - [ ] ECS: `curl https://<ALB>/health` returns 200
 - [ ] S3: catalog TLE file exists and is fresh (< 2h old)
 - [ ] CloudFront: `curl https://<CF_URL>/catalog.tle` returns TLE data in < 1s

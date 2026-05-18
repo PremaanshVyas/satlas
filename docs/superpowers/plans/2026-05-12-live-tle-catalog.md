@@ -285,7 +285,7 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from passes import predict_passes
 
-app = FastAPI(title='Aussie Sky Orbital Service')
+app = FastAPI(title='Satlas Orbital Service')
 
 app.add_middleware(
     CORSMiddleware,
@@ -321,7 +321,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from passes import predict_passes
 from satellites import get_satellites
 
-app = FastAPI(title='Aussie Sky Orbital Service')
+app = FastAPI(title='Satlas Orbital Service')
 
 # TODO: tighten allow_origins to the Vercel domain before V1 production
 app.add_middleware(
@@ -947,7 +947,7 @@ curl "https://<your-railway-url>/satellites" | python3 -c "import sys,json; d=js
 
 If Railway needs the updated image (httpx added), push a redeploy from the Railway dashboard or by re-pushing to the branch Railway tracks.
 
-- [ ] **Step 3: Visual verification at aussie-sky.vercel.app**
+- [ ] **Step 3: Visual verification at satlas.vercel.app**
 
 Open the site. Verify:
 1. The loading overlay ("Loading satellite catalog…") appears on first load.

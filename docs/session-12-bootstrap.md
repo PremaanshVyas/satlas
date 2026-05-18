@@ -3,12 +3,12 @@
 > Copy-paste this at the start of the next session to restore full context instantly.
 
 ```
-We're working on Aussie Sky — a real-time 3D satellite tracker with an AI agent chat interface.
+We're working on Satlas — a real-time 3D satellite tracker with an AI agent chat interface.
 Portfolio project for landing a SWE internship in Australia. Read CLAUDE.md fully before doing anything.
 
 Where we left off (end of Session 11 + all post-session fixes):
 
-WHAT'S LIVE at https://aussie-sky.vercel.app:
+WHAT'S LIVE at https://satlas.vercel.app:
 - Full-screen 3D globe (Three.js, NASA 8K day + 3.6K night textures, GLSL day/night shader)
 - Atmospheric rim glow, 8,000-star background
 - ~9,000–10,000 live satellites from CelesTrak/space-track (30-min catalog cache + stale fallback)
@@ -30,7 +30,7 @@ WHAT'S LIVE at https://aussie-sky.vercel.app:
 - 6 agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info,
   set_category_filter, get_category_counts
 - UTC clock + satellite count overlays (top-left / top-right)
-- localStorage catalog cache: key `aussie-sky-catalog-v1`, 30-min TTL. Repeat visits load instantly
+- localStorage catalog cache: key `satlas-catalog-v1`, 30-min TTL. Repeat visits load instantly
   from cache; background refresh fires for next-visit freshness. First-time visitors wait on cold start.
 - Globe renders immediately on first animation frame (ISS-only) without waiting for catalog
 - Backend: Python FastAPI on Railway; frontend: Vite+React on Vercel

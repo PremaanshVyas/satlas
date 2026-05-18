@@ -22,7 +22,7 @@
 
 - [ ] **Step 1: Scaffold the Vite project**
 
-Run from the repo root (`aussie-sky/`):
+Run from the repo root (`satlas/`):
 ```bash
 npm create vite@latest apps/web -- --template react-ts
 ```
@@ -828,7 +828,7 @@ git add apps/web/src/hooks/ apps/web/src/components/GlobeView.tsx && git commit 
 
 - [ ] **Step 1: Create `vercel.json`**
 
-Create `aussie-sky/vercel.json`:
+Create `satlas/vercel.json`:
 ```json
 {
   "buildCommand": "cd apps/web && npm install && npm run build",
@@ -865,7 +865,7 @@ vercel
 When prompted:
 - Set up and deploy: **Y**
 - Link to existing project: **N**
-- Project name: `aussie-sky`
+- Project name: `satlas`
 - Directory: `./` (repo root — `vercel.json` controls the build)
 
 Vercel runs the build command and prints a preview URL on success.

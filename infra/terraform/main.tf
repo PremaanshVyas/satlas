@@ -11,7 +11,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket = "aussie-sky-tfstate"
+    bucket = "satlas-tfstate"
     key    = "terraform.tfstate"
     region = "ap-southeast-2"
   }

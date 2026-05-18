@@ -1,4 +1,4 @@
-# CLAUDE.md — Aussie Sky working context
+# CLAUDE.md — Satlas working context
 
 This file is the bootstrap context for any Claude session working on this project.
 
@@ -18,7 +18,7 @@ Important: mickey is learning some of this stack as he builds. When you propose 
 
 ## What we're building
 
-Aussie Sky — a real-time, open-source space situational awareness platform with an AI agent as the primary interface.
+Satlas — a real-time, open-source space situational awareness platform with an AI agent as the primary interface.
 
 The shape:
 - A live 3D Earth showing every tracked object in orbit (TLE-based, ~30k objects).
@@ -78,7 +78,7 @@ All services run on AWS (ECS Fargate). A single Postgres instance handles relati
 ## Repo structure (target)
 
 ```
-aussie-sky/
+satlas/
 ├── README.md
 ├── CLAUDE.md                # this file
 ├── docs/
@@ -176,7 +176,7 @@ Pre-Session-12 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-14 — Session 12: ESLint errors fixed for CI.** `eslint-plugin-react-hooks` v7 adds two new strict rules that flagged three existing patterns. (1) `react-hooks/refs`: updating `onSatelliteClickRef.current` during render in `useGlobe.ts` — fixed by moving into `useLayoutEffect` (ensures ref is updated before any paint, same timing as the inline assignment). (2) `react-hooks/set-state-in-effect`: two intentional setState-in-effect patterns (prefill sync in `AgentPanel`, agent filter sync in `GlobeView`) — both are correct (triggered by external signals, no cascade risk), disabled with inline `eslint-disable-next-line` and a comment. Rule: when a lint rule flags a pattern that is genuinely correct, add a disable comment with a one-line explanation rather than fighting the linter or restructuring working code.
 
-- **2026-05-14 — Session 12: CORS restricted to Vercel + localhost origins.** Changed `allow_origins=['*']` to explicit list `['https://aussie-sky.vercel.app', 'http://localhost:5173', 'http://localhost:4173']` in FastAPI middleware. The `*` was a temporary MVP shortcut; with the domain stable, open CORS is an unnecessary attack surface.
+- **2026-05-14 — Session 12: CORS restricted to Vercel + localhost origins.** Changed `allow_origins=['*']` to explicit list `['https://satlas.vercel.app', 'http://localhost:5173', 'http://localhost:4173']` in FastAPI middleware. The `*` was a temporary MVP shortcut; with the domain stable, open CORS is an unnecessary attack surface.
 
 - **2026-05-14 — Session 12: CelesTrak direct browser fetch replaces Railway as primary catalog source.** Production satellite trackers (satellitetracker3d.com et al.) bypass their own backends for TLE data by fetching directly from CelesTrak in the browser. CelesTrak has CORS enabled and never blocks user IPs; only cloud IPs (Railway, AWS) get 403 on `GROUP=active`. Fix: `celestrak.ts` now attempts `fetchFromCelesTrak()` first (browser fetch, `FORMAT=TLE`), falls back to `fetchFromRailway()` only on error. Result: catalog load is decoupled from Railway cold starts entirely. Rule: for public CDN data that browsers can fetch directly and CORS is enabled, always fetch in the browser — eliminates server cold-start latency on the most important data path.
 
@@ -208,15 +208,15 @@ Pre-Session-12 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-16 — Space-Track 3LE name lines prefixed with "0 ".** CelesTrak 3LE has plain name lines (`ISS (ZARYA)`). Space-Track 3LE prefixes with line-type indicator (`0 ISS (ZARYA)`). `parseTleText()` now strips leading `"0 "` before storing name. Rule: when switching TLE sources, check name-line format — different providers use different conventions.
 
-- **2026-05-17 — Session 16: GitHub OIDC for CI — no long-lived AWS keys in GitHub.** `aws-actions/configure-aws-credentials@v4` with `role-to-assume` via OIDC. IAM role `aussie-sky-ci` trust policy scoped to `repo:PremaanshVyas/aussie-sky:*`. Alternative rejected: storing `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` as GitHub secrets — those rotate on a schedule and can leak. Rule: for CI/CD to AWS, always use OIDC-based role assumption; never store IAM user keys in GitHub.
+- **2026-05-17 — Session 16: GitHub OIDC for CI — no long-lived AWS keys in GitHub.** `aws-actions/configure-aws-credentials@v4` with `role-to-assume` via OIDC. IAM role `satlas-ci` trust policy scoped to `repo:PremaanshVyas/satlas:*`. Alternative rejected: storing `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` as GitHub secrets — those rotate on a schedule and can leak. Rule: for CI/CD to AWS, always use OIDC-based role assumption; never store IAM user keys in GitHub.
 
 - **2026-05-17 — Session 16: Space-Track 3LE format — `class/gp/EPOCH/%3Enow-30/format/3le`.** Returns all catalog objects with an epoch in the last 30 days (~25-30k). Previous format/tle (2LE) broke the 3LE parser (name lines absent → count halved, names showed as TLE line data). Rule: always use `format/3le` with the Space-Track GP endpoint; `format/tle` is 2LE and incompatible with 3LE parsers.
 
 - **2026-05-17 — Session 16: S3+CloudFront for catalog — ECS writes every 2h, browser reads from CDN.** CelesTrak's 1-download-per-IP-per-2h rate limit and cloud IP blocks make server-side CelesTrak fetches unreliable. Space-Track has no IP restriction. ECS fetches Space-Track → writes `catalog.tle` to S3 → CloudFront serves globally with 2h TTL. Browser still races CloudFront and CelesTrak direct via `Promise.any()`. Rule: for any data that updates on a known schedule, prefer a CDN cache write by a trusted server over per-user direct fetches.
 
-- **2026-05-17 — Session 16: HTTP-only ALB, no custom domain yet.** ACM certificate requires a registered domain name. No custom domain registered for Aussie Sky. ALB serves HTTP on port 80 only; `VITE_ORBITAL_SERVICE_URL` set to `http://<ALB_DNS>`. HTTPS can be added when a domain is registered. Rule: don't block infra progress on domain registration — HTTP-only ALB is fine for a portfolio project with no user-facing URL on the ALB.
+- **2026-05-17 — Session 16: HTTP-only ALB, no custom domain yet.** ACM certificate requires a registered domain name. No custom domain registered for Satlas. ALB serves HTTP on port 80 only; `VITE_ORBITAL_SERVICE_URL` set to `http://<ALB_DNS>`. HTTPS can be added when a domain is registered. Rule: don't block infra progress on domain registration — HTTP-only ALB is fine for a portfolio project with no user-facing URL on the ALB.
 
-- **2026-05-17 — Session 16: DATABASE_URL generated by Terraform `random_password` resource.** RDS password is a Terraform-managed random string (32 chars, no specials to avoid shell-escaping issues). Full connection string written to Secrets Manager as `aussie-sky/DATABASE_URL`. ECS task injects it as an env var from Secrets Manager. `db.py` reads it at startup; if unset, migration is skipped silently (local dev). Rule: never hardcode database credentials — always use Terraform random_password + Secrets Manager + env var injection.
+- **2026-05-17 — Session 16: DATABASE_URL generated by Terraform `random_password` resource.** RDS password is a Terraform-managed random string (32 chars, no specials to avoid shell-escaping issues). Full connection string written to Secrets Manager as `satlas/DATABASE_URL`. ECS task injects it as an env var from Secrets Manager. `db.py` reads it at startup; if unset, migration is skipped silently (local dev). Rule: never hardcode database credentials — always use Terraform random_password + Secrets Manager + env var injection.
 
 - **2026-05-17 — Session 16: CloudFront uses custom_origin_config (not OAI/OAC) for public S3 bucket.** The catalog S3 bucket has a public read bucket policy (Principal: "*"). Using `s3_origin_config` with an empty OAI string caused a Terraform apply error. For a public bucket, the correct pattern is `custom_origin_config` with `https-only` and the bucket's regional REST API domain — no OAI or OAC needed because the bucket policy already allows public reads. Rule: use OAI/OAC only for private buckets; for public buckets use custom_origin_config pointing at the regional REST API endpoint.
 

@@ -1,6 +1,6 @@
 # Roadmap: V1 Polish → AWS Production
 
-> Strategic plan for turning Aussie Sky from a Railway/Vercel MVP into a genuinely AWS-deployed
+> Strategic plan for turning Satlas from a Railway/Vercel MVP into a genuinely AWS-deployed
 > product with PostgreSQL. Written for Australian SWE internship job applications.
 >
 > **Why this document exists:** Australian employer job postings list AWS, PostgreSQL, Docker,

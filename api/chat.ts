@@ -33,7 +33,7 @@ async function fetchTle(query: string): Promise<TleRecord | null> {
   const url = `https://celestrak.org/NORAD/elements/gp.php?${param}&FORMAT=TLE`
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'aussie-sky/1.0 (portfolio project)' },
+      headers: { 'User-Agent': 'satlas/1.0 (portfolio project)' },
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return null
@@ -180,7 +180,7 @@ function buildSystemPrompt(now: Date, shownCategories: string[], categoryCounts:
         .map(([cat, n]) => `  ${cat}: ${n.toLocaleString()}`)
         .join('\n')
     : '  (loading…)'
-  return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
+  return `You are Satlas's AI assistant specialising in space situational awareness. \
 Help users track satellites and understand orbital mechanics.\n\n\
 TOOL USAGE RULES:\
 \n- get_satellite_info: call when the user asks about ANY specific satellite — "where is X", "tell me about X", "what altitude is X". ALWAYS call this tool; NEVER answer satellite position, altitude, velocity, inclination, or orbital period from your training knowledge. When the user's message includes a NORAD ID (plain integer), pass just that number. Always call highlight_on_globe IN THE SAME RESPONSE (in parallel).\

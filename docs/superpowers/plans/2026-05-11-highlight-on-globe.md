@@ -86,7 +86,7 @@ const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL!
 const MODEL = 'claude-sonnet-4-5'
 
 function buildSystemPrompt(): string {
-  return `You are Aussie Sky's AI assistant specialising in space situational awareness. \
+  return `You are Satlas's AI assistant specialising in space situational awareness. \
 Help users track satellites and understand orbital mechanics. \
 When asked about ISS passes, sightings, or visibility from any location, call predict_iss_passes. \
 Whenever your response is about a specific satellite (e.g. the ISS), also call highlight_on_globe — \
@@ -1157,7 +1157,7 @@ Expected: Vercel builds and deploys within ~60 seconds.
 
 - [ ] **Step 3: Verify deployment**
 
-Open https://aussie-sky.vercel.app in a browser. Type: "Show me where the ISS is right now"
+Open https://satlas.vercel.app in a browser. Type: "Show me where the ISS is right now"
 
 Expected:
 1. Bouncing dots appear while streaming.
@@ -1174,7 +1174,7 @@ Also test: "When does the ISS pass over Melbourne?" → text only, no camera mov
 In the "Session 3 tasks" checklist, mark all items as `[x]`. Update "Last session ended at":
 
 ```
-**Last session ended at:** Session 3 complete. highlight_on_globe tool shipped. Chat and globe are now one surface — asking about the ISS drives camera fly-to + pulse animation. Deployed at https://aussie-sky.vercel.app.
+**Last session ended at:** Session 3 complete. highlight_on_globe tool shipped. Chat and globe are now one surface — asking about the ISS drives camera fly-to + pulse animation. Deployed at https://satlas.vercel.app.
 ```
 
 Update "Next milestone":

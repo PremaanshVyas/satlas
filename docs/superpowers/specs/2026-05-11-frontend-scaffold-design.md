@@ -1,4 +1,4 @@
-# Frontend Scaffold Design — Aussie Sky
+# Frontend Scaffold Design — Satlas
 
 **Date:** 2026-05-11
 **Status:** Approved
@@ -205,7 +205,7 @@ Use Vitest (ships with Vite ecosystem, same config).
 
 ## Deployment
 
-Vercel, free tier. Project root is `aussie-sky/`, output directory is `apps/web/dist`. Add a `vercel.json` at the repo root:
+Vercel, free tier. Project root is `satlas/`, output directory is `apps/web/dist`. Add a `vercel.json` at the repo root:
 
 ```json
 {

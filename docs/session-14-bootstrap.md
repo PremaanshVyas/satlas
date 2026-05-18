@@ -3,14 +3,14 @@
 > Copy-paste this at the start of the next session to restore full context instantly.
 
 ```
-We're working on Aussie Sky — a real-time 3D satellite tracker with an AI agent chat interface.
+We're working on Satlas — a real-time 3D satellite tracker with an AI agent chat interface.
 Portfolio project for landing a SWE internship in Australia. Read CLAUDE.md fully before doing anything.
 
 Where we left off (end of Session 13 — reliability fixes only, V1 features not yet started):
 
-WHAT'S LIVE at https://aussie-sky.vercel.app:
+WHAT'S LIVE at https://satlas.vercel.app:
 - Globe tracks ~9k active satellites from CelesTrak GROUP=active (clean, no debris)
-- Cache key: aussie-sky-catalog-v3. Stale-serve up to 72h — satellites always instant on reload
+- Cache key: satlas-catalog-v3. Stale-serve up to 72h — satellites always instant on reload
 - Soft catalog refresh: 30-min background refresh re-inits worker TLEs in place, no InstancedMesh teardown, no satellite gap
 - Hover/click occlusion: dot-product check skips satellites on far side of earth — no ghost tooltips
 - Hover/click z-ordering: depth-based pick — lower-altitude satellite always wins when two overlap
@@ -20,7 +20,7 @@ WHAT'S LIVE at https://aussie-sky.vercel.app:
 - 45 Vitest + 87 pytest — all green; tsc clean; lint clean
 
 KEY TECHNICAL STATE:
-- celestrak.ts: CACHE_KEY='aussie-sky-catalog-v3', SERVE_AGE_MS=24h, MAX_CACHE_AGE_MS=72h.
+- celestrak.ts: CACHE_KEY='satlas-catalog-v3', SERVE_AGE_MS=24h, MAX_CACHE_AGE_MS=72h.
   loadCachedCatalog() returns { data, needsRefresh } | null. fetchSatelliteCatalog always serves
   cached data instantly and always fires a background network refresh.
 - Globe.ts / initCatalog(): soft refresh when field+worker exist and |newCount-oldCount|<=200 —

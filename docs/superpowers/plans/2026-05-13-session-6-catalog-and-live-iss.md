@@ -194,7 +194,7 @@ import time
 import httpx
 
 CELESTRAK_ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json'
-CELESTRAK_HEADERS = {'User-Agent': 'aussie-sky/1.0 (portfolio project; https://aussie-sky.vercel.app)'}
+CELESTRAK_HEADERS = {'User-Agent': 'satlas/1.0 (portfolio project; https://satlas.vercel.app)'}
 
 SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
 SPACETRACK_QUERY_URL = (
@@ -591,7 +591,7 @@ git push
 
 This triggers auto-deploy: Vercel rebuilds the frontend (no env var changes needed). Railway redeploys the orbital service with the new `satellites.py` (no env var changes needed — `SPACETRACK_*` vars remain as fallback credentials).
 
-- [ ] **Step 2: Verify manually at aussie-sky.vercel.app**
+- [ ] **Step 2: Verify manually at satlas.vercel.app**
 
 - Open the site — ISS dot should be near its real current position (compare against a known tracker like heavens-above.com)
 - Ask agent: "where is Hubble?" — should return orbital data (catalog now includes Hubble)

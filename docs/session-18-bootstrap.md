@@ -1,4 +1,4 @@
-# Session 18 Bootstrap — Aussie Sky AWS Deploy
+# Session 18 Bootstrap — Satlas AWS Deploy
 
 Read `CLAUDE.md` fully before doing anything else. That is the source of truth.
 
@@ -12,7 +12,7 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 
 ## Current state (end of Session 17)
 
-- **Frontend:** live at `aussie-sky.vercel.app`
+- **Frontend:** live at `satlas.vercel.app`
   - Real-time cloud layer (clouds.matteason.co.uk)
   - NASA Gaia DR2 star field skybox
   - ~20,000 tracked objects at actual orbital altitudes
@@ -23,7 +23,7 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 - **Python orbital service:** code ready in `apps/orbital/` — NOT yet running on ECS (pending `terraform apply`)
 - **Catalog:** browser races `/api/catalog` (Vercel function, Space-Track backed) and CelesTrak direct via `Promise.any()`
 - **AWS infra (Terraform code-complete, never applied):**
-  - Wave 1: ECR (`aussie-sky`), IAM OIDC role (`aussie-sky-ci`)
+  - Wave 1: ECR (`satlas`), IAM OIDC role (`satlas-ci`)
   - Wave 2: VPC (2 public + 2 private subnets), ECS Fargate cluster/service/task (256 CPU/512MB), ALB (HTTP :80)
   - Wave 3: S3 catalog bucket (public read), CloudFront (2h TTL, HTTPS), RDS PostgreSQL 15.7 (db.t3.micro, private subnet, random password in Secrets Manager)
 - **CI:** `ecr-push` job in `.github/workflows/ci.yml` — OIDC-based, pushes Docker image to ECR on main branch push
@@ -70,7 +70,7 @@ Or just `terraform apply` once to apply all at once (Terraform handles dependenc
 
 ### Step 3 — Update Vercel env vars
 
-In the Vercel dashboard for `aussie-sky`:
+In the Vercel dashboard for `satlas`:
 - `VITE_CATALOG_URL` → `https://<cloudfront_domain_name>/catalog.tle`
   - Trigger a fresh Vercel deploy after setting this (it's a build-time var)
 
@@ -88,7 +88,7 @@ The `ecr-push` workflow uses OIDC, so no long-lived keys needed. But it needs th
 
 1. Create a project at sentry.io (free tier)
 2. Get the DSN (`https://xxx@xxx.ingest.sentry.io/xxx`)
-3. In Secrets Manager: update `aussie-sky/SENTRY_DSN` with the real DSN
+3. In Secrets Manager: update `satlas/SENTRY_DSN` with the real DSN
 4. Redeploy ECS task (or let the CI pipeline do it)
 
 ### Step 6 — Smoke test
