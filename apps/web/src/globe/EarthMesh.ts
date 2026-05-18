@@ -7,6 +7,9 @@ export class EarthMesh {
   private material: THREE.ShaderMaterial
   private dayTex: THREE.Texture
   private nightTex: THREE.Texture
+  // Preloaded for sun feature — specular (ocean=bright/land=dark) and normal map (terrain bumps)
+  readonly specularTex: THREE.Texture
+  readonly normalTex: THREE.Texture
 
   constructor(renderer: THREE.WebGLRenderer) {
     // 128×64 segments: smoother limb curve visible at close zoom
@@ -26,11 +29,25 @@ export class EarthMesh {
     this.nightTex.magFilter = THREE.LinearFilter
     this.nightTex.colorSpace = THREE.SRGBColorSpace
 
+    // Specular: ocean=white (shiny), land=black (matte) — drives ocean glint in sun shader
+    this.specularTex = loader.load('/textures/earth-specular.jpg')
+    this.specularTex.anisotropy = maxAnisotropy
+    this.specularTex.minFilter = THREE.LinearMipmapLinearFilter
+    this.specularTex.magFilter = THREE.LinearFilter
+
+    // Normal: terrain bump detail for realistic sun-angle shading
+    this.normalTex = loader.load('/textures/earth-normal.jpg')
+    this.normalTex.anisotropy = maxAnisotropy
+    this.normalTex.minFilter = THREE.LinearMipmapLinearFilter
+    this.normalTex.magFilter = THREE.LinearFilter
+
     this.material = new THREE.ShaderMaterial({
       uniforms: {
-        dayTexture: { value: this.dayTex },
-        nightTexture: { value: this.nightTex },
-        sunDirection: { value: new THREE.Vector3(1, 0, 0) },
+        dayTexture:    { value: this.dayTex },
+        nightTexture:  { value: this.nightTex },
+        specularMap:   { value: this.specularTex },
+        normalMap:     { value: this.normalTex },
+        sunDirection:  { value: new THREE.Vector3(1, 0, 0) },
       },
       vertexShader,
       fragmentShader,
@@ -48,5 +65,7 @@ export class EarthMesh {
     this.material.dispose()
     this.dayTex.dispose()
     this.nightTex.dispose()
+    this.specularTex.dispose()
+    this.normalTex.dispose()
   }
 }
