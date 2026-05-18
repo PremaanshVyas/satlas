@@ -125,21 +125,17 @@ export class Globe {
   // Category filtering
   private activeCategories: Set<SatCategory> = new Set(ALL_CATEGORIES)
   private activeCategoryMask: Uint8Array | null = null
-  // When agent sets a filter, track which categories it chose so we can re-apply
-  // colors after catalog refresh and clear them on manual toggle.
   private agentFilterCategories: SatCategory[] | null = null
 
-  // Ground track for selected catalog satellite
-  private groundTrackLine: THREE.LineLoop | null = null
-  private selectedSatIdx = -1
-  private groundTrackRecomputeInterval: ReturnType<typeof setInterval> | null = null
-
-  // Trail: last 10 min of propagated ECEF path for the selected satellite
-  private trailLine: THREE.Line | null = null
+  // Multi-satellite selection — keyed by NORAD ID string
+  private selectedNoradIds: Set<string> = new Set()
+  private selectedIdxs: Set<number> = new Set()  // catalog indices only, for refreshInstanceColor
+  private groundTrackLines: Map<string, THREE.LineLoop> = new Map()
+  private trailLines: Map<string, THREE.Line> = new Map()
+  private recomputeIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
 
   // ISS identity (name captured from catalog; NORAD 25544 is always Zarya)
   private issName = 'ISS (ZARYA)'
-  // ISS satrec kept in Globe.ts so we can propagate live position without touching SatelliteMesh internals.
   private issSatrec: satellite.SatRec = satellite.twoline2satrec(ISS_TLE1, ISS_TLE2)
 
   // Hover
@@ -156,12 +152,10 @@ export class Globe {
   onCatalogRefresh: ((count: number) => void) | null = null
   onSatelliteClick: ((name: string, noradId: string) => void) | null = null
   onSatelliteHover: ((name: string | null, altKm: number | null, screenX: number, screenY: number) => void) | null = null
-  // Fires every second with the selected satellite's live geodetic position.
   onLivePosition: ((pos: LivePosition) => void) | null = null
-  // Fires once when a satellite is selected with static orbital params + satcat metadata.
   onSatelliteSelectInfo: ((orbital: OrbitalParams, meta: SatcatEntry | null) => void) | null = null
-  // Fires when selection is cleared (click X or click empty space).
-  onSatelliteDeselect: (() => void) | null = null
+  // Fires when a satellite is individually removed from selection (tray ✕).
+  onSatelliteRemove: ((noradId: string) => void) | null = null
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
     this.mounted = true
@@ -200,8 +194,6 @@ export class Globe {
     this.controls.autoRotate = false
 
     this.tick()
-    // Show the globe (ISS only) on the first rendered frame — don't wait for catalog.
-    // Catalog dots appear when /api/catalog responds; onCatalogRefresh updates the count.
     requestAnimationFrame(() => { if (this.mounted) onReady?.() })
     void this.refreshIssTle()
     this.issTleInterval = setInterval(() => void this.refreshIssTle(), 2 * 60 * 1000)
@@ -214,7 +206,6 @@ export class Globe {
     canvas.addEventListener('click', this.onCanvasClick)
     canvas.addEventListener('mousemove', this.onCanvasMouseMove)
 
-    // Load satellite metadata (country, launch date, etc.) non-blocking.
     void fetchSatcat().then(m => { if (this.mounted) this.satcat = m })
   }
 
@@ -243,9 +234,6 @@ export class Globe {
       }
       const others = tles.filter((t: TLERecord) => t.norad_id !== ISS_NORAD)
 
-      // Soft refresh: if the InstancedMesh and worker already exist with a similar satellite
-      // count, just re-send TLEs to the worker without tearing down the mesh.
-      // Tearing down causes a visible "no satellites" gap while the new worker initializes.
       if (this.field && this.worker && Math.abs(others.length - this.satNames.length) <= 200) {
         this.satNames = others.map((t: TLERecord) => t.name)
         this.satNoradIds = others.map((t: TLERecord) => t.norad_id)
@@ -260,7 +248,9 @@ export class Globe {
         return
       }
 
-      // Full init: first load, or catalog size changed significantly (new satellites launched).
+      // Full init — clear selections first (indices are about to become stale)
+      this.clearAllSelections()
+
       if (this.field) {
         this.scene.remove(this.field.mesh)
         this.field.dispose()
@@ -279,8 +269,6 @@ export class Globe {
       this.rebuildCategoryMask()
       this.buildSatScales()
 
-      // Deselect ground track and hover — all indices are stale after a full rebuild
-      this.clearGroundTrack()
       this.hoveredIdx = -1
 
       this.field = new SatelliteField(others.length)
@@ -310,18 +298,17 @@ export class Globe {
   // ── Category filtering ──────────────────────────────────────────────────────
 
   setActiveCategories(cats: Set<SatCategory>): void {
-    this.agentFilterCategories = null  // manual toggle clears agent color mode
+    this.agentFilterCategories = null
     this.activeCategories = cats
     this.rebuildCategoryMask()
     if (this.field && this.lastPositionBuffer) {
       this.field.update(this.lastPositionBuffer, this.activeCategoryMask, this.satScales)
     }
-    if (this.field) this.field.setCategoryColors([], null)  // reset to default blue
+    if (this.field) this.field.setCategoryColors([], null)
     if (this.hoveredIdx >= 0) this.refreshInstanceColor(this.hoveredIdx)
-    if (this.selectedSatIdx >= 0) this.refreshInstanceColor(this.selectedSatIdx)
+    for (const idx of this.selectedIdxs) this.refreshInstanceColor(idx)
   }
 
-  // Called when the agent sets a filter: update shown categories AND apply per-category colours.
   applyAgentFilter(categories: SatCategory[]): void {
     const cats = categories.length > 0 ? categories : [...ALL_CATEGORIES]
     this.agentFilterCategories = categories.length > 0 ? [...categories] : null
@@ -344,9 +331,8 @@ export class Globe {
       }
       this.field.setCategoryColors(this.satCategories as string[], colorMap)
     }
-    // Re-apply hover/selected highlights which were overwritten by the bulk color reset
     if (this.hoveredIdx >= 0) this.refreshInstanceColor(this.hoveredIdx)
-    if (this.selectedSatIdx >= 0) this.refreshInstanceColor(this.selectedSatIdx)
+    for (const idx of this.selectedIdxs) this.refreshInstanceColor(idx)
   }
 
   getCategoryCount(cat: SatCategory): number {
@@ -361,8 +347,6 @@ export class Globe {
       if (cat === 'DEBRIS') {
         scales[i] = 0.6
       } else {
-        // Mean motion in rev/day is at TLE line 2 characters 52-62.
-        // GEO ≈ 1.0 rev/day. Use < 1.5 to safely capture GEO and HEO objects.
         const tle2 = this.satTles[i]?.tle2 ?? ''
         const motionRevDay = parseFloat(tle2.substring(52, 63))
         scales[i] = (!isNaN(motionRevDay) && motionRevDay < 1.5) ? 1.5 : 1.0
@@ -383,13 +367,12 @@ export class Globe {
     this.activeCategoryMask = mask
   }
 
-  // ── Live position tick (for selected satellite info card) ────────────────────
+  // ── Live position tick ───────────────────────────────────────────────────────
 
   private static computeOrbitalParams(satrec: satellite.SatRec): OrbitalParams {
-    // Derive period, apogee, perigee from SGP4 elements rather than parsing TLE text.
-    const MU = 398600.4418           // km³/s² — Earth's gravitational parameter
-    const noRads = satrec.no / 60   // mean motion: rad/min → rad/s
-    const a = Math.cbrt(MU / (noRads * noRads))  // semi-major axis in km
+    const MU = 398600.4418
+    const noRads = satrec.no / 60
+    const a = Math.cbrt(MU / (noRads * noRads))
     const e = satrec.ecco
     return {
       inclination: Math.round(satrec.inclo * (180 / Math.PI) * 10) / 10,
@@ -428,8 +411,6 @@ export class Globe {
     this.liveSelectedSatrec = null
   }
 
-  // Called whenever a satellite is selected (catalog or ISS).
-  // Fires onSatelliteSelectInfo with TLE-derived orbital params and any satcat metadata.
   private handleSatSelect(noradId: string, satrec: satellite.SatRec): void {
     this.startLiveTick(satrec)
     const orbital = Globe.computeOrbitalParams(satrec)
@@ -437,34 +418,69 @@ export class Globe {
     this.onSatelliteSelectInfo?.(orbital, meta)
   }
 
-  // ── Ground track ────────────────────────────────────────────────────────────
+  // ── Multi-satellite selection ─────────────────────────────────────────────────
 
-  private clearGroundTrack(): void {
-    if (this.groundTrackLine) {
-      this.scene.remove(this.groundTrackLine)
-      this.groundTrackLine.geometry.dispose()
-      ;(this.groundTrackLine.material as THREE.Material).dispose()
-      this.groundTrackLine = null
+  // Remove one satellite from scene resources (arc, trail, interval) without touching state sets.
+  private _disposeSatFromScene(noradId: string): void {
+    const arc = this.groundTrackLines.get(noradId)
+    if (arc) {
+      this.scene.remove(arc)
+      arc.geometry.dispose()
+      ;(arc.material as THREE.Material).dispose()
+      this.groundTrackLines.delete(noradId)
     }
-    if (this.groundTrackRecomputeInterval !== null) {
-      clearInterval(this.groundTrackRecomputeInterval)
-      this.groundTrackRecomputeInterval = null
+    const trail = this.trailLines.get(noradId)
+    if (trail) {
+      this.scene.remove(trail)
+      trail.geometry.dispose()
+      ;(trail.material as THREE.Material).dispose()
+      this.trailLines.delete(noradId)
     }
-    const oldSelected = this.selectedSatIdx
-    this.selectedSatIdx = -1
-    if (oldSelected >= 0) this.refreshInstanceColor(oldSelected)
-    this.clearTrail()
+    const interval = this.recomputeIntervals.get(noradId)
+    if (interval !== undefined) {
+      clearInterval(interval)
+      this.recomputeIntervals.delete(noradId)
+    }
+  }
+
+  // Clear all selections at once (used during full catalog rebuild).
+  // Fires onSatelliteRemove for each removed satellite so App.tsx stays in sync.
+  private clearAllSelections(): void {
+    const norads = [...this.selectedNoradIds]
+    for (const noradId of norads) {
+      this._disposeSatFromScene(noradId)
+    }
+    // Restore instance colors for any catalog dots that were highlighted
+    for (const idx of this.selectedIdxs) {
+      if (this.field) this.field.setInstanceColor(idx, this.getBaseInstanceColor(idx))
+    }
+    this.selectedNoradIds.clear()
+    this.selectedIdxs.clear()
     this.stopLiveTick()
-    this.onSatelliteDeselect?.()
+    // Notify App.tsx for each removed satellite
+    for (const noradId of norads) {
+      this.onSatelliteRemove?.(noradId)
+    }
   }
 
-  // Public — called from App.tsx when the user clicks ✕ on the info card.
-  clearSelection(): void {
-    this.clearGroundTrack()
+  // Public — called from App.tsx when tray chip ✕ is clicked.
+  removeFromSelection(noradId: string): void {
+    if (!this.selectedNoradIds.has(noradId)) return
+    this._disposeSatFromScene(noradId)
+    this.selectedNoradIds.delete(noradId)
+    if (noradId !== ISS_NORAD) {
+      const idx = this.satNoradIds.indexOf(noradId)
+      if (idx >= 0) {
+        this.selectedIdxs.delete(idx)
+        this.refreshInstanceColor(idx)
+      }
+    }
+    if (this.selectedNoradIds.size === 0) this.stopLiveTick()
+    this.onSatelliteRemove?.(noradId)
   }
 
-  private showTrail(satrec: satellite.SatRec): void {
-    this.clearTrail()
+  // Build a trail line object (last 10 min of propagated path) without adding to scene.
+  private _buildTrail(satrec: satellite.SatRec): THREE.Line | null {
     const now = new Date()
     const nowMs = now.getTime()
     const gmst = satellite.gstime(now)
@@ -472,7 +488,7 @@ export class Globe {
     const sinG = Math.sin(gmst)
 
     const TRAIL_POINTS = 60
-    const TRAIL_MS = 10 * 60 * 1000  // 10 minutes
+    const TRAIL_MS = 10 * 60 * 1000
     const positions: number[] = []
     const colors: number[] = []
 
@@ -484,17 +500,15 @@ export class Globe {
       const mag = Math.sqrt(pos.x ** 2 + pos.y ** 2 + pos.z ** 2)
       if (mag < 1) continue
       const r = mag / R_EARTH_KM
-      // ECI → Three.js ECEF (same transform as computeArcPoints)
       const ex = (pos.x * cosG + pos.y * sinG) / mag
       const ey = (-pos.x * sinG + pos.y * cosG) / mag
       const ez = pos.z / mag
       positions.push(ex * r, ez * r, -ey * r)
-      // Fade from black (oldest) to lime-400 (current) — AdditiveBlending makes black invisible
       const alpha = i / (TRAIL_POINTS - 1)
       colors.push(0x4a / 255 * alpha, 0xde / 255 * alpha, 0x80 / 255 * alpha)
     }
 
-    if (positions.length < 6) return
+    if (positions.length < 6) return null
 
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
@@ -505,24 +519,78 @@ export class Globe {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     })
-    this.trailLine = new THREE.Line(geo, mat)
-    this.scene.add(this.trailLine)
+    return new THREE.Line(geo, mat)
   }
 
-  private clearTrail(): void {
-    if (this.trailLine) {
-      this.scene.remove(this.trailLine)
-      this.trailLine.geometry.dispose()
-      ;(this.trailLine.material as THREE.Material).dispose()
-      this.trailLine = null
+  // Replace the trail for a satellite in-scene (removes old one if present).
+  private _refreshTrail(noradId: string, satrec: satellite.SatRec): void {
+    const old = this.trailLines.get(noradId)
+    if (old) {
+      this.scene.remove(old)
+      old.geometry.dispose()
+      ;(old.material as THREE.Material).dispose()
+      this.trailLines.delete(noradId)
     }
+    const trail = this._buildTrail(satrec)
+    if (trail) {
+      this.trailLines.set(noradId, trail)
+      this.scene.add(trail)
+    }
+  }
+
+  // Add a catalog satellite to the selection tray (or re-focus if already there).
+  private _addCatalogSatToSelection(idx: number, noradId: string): void {
+    const tle = this.satTles[idx]
+    if (!tle) return
+    const satrec = satellite.twoline2satrec(tle.tle1, tle.tle2)
+
+    // Always update live tick and card info, even if already selected.
+    this.handleSatSelect(noradId, satrec)
+
+    if (this.selectedNoradIds.has(noradId)) return  // arc + trail already exist
+
+    this.selectedNoradIds.add(noradId)
+    this.selectedIdxs.add(idx)
+
+    // Build arc
+    const points = computeArcPoints(satrec)
+    if (points.length >= 2) {
+      const geo = new THREE.BufferGeometry().setFromPoints(points)
+      const mat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6 })
+      const arc = new THREE.LineLoop(geo, mat)
+      this.groundTrackLines.set(noradId, arc)
+      this.scene.add(arc)
+    }
+
+    this._refreshTrail(noradId, satrec)
+    this.refreshInstanceColor(idx)
+
+    // Recompute arc and trail every 60 s to stay aligned with GMST drift
+    const interval = setInterval(() => {
+      if (!this.selectedNoradIds.has(noradId)) return
+      const t = this.satTles[idx]
+      if (!t) return
+      const sr = satellite.twoline2satrec(t.tle1, t.tle2)
+      const arc = this.groundTrackLines.get(noradId)
+      if (arc) arc.geometry.setFromPoints(computeArcPoints(sr))
+      this._refreshTrail(noradId, sr)
+    }, 60 * 1000)
+    this.recomputeIntervals.set(noradId, interval)
+  }
+
+  // Add ISS to the selection tray (or re-focus if already there).
+  // ISS arc is managed by SatelliteMesh; we only manage the trail here.
+  private _addIssToSelection(): void {
+    this.handleSatSelect(ISS_NORAD, this.issSatrec)
+    if (this.selectedNoradIds.has(ISS_NORAD)) return
+    this.selectedNoradIds.add(ISS_NORAD)
+    this._refreshTrail(ISS_NORAD, this.issSatrec)
   }
 
   searchCatalog(query: string, maxResults = 8): SearchResult[] {
     const results: SearchResult[] = []
     const q = query.trim().toLowerCase()
     if (!q) return []
-    // ISS is excluded from satNoradIds — check it separately.
     if (this.issName.toLowerCase().includes(q) || ISS_NORAD.startsWith(q)) {
       results.push({ name: this.issName, noradId: ISS_NORAD })
     }
@@ -535,52 +603,18 @@ export class Globe {
 
   selectCatalogSatellite(noradId: string): void {
     if (noradId === ISS_NORAD) {
-      this.clearGroundTrack()  // ISS already has its own arc via SatelliteMesh
-      this.showTrail(this.issSatrec)
-      this.handleSatSelect(ISS_NORAD, this.issSatrec)
+      this._addIssToSelection()
       this.onSatelliteClick?.(this.issName, ISS_NORAD)
       return
     }
     const idx = this.satNoradIds.indexOf(noradId)
     if (idx < 0) return
-    this.showGroundTrack(idx)
+    this._addCatalogSatToSelection(idx, noradId)
     this.onSatelliteClick?.(this.satNames[idx] ?? noradId, noradId)
-  }
-
-  private showGroundTrack(idx: number): void {
-    this.clearGroundTrack()
-    const tle = this.satTles[idx]
-    if (!tle) return
-    const satrec = satellite.twoline2satrec(tle.tle1, tle.tle2)
-    this.selectedSatIdx = idx
-    this.handleSatSelect(this.satNoradIds[idx] ?? '', satrec)
-
-    const points = computeArcPoints(satrec)
-    if (points.length < 2) return
-
-    const geo = new THREE.BufferGeometry().setFromPoints(points)
-    const mat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6 })
-    this.groundTrackLine = new THREE.LineLoop(geo, mat)
-    this.scene.add(this.groundTrackLine)
-    this.refreshInstanceColor(idx)
-    this.showTrail(satrec)
-
-    // Recompute arc and trail every 60s to stay aligned with GMST drift
-    this.groundTrackRecomputeInterval = setInterval(() => {
-      if (this.selectedSatIdx >= 0) {
-        const t = this.satTles[this.selectedSatIdx]
-        if (t) {
-          const sr = satellite.twoline2satrec(t.tle1, t.tle2)
-          if (this.groundTrackLine) this.groundTrackLine.geometry.setFromPoints(computeArcPoints(sr))
-          this.showTrail(sr)
-        }
-      }
-    }, 60 * 1000)
   }
 
   // ── Instance colour helpers ──────────────────────────────────────────────────
 
-  // Returns the "resting" colour for a catalog instance (no hover / selection).
   private getBaseInstanceColor(idx: number): THREE.Color {
     if (this.agentFilterCategories !== null) {
       const cat = this.satCategories[idx]
@@ -589,10 +623,9 @@ export class Globe {
     return SAT_DEFAULT_COLOR
   }
 
-  // Apply the correct colour for idx based on current hover / selected state.
   private refreshInstanceColor(idx: number): void {
     if (idx < 0 || !this.field) return
-    if (idx === this.hoveredIdx || idx === this.selectedSatIdx) {
+    if (idx === this.hoveredIdx || this.selectedIdxs.has(idx)) {
       this.field.setInstanceColor(idx, HIGHLIGHT_COLOR)
     } else {
       this.field.setInstanceColor(idx, this.getBaseInstanceColor(idx))
@@ -613,8 +646,7 @@ export class Globe {
     const camY = this.camera.position.y
     const camZ = this.camera.position.z
 
-    // Check ISS first — it sits at the same location as docked modules in the catalog
-    // (Unity, Destiny, etc.) so without this the wrong NORAD ID gets returned.
+    // Check ISS first — it shares a position with docked modules in the catalog.
     const issPos = this.iss.getCurrentPosition()
     if (issPos) {
       this._projPos.copy(issPos).project(this.camera)
@@ -624,11 +656,9 @@ export class Globe {
         const screenDist = Math.hypot(sx - clickX, sy - clickY)
         const dx = issPos.x - camX, dy = issPos.y - camY, dz = issPos.z - camZ
         const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
-        const dotRadiusPx = (0.008 / depth) * fovFactor  // 0.008 = ISS dot radius
+        const dotRadiusPx = (0.008 / depth) * fovFactor
         if (screenDist <= dotRadiusPx + 2) {
-          this.clearGroundTrack()  // ISS already has its own arc via SatelliteMesh
-          this.showTrail(this.issSatrec)
-          this.handleSatSelect(ISS_NORAD, this.issSatrec)
+          this._addIssToSelection()
           this.onSatelliteClick(this.issName, ISS_NORAD)
           return
         }
@@ -638,14 +668,12 @@ export class Globe {
     if (!this.lastPositionBuffer) return
     const buf = this.lastPositionBuffer
 
-    // Short-circuit: if a catalog satellite is already hovered (tooltip visible),
-    // clicking it should always work — the hover uses a wider hit zone than the
-    // click's tight dotRadiusPx+1, so without this you had to be pixel-perfect.
+    // Short-circuit: if a catalog satellite is already hovered, clicking always works.
     if (this.hoveredIdx >= 0) {
       const name = this.satNames[this.hoveredIdx]
       const noradId = this.satNoradIds[this.hoveredIdx]
       if (name && noradId) {
-        this.showGroundTrack(this.hoveredIdx)
+        this._addCatalogSatToSelection(this.hoveredIdx, noradId)
         this.onSatelliteClick(name, noradId)
         return
       }
@@ -661,8 +689,6 @@ export class Globe {
       if (this.activeCategoryMask && !this.activeCategoryMask[i]) continue
 
       const satX = buf[i * 3], satY = buf[i * 3 + 1], satZ = buf[i * 3 + 2]
-      // Occlusion: skip satellites on the far side of the earth from the camera.
-      // They project to valid 2D screen positions but are physically hidden by the globe.
       if (satX * camX + satY * camY + satZ * camZ <= 0) continue
 
       this._projPos.set(satX, satY, satZ)
@@ -677,8 +703,6 @@ export class Globe {
       const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
       const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
 
-      // Among candidates in the hit zone, prefer the one closest to the camera
-      // (smallest depth) so a lower-altitude satellite always wins over one behind it.
       if (screenDist <= dotRadiusPx + 1 && depth < bestDepth) {
         bestDepth = depth
         bestIdx = i
@@ -689,13 +713,11 @@ export class Globe {
       const name = this.satNames[bestIdx]
       const noradId = this.satNoradIds[bestIdx]
       if (name && noradId) {
-        this.showGroundTrack(bestIdx)
+        this._addCatalogSatToSelection(bestIdx, noradId)
         this.onSatelliteClick(name, noradId)
       }
-    } else {
-      // Click on empty space — clear selection
-      this.clearGroundTrack()
     }
+    // Empty space click: do nothing — user must use tray ✕ to deselect.
   }
 
   // ── Hover handler ────────────────────────────────────────────────────────────
@@ -717,7 +739,6 @@ export class Globe {
     const camZ = this.camera.position.z
     const HOVER_EXTRA_PX = 6
 
-    // Check ISS first (same reason as click handler)
     const issPos = this.iss.getCurrentPosition()
     if (issPos) {
       this._projPos.copy(issPos).project(this.camera)
@@ -733,8 +754,8 @@ export class Globe {
           const altKm = Math.round((r - 1) * R_EARTH_KM)
           if (this.hoveredIdx !== -2) {
             const prev = this.hoveredIdx
-            this.hoveredIdx = -2  // sentinel for ISS
-            if (prev >= 0) this.refreshInstanceColor(prev)  // restore previous catalog dot
+            this.hoveredIdx = -2
+            if (prev >= 0) this.refreshInstanceColor(prev)
             this.onSatelliteHover(this.issName, altKm, e.clientX, e.clientY)
           }
           return
@@ -758,8 +779,6 @@ export class Globe {
       if (this.activeCategoryMask && !this.activeCategoryMask[i]) continue
 
       const satX = buf[i * 3], satY = buf[i * 3 + 1], satZ = buf[i * 3 + 2]
-      // Occlusion: skip satellites on the far side of the earth from the camera.
-      // They project to valid 2D screen positions but are physically hidden by the globe.
       if (satX * camX + satY * camY + satZ * camZ <= 0) continue
 
       this._projPos.set(satX, satY, satZ)
@@ -774,8 +793,6 @@ export class Globe {
       const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
       const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
 
-      // Among candidates in the hit zone, prefer the one closest to the camera
-      // (smallest depth) so a lower-altitude satellite always wins over one behind it.
       if (screenDist <= dotRadiusPx + HOVER_EXTRA_PX && depth < bestDepth) {
         bestDepth = depth
         bestIdx = i
@@ -790,15 +807,15 @@ export class Globe {
       if (bestIdx !== this.hoveredIdx) {
         const prev = this.hoveredIdx
         this.hoveredIdx = bestIdx
-        if (prev >= 0) this.refreshInstanceColor(prev)  // restore old
-        this.refreshInstanceColor(bestIdx)               // highlight new
+        if (prev >= 0) this.refreshInstanceColor(prev)
+        this.refreshInstanceColor(bestIdx)
         this.onSatelliteHover(name ?? null, altKm, e.clientX, e.clientY)
       }
     } else {
       if (this.hoveredIdx !== -1) {
         const prev = this.hoveredIdx
         this.hoveredIdx = -1
-        if (prev >= 0) this.refreshInstanceColor(prev)  // restore on hover-out
+        if (prev >= 0) this.refreshInstanceColor(prev)
         this.onSatelliteHover(null, null, e.clientX, e.clientY)
       }
     }
@@ -881,8 +898,7 @@ export class Globe {
       this.clickCanvas.removeEventListener('mousemove', this.onCanvasMouseMove)
       this.clickCanvas = null
     }
-    this.stopLiveTick()
-    this.clearGroundTrack()
+    this.clearAllSelections()
     this.worker?.terminate()
     this.worker = null
     this.controls.dispose()

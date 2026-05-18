@@ -20,7 +20,7 @@ interface UseGlobeCallbacks {
   onSatelliteClick?: (name: string, noradId: string) => void
   onSatelliteSelectInfo?: (orbital: OrbitalParams, meta: SatcatEntry | null) => void
   onLivePosition?: (pos: LivePosition | null) => void
-  onSatelliteDeselect?: () => void
+  onSatelliteRemove?: (noradId: string) => void
 }
 
 export function useGlobe(
@@ -33,7 +33,7 @@ export function useGlobe(
   hoverInfo: HoverInfo | null
   setActiveCategories: (cats: Set<SatCategory>) => void
   applyAgentFilter: (cats: SatCategory[]) => void
-  deselectSatellite: () => void
+  removeFromSelection: (noradId: string) => void
   searchCatalog: (query: string) => SearchResult[]
   selectCatalogSatellite: (noradId: string) => void
 } {
@@ -42,7 +42,6 @@ export function useGlobe(
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
   const globeRef = useRef<Globe | null>(null)
 
-  // Keep callback refs fresh so Globe callbacks always call the current version.
   const callbacksRef = useRef(callbacks)
   useLayoutEffect(() => { callbacksRef.current = callbacks })
 
@@ -65,10 +64,7 @@ export function useGlobe(
     }
     globe.onLivePosition = (pos) => callbacksRef.current.onLivePosition?.(pos)
     globe.onSatelliteSelectInfo = (orbital, meta) => callbacksRef.current.onSatelliteSelectInfo?.(orbital, meta)
-    globe.onSatelliteDeselect = () => {
-      callbacksRef.current.onLivePosition?.(null)
-      callbacksRef.current.onSatelliteDeselect?.()
-    }
+    globe.onSatelliteRemove = (noradId) => callbacksRef.current.onSatelliteRemove?.(noradId)
     globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {
@@ -100,8 +96,8 @@ export function useGlobe(
     globeRef.current?.applyAgentFilter(cats)
   }, [])
 
-  const deselectSatellite = useCallback(() => {
-    globeRef.current?.clearSelection()
+  const removeFromSelection = useCallback((noradId: string): void => {
+    globeRef.current?.removeFromSelection(noradId)
   }, [])
 
   const searchCatalog = useCallback((query: string): SearchResult[] => {
@@ -112,5 +108,5 @@ export function useGlobe(
     globeRef.current?.selectCatalogSatellite(noradId)
   }, [])
 
-  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, deselectSatellite, searchCatalog, selectCatalogSatellite }
+  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, searchCatalog, selectCatalogSatellite }
 }

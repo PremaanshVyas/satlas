@@ -30,9 +30,9 @@ interface GlobeViewProps {
   onSatelliteSelect?: (name: string, noradId: string) => void
   onSatelliteSelectInfo?: (orbital: OrbitalParams, meta: SatcatEntry | null) => void
   onLivePosition?: (pos: LivePosition | null) => void
-  onSatelliteDeselect?: () => void
+  onSatelliteRemove?: (noradId: string) => void
   onCategoriesChange?: (cats: string[]) => void
-  onDeselectReady?: (deselect: () => void) => void
+  onRemoveReady?: (remove: (noradId: string) => void) => void
 }
 
 export default function GlobeView({
@@ -41,25 +41,25 @@ export default function GlobeView({
   onSatelliteSelect,
   onSatelliteSelectInfo,
   onLivePosition,
-  onSatelliteDeselect,
+  onSatelliteRemove,
   onCategoriesChange,
-  onDeselectReady,
+  onRemoveReady,
 }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(
     new Set(ALL_CATEGORIES),
   )
 
-  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, deselectSatellite, searchCatalog, selectCatalogSatellite } = useGlobe(
+  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, searchCatalog, selectCatalogSatellite } = useGlobe(
     containerRef,
     highlight,
-    { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteDeselect },
+    { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove },
   )
 
-  // Expose deselectSatellite to App.tsx (needed for ✕ button on info card)
-  const onDeselectReadyRef = useRef(onDeselectReady)
-  useEffect(() => { onDeselectReadyRef.current = onDeselectReady })
-  useEffect(() => { onDeselectReadyRef.current?.(deselectSatellite) }, [deselectSatellite])
+  // Expose removeFromSelection to App.tsx (needed for tray ✕ button)
+  const onRemoveReadyRef = useRef(onRemoveReady)
+  useEffect(() => { onRemoveReadyRef.current = onRemoveReady })
+  useEffect(() => { onRemoveReadyRef.current?.(removeFromSelection) }, [removeFromSelection])
 
   // Agent directive: update filter pills AND apply category colours
   useEffect(() => {

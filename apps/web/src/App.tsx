@@ -27,21 +27,29 @@ export default function App() {
   const { messages, isLoading, sendMessage, highlight, setFilter } = useChat()
   const [chatOpen, setChatOpen] = useState(false)
   const [prefill, setPrefill] = useState<string | null>(null)
-  const [selectedSat, setSelectedSat] = useState<SelectedSat | null>(null)
+
+  // Multi-satellite selection tray
+  const [selectedSats, setSelectedSats] = useState<SelectedSat[]>([])
+  // The satellite whose info card is currently shown (most recently clicked)
+  const [cardSat, setCardSat] = useState<SelectedSat | null>(null)
   const [livePosition, setLivePosition] = useState<LivePosition | null>(null)
   const [selectedOrbital, setSelectedOrbital] = useState<OrbitalParams | null>(null)
   const [selectedMeta, setSelectedMeta] = useState<SatcatEntry | null>(null)
   const [shownCategories, setShownCategories] = useState<string[]>([...ALL_CATEGORIES])
 
-  // deselectSatellite is passed up from GlobeView once the globe mounts
-  const deselectRef = useRef<(() => void) | null>(null)
+  // removeFromSelectionRef: called when tray chip ✕ is clicked
+  const removeFromSelectionRef = useRef<((noradId: string) => void) | null>(null)
 
   const handleSendMessage = useCallback((content: string) => {
     sendMessage(content, shownCategories)
   }, [sendMessage, shownCategories])
 
+  // Called every time a satellite is clicked — adds to tray + shows card
   function handleSatelliteSelect(name: string, noradId: string) {
-    setSelectedSat({ name, noradId })
+    setSelectedSats(prev =>
+      prev.find(s => s.noradId === noradId) ? prev : [...prev, { name, noradId }]
+    )
+    setCardSat({ name, noradId })
   }
 
   function handleSatelliteSelectInfo(orbital: OrbitalParams, meta: SatcatEntry | null) {
@@ -53,21 +61,37 @@ export default function App() {
     setLivePosition(pos)
   }
 
-  function handleSatelliteDeselect() {
-    setSelectedSat(null)
+  // Globe fires this when a satellite is removed from selection (tray ✕ or catalog rebuild)
+  function handleSatelliteRemove(noradId: string) {
+    setSelectedSats(prev => prev.filter(s => s.noradId !== noradId))
+    setCardSat(prev => {
+      if (prev?.noradId === noradId) {
+        setLivePosition(null)
+        setSelectedOrbital(null)
+        setSelectedMeta(null)
+        return null
+      }
+      return prev
+    })
+  }
+
+  // Card ✕ — closes the info card, keeps the satellite in the tray + orbit line on globe
+  function handleDismissCard() {
+    setCardSat(null)
     setLivePosition(null)
     setSelectedOrbital(null)
     setSelectedMeta(null)
   }
 
-  function handleDismissSat() {
-    deselectRef.current?.()   // clears globe arc + stops live tick
-    handleSatelliteDeselect()
+  // Tray chip ✕ — removes satellite from globe selection + tray
+  function handleRemoveFromTray(noradId: string) {
+    removeFromSelectionRef.current?.(noradId)
+    // Globe fires onSatelliteRemove which updates selectedSats and cardSat
   }
 
   function handleAskAI() {
-    if (!selectedSat) return
-    setPrefill(`Tell me about NORAD ${selectedSat.noradId} (${selectedSat.name})`)
+    if (!cardSat) return
+    setPrefill(`Tell me about NORAD ${cardSat.noradId} (${cardSat.name})`)
     setChatOpen(true)
   }
 
@@ -80,20 +104,46 @@ export default function App() {
         onSatelliteSelect={handleSatelliteSelect}
         onSatelliteSelectInfo={handleSatelliteSelectInfo}
         onLivePosition={handleLivePosition}
-        onSatelliteDeselect={handleSatelliteDeselect}
+        onSatelliteRemove={handleSatelliteRemove}
         onCategoriesChange={setShownCategories}
-        onDeselectReady={(fn) => { deselectRef.current = fn }}
+        onRemoveReady={(fn) => { removeFromSelectionRef.current = fn }}
       />
 
+      {/* Selection tray — bottom-left, above category pills, scrollable chips */}
+      {selectedSats.length > 0 && (
+        <div className="absolute bottom-14 left-3 z-20 flex gap-1.5 flex-wrap max-w-[calc(100vw-1.5rem)] sm:max-w-sm">
+          {selectedSats.map(sat => (
+            <div
+              key={sat.noradId}
+              onClick={() => setCardSat(sat)}
+              className={`flex items-center gap-1 pl-2 pr-1 py-1 rounded-full text-xs border cursor-pointer transition-colors touch-manipulation ${
+                cardSat?.noradId === sat.noradId
+                  ? 'bg-blue-600/80 border-blue-500 text-white'
+                  : 'bg-gray-900/90 border-gray-700 text-gray-300 hover:border-gray-500'
+              }`}
+            >
+              <span className="truncate max-w-[100px] sm:max-w-[140px]">{sat.name}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleRemoveFromTray(sat.noradId) }}
+                className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors touch-manipulation"
+                aria-label={`Remove ${sat.name}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Selected satellite info card — top-left, below clock */}
-      {selectedSat && (
+      {cardSat && (
         <div className="absolute top-10 left-3 mt-2 w-[calc(100%-1.5rem)] sm:w-64 bg-gray-900/95 backdrop-blur-sm border border-gray-700/80 rounded-lg shadow-2xl z-20 overflow-hidden">
           {/* Header */}
           <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 border-b border-gray-800">
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-white truncate leading-tight">{selectedSat.name}</div>
+              <div className="text-sm font-semibold text-white truncate leading-tight">{cardSat.name}</div>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs text-gray-500">NORAD {selectedSat.noradId}</span>
+                <span className="text-xs text-gray-500">NORAD {cardSat.noradId}</span>
                 {selectedMeta && (
                   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
                     selectedMeta.objectType === 'PAY' ? 'bg-blue-900/60 text-blue-300' :
@@ -107,9 +157,9 @@ export default function App() {
               </div>
             </div>
             <button
-              onClick={handleDismissSat}
-              className="text-gray-600 hover:text-gray-300 text-xl leading-none flex-shrink-0 mt-0.5 transition-colors touch-manipulation"
-              aria-label="Dismiss"
+              onClick={handleDismissCard}
+              className="text-gray-600 hover:text-gray-300 text-xl leading-none flex-shrink-0 mt-0.5 transition-colors touch-manipulation w-8 h-8 flex items-center justify-center"
+              aria-label="Dismiss card"
             >
               ×
             </button>
@@ -215,7 +265,7 @@ export default function App() {
             </div>
             <button
               onClick={() => setChatOpen(false)}
-              className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded"
+              className="text-gray-500 hover:text-gray-300 transition-colors w-10 h-10 flex items-center justify-center rounded touch-manipulation"
               aria-label="Close chat"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -235,11 +285,11 @@ export default function App() {
         </div>
       )}
 
-      {/* Chat toggle button — bottom-right */}
+      {/* Chat toggle button — bottom-right, always visible */}
       {!chatOpen && (
         <button
           onClick={() => setChatOpen(true)}
-          className="absolute bottom-16 right-4 z-30 w-12 h-12 sm:w-12 sm:h-12 rounded-full bg-blue-600 active:bg-blue-700 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center transition-colors touch-manipulation"
+          className="absolute bottom-16 right-4 z-30 w-12 h-12 rounded-full bg-blue-600 active:bg-blue-700 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center transition-colors touch-manipulation"
           aria-label="Open AI chat"
         >
           {messages.length > 0 ? (
