@@ -46,37 +46,35 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
         )}
       </div>
 
-      {/* Metadata */}
-      {meta && (
-        <div className="px-3 py-2 border-b border-gray-800 space-y-1.5">
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-            <div className="flex flex-col min-w-0">
-              <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Owner</span>
-              <span className="text-gray-300 truncate">{meta.owner || '—'}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Launched</span>
-              <span className="text-gray-300">{meta.launchDate || '—'}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Status</span>
-              <span className={meta.opsStatus === '+' ? 'text-green-400' : meta.opsStatus ? 'text-gray-400' : 'text-gray-600'}>
-                {meta.opsStatus ? opsStatusLabel(meta.opsStatus) : '—'}
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Designator</span>
-              <span className="text-gray-300 font-mono text-[10px]">{meta.intlDes || '—'}</span>
-            </div>
+      {/* Metadata — always visible; dashes until satcat resolves */}
+      <div className="px-3 py-2 border-b border-gray-800 space-y-1.5">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Owner</span>
+            <span className="text-gray-300 truncate">{meta?.owner || '—'}</span>
           </div>
-          {meta.launchSite && (
-            <div className="flex flex-col">
-              <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Launch Site</span>
-              <span className="text-gray-300 text-xs leading-snug">{meta.launchSite}</span>
-            </div>
-          )}
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Launched</span>
+            <span className="text-gray-300">{meta?.launchDate || '—'}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Status</span>
+            <span className={meta?.opsStatus === '+' ? 'text-green-400' : meta?.opsStatus ? 'text-gray-400' : 'text-gray-600'}>
+              {meta?.opsStatus ? opsStatusLabel(meta.opsStatus) : '—'}
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Designator</span>
+            <span className="text-gray-300 font-mono text-[10px]">{meta?.intlDes || '—'}</span>
+          </div>
         </div>
-      )}
+        {meta?.launchSite && (
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Launch Site</span>
+            <span className="text-gray-300 text-xs leading-snug">{meta.launchSite}</span>
+          </div>
+        )}
+      </div>
 
       {/* Live position */}
       <div className="px-3 py-2 border-b border-gray-800">
