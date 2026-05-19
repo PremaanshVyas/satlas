@@ -3,7 +3,7 @@
 // All data is optional — if the fetch fails, the info card still shows TLE-derived params.
 
 const SATCAT_URL = 'https://celestrak.org/pub/satcat.csv'
-const SATCAT_CACHE_KEY = 'satlas-satcat-v1'
+const SATCAT_CACHE_KEY = 'satlas-satcat-v2'
 const SATCAT_CACHE_TTL_MS = 24 * 60 * 60 * 1000  // 24 h
 
 export interface SatcatEntry {
@@ -12,19 +12,20 @@ export interface SatcatEntry {
   opsStatus: string    // +, -, P, B, S, X, D, ?
   owner: string        // readable country/org name
   launchDate: string   // YYYY-MM-DD or ''
+  launchSite: string   // readable facility name + location or ''
   intlDes: string      // international designator e.g. "1998-067A"
 }
 
 // CelesTrak satcat.csv column indices (0-based, header row = row 0)
 // OBJECT_NAME, OBJECT_ID(intlDes), NORAD_CAT_ID, OBJECT_TYPE, OPS_STATUS_CODE,
-// OWNER, LAUNCH_DATE, LAUNCH_SITE, DECAY_DATE, PERIOD, INCLINATION, APOGEE, PERIGEE,
-// RCS, DATA_STATUS_CODE, ORBIT_CENTER, ORBIT_TYPE
+// OWNER, LAUNCH_DATE, LAUNCH_SITE, DECAY_DATE, ...
 const C_INTLDES    = 1
 const C_NORAD      = 2
 const C_TYPE       = 3
 const C_OPS        = 4
 const C_OWNER      = 5
 const C_LAUNCH     = 6
+const C_SITE       = 7
 
 const OWNER_MAP: Record<string, string> = {
   US: 'United States', CIS: 'Russia', CN: 'China', ESA: 'Europe (ESA)',
@@ -33,8 +34,67 @@ const OWNER_MAP: Record<string, string> = {
   ISR: 'Israel', TW: 'Taiwan', KR: 'South Korea', BR: 'Brazil',
   AE: 'UAE', SA: 'Saudi Arabia', SES: 'SES (Luxembourg)',
   IRIDIUM: 'Iridium', SPACEX: 'SpaceX', O3B: 'O3b Networks',
-  NATO: 'NATO', AB: 'Arab Satellite', PRC: 'China',
-  ORB: 'Orbital Sciences', SEA: 'Sea Launch',
+  NATO: 'NATO', AB: 'Arab Satellite Communications', PRC: 'China',
+  ORB: 'Orbital Sciences', SEA: 'Sea Launch', NZ: 'New Zealand',
+  ARGN: 'Argentina', CHBZ: 'Brazil / China', CIS2: 'Russia',
+  EUTE: 'Eutelsat', FRNCE: 'France', GREC: 'Greece',
+  INDO: 'Indonesia', IRAN: 'Iran', MEX: 'Mexico',
+  NETH: 'Netherlands', NKOR: 'North Korea', NOR: 'Norway',
+  PAKI: 'Pakistan', SING: 'Singapore', SWED: 'Sweden',
+  SWTZ: 'Switzerland', THAI: 'Thailand', TURK: 'Turkey',
+  UAE: 'UAE', USBZ: 'USA / Brazil', USEU: 'USA / Europe',
+}
+
+// CelesTrak LAUNCH_SITE codes → readable facility name + location
+const SITE_MAP: Record<string, string> = {
+  // United States
+  AFETR: 'Cape Canaveral SFS, Florida, USA',
+  AFWTR: 'Vandenberg SFB, California, USA',
+  WFF:   'Wallops Flight Facility, Virginia, USA',
+  KODAK: 'Kodiak Launch Complex, Alaska, USA',
+  KWAJL: 'Kwajalein Atoll, Marshall Islands',
+  OMELEK:'Omelek Island, Kwajalein Atoll',
+  AIRL:  'Air Launch (Pegasus), USA',
+  // Russia / Kazakhstan
+  TTMTR: 'Baikonur Cosmodrome, Kazakhstan',
+  TYMSC: 'Baikonur Cosmodrome, Kazakhstan',
+  PKMSC: 'Plesetsk Cosmodrome, Arkhangelsk, Russia',
+  KYMSC: 'Kapustin Yar, Astrakhan, Russia',
+  VOSTO: 'Vostochny Cosmodrome, Amur Oblast, Russia',
+  YMAS:  'Yasny (Dombarovsky), Orenburg, Russia',
+  // Europe
+  FRGUI: 'Guiana Space Centre, Kourou, French Guiana',
+  CAS:   'Canary Islands Launch Site, Spain',
+  // China
+  JSC:   'Jiuquan Satellite Launch Centre, Inner Mongolia, China',
+  TSC:   'Taiyuan Satellite Launch Centre, Shanxi, China',
+  XSLC:  'Xichang Satellite Launch Centre, Sichuan, China',
+  WSLC:  'Wenchang Space Launch Site, Hainan, China',
+  // Japan
+  TNSC:  'Tanegashima Space Centre, Kagoshima, Japan',
+  KASC:  'Uchinoura Space Centre, Kagoshima, Japan',
+  KSCUT: 'Uchinoura Space Centre, Kagoshima, Japan',
+  // India
+  SRISR: 'Satish Dhawan Space Centre, Sriharikota, India',
+  // Israel
+  PALMA: 'Palmachim Airbase, Tel Nof, Israel',
+  // Iran
+  SEMNA: 'Imam Khomeini SLC, Semnan, Iran',
+  SADOL: 'Shahroud Space Complex, Shahroud, Iran',
+  // Australia
+  WOMRA: 'Woomera, South Australia, Australia',
+  // New Zealand
+  RLLB:  'Rocket Lab LC-1, Māhia Peninsula, New Zealand',
+  // Brazil
+  AGSAC: 'Alcântara Launch Centre, Maranhão, Brazil',
+  LPRM:  'Alcântara Launch Centre, Maranhão, Brazil',
+  // South Korea
+  NSC:   'Naro Space Centre, Goheung, South Korea',
+  // Sea / mobile
+  PLAXS: 'Sea Launch Platform (Pacific Ocean)',
+  SNMLP: 'San Marco Platform, Indian Ocean, Kenya',
+  // Historical
+  HGSTR: 'Hammaguira, Algeria',
 }
 
 function parseSatcatCsv(csv: string): Map<string, SatcatEntry> {
@@ -46,6 +106,7 @@ function parseSatcatCsv(csv: string): Map<string, SatcatEntry> {
     const norad = cols[C_NORAD]?.trim()
     if (!norad || norad === '0') continue
     const ownerCode = cols[C_OWNER]?.trim() ?? ''
+    const siteCode  = cols[C_SITE]?.trim() ?? ''
     map.set(norad, {
       noradId: norad,
       intlDes: cols[C_INTLDES]?.trim() ?? '',
@@ -53,6 +114,7 @@ function parseSatcatCsv(csv: string): Map<string, SatcatEntry> {
       opsStatus: cols[C_OPS]?.trim() ?? '',
       owner: OWNER_MAP[ownerCode] ?? ownerCode,
       launchDate: cols[C_LAUNCH]?.trim() ?? '',
+      launchSite: SITE_MAP[siteCode] ?? (siteCode || ''),
     })
   }
   return map
