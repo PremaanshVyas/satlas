@@ -231,37 +231,32 @@ export default function App() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      {/* Chat panel — slides in from the right */}
-      <AnimatePresence>
-        {chatOpen && (
-          <motion.div
-            key="chat"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-            className="absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col"
-          >
-            <div
-              className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0"
-              style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
-            >
-              <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-              <span className="text-sm font-medium text-gray-200">AI Assistant</span>
-            </div>
-            <div className="flex-1 min-h-0">
-              <AgentPanel
-                messages={messages}
-                isLoading={isLoading}
-                sendMessage={handleSendMessage}
-                prefill={prefill}
-                onClearPrefill={() => setPrefill(null)}
-                onClose={() => setChatOpen(false)}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Chat panel — always in DOM, animates x to avoid mount-flash */}
+      <motion.div
+        initial={false}
+        animate={{ x: chatOpen ? 0 : '100%' }}
+        transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+        className="absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col"
+        aria-hidden={!chatOpen}
+      >
+        <div
+          className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0"
+          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+        >
+          <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+          <span className="text-sm font-medium text-gray-200">AI Assistant</span>
+        </div>
+        <div className="flex-1 min-h-0">
+          <AgentPanel
+            messages={messages}
+            isLoading={isLoading}
+            sendMessage={handleSendMessage}
+            prefill={prefill}
+            onClearPrefill={() => setPrefill(null)}
+            onClose={() => setChatOpen(false)}
+          />
+        </div>
+      </motion.div>
 
       {/* Chat toggle button — scales in when chat is closed */}
       <AnimatePresence>
