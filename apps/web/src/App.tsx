@@ -231,29 +231,28 @@ export default function App() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      {/* Chat panel — CSS transition; always in DOM so no Framer mount-flash */}
-      <div
-        className={`absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col transition-transform duration-[220ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] ${chatOpen ? 'translate-x-0' : 'translate-x-full'}`}
-        aria-hidden={!chatOpen}
-      >
-        <div
-          className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0"
-          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
-        >
-          <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-          <span className="text-sm font-medium text-gray-200">AI Assistant</span>
+      {/* Chat panel */}
+      {chatOpen && (
+        <div className="absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col">
+          <div
+            className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0"
+            style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+          >
+            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+            <span className="text-sm font-medium text-gray-200">AI Assistant</span>
+          </div>
+          <div className="flex-1 min-h-0">
+            <AgentPanel
+              messages={messages}
+              isLoading={isLoading}
+              sendMessage={handleSendMessage}
+              prefill={prefill}
+              onClearPrefill={() => setPrefill(null)}
+              onClose={() => setChatOpen(false)}
+            />
+          </div>
         </div>
-        <div className="flex-1 min-h-0">
-          <AgentPanel
-            messages={messages}
-            isLoading={isLoading}
-            sendMessage={handleSendMessage}
-            prefill={prefill}
-            onClearPrefill={() => setPrefill(null)}
-            onClose={() => setChatOpen(false)}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Chat toggle button — scales in when chat is closed */}
       <AnimatePresence>
