@@ -8,6 +8,30 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 const MODEL_DETECT = 'claude-haiku-4-5-20251001'
 const MODEL_ANSWER  = 'claude-haiku-4-5-20251001'
 
+// ── Rate limiting (in-process, per warm instance) ─────────────────────────────
+
+const WINDOW_MS = 60_000   // 1 minute sliding window
+const MAX_REQ   = 15       // requests per IP per window
+const MAX_MSG_LEN = 500    // characters
+
+const ipWindows = new Map<string, { count: number; resetAt: number }>()
+
+// Purge stale entries every ~100 calls to prevent unbounded growth
+let callsSincePurge = 0
+function checkRateLimit(ip: string): boolean {
+  if (++callsSincePurge > 100) {
+    const now = Date.now()
+    for (const [k, v] of ipWindows) if (now > v.resetAt) ipWindows.delete(k)
+    callsSincePurge = 0
+  }
+  const now = Date.now()
+  const entry = ipWindows.get(ip)
+  if (!entry || now > entry.resetAt) { ipWindows.set(ip, { count: 1, resetAt: now + WINDOW_MS }); return true }
+  if (entry.count >= MAX_REQ) return false
+  entry.count++
+  return true
+}
+
 // ── TLE helpers ───────────────────────────────────────────────────────────────
 
 interface TleRecord { name: string; noradId: string; tle1: string; tle2: string }
@@ -356,8 +380,22 @@ interface HistoryMessage { role: 'user' | 'assistant'; content: string }
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') { res.status(405).send('Method not allowed'); return }
 
+  // Rate limiting
+  const ip = (req.headers['x-forwarded-for'] as string ?? '').split(',')[0].trim() || 'unknown'
+  if (!checkRateLimit(ip)) {
+    res.status(429).json({ error: 'Too many requests — please wait a moment.' })
+    return
+  }
+
   const { message, history = [], shownCategories = ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'], categoryCounts = {} } =
     req.body as { message: string; history?: HistoryMessage[]; shownCategories?: string[]; categoryCounts?: Record<string, number> }
+
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    res.status(400).json({ error: 'Message is required.' }); return
+  }
+  if (message.length > MAX_MSG_LEN) {
+    res.status(400).json({ error: `Message too long (max ${MAX_MSG_LEN} characters).` }); return
+  }
 
   const systemPrompt = buildSystemPrompt(new Date(), shownCategories, categoryCounts)
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
