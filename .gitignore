@@ -23,3 +23,8 @@ dist/
 
 # Claude Code local config
 .claude/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
