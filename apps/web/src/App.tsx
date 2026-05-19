@@ -233,7 +233,7 @@ export default function App() {
 
       {/* Chat panel */}
       {chatOpen && (
-        <div className="absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col">
+        <div className="absolute inset-y-0 right-0 w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col">
           <div
             className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-shrink-0"
             style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
