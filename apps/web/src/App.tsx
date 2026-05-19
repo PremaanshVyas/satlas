@@ -231,26 +231,31 @@ export default function App() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      {/* Chat panel */}
+      {/* Chat panel — fixed to viewport, single flat flex column.
+          AgentPanel renders a fragment so message list + input bar are
+          direct children here — no nested height propagation needed. */}
       {chatOpen && (
-        <div className="fixed inset-y-0 right-0 w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col overflow-hidden">
+        <div
+          className="fixed right-0 w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col bg-gray-950 overflow-hidden"
+          style={{ top: 0, bottom: 0 }}
+        >
+          {/* Header — flex-none, never shrinks */}
           <div
-            className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm flex-none"
+            className="flex-none flex items-center gap-2 px-4 py-3 border-b border-gray-800"
             style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
           >
-            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+            <div className="w-2 h-2 rounded-full bg-blue-500" />
             <span className="text-sm font-medium text-gray-200">AI Assistant</span>
           </div>
-          <div className="flex-1 min-h-0 relative">
-            <AgentPanel
-              messages={messages}
-              isLoading={isLoading}
-              sendMessage={handleSendMessage}
-              prefill={prefill}
-              onClearPrefill={() => setPrefill(null)}
-              onClose={() => setChatOpen(false)}
-            />
-          </div>
+          {/* Message list + input bar rendered as direct flex children */}
+          <AgentPanel
+            messages={messages}
+            isLoading={isLoading}
+            sendMessage={handleSendMessage}
+            prefill={prefill}
+            onClearPrefill={() => setPrefill(null)}
+            onClose={() => setChatOpen(false)}
+          />
         </div>
       )}
 

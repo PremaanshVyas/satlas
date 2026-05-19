@@ -42,10 +42,12 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
     }
   }
 
+  // Renders as a fragment — message list and input bar are direct flex children
+  // of the parent chat panel, keeping sizing in a single flat flex context.
   return (
-    <div className="absolute inset-0 flex flex-col bg-gray-950/95 backdrop-blur-sm">
-      {/* Message list */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+    <>
+      {/* Message list — flex-1 grows to fill all space above input bar */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="text-xs text-gray-600 text-center leading-relaxed px-4">
@@ -82,16 +84,16 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
+      {/* Input bar — flex-none, always anchored at the bottom of the panel */}
       <div
-        className="border-t border-gray-800 p-3 flex-none"
+        className="flex-none border-t border-gray-800 px-3 pt-3"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
       >
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {onClose && (
             <button
               onClick={onClose}
-              className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-gray-900 text-gray-500 hover:text-gray-300 active:text-white transition-colors touch-manipulation"
+              className="flex-none w-10 h-10 flex items-center justify-center rounded-lg bg-gray-900 text-gray-500 hover:text-gray-300 active:text-white transition-colors touch-manipulation"
               aria-label="Close chat"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -102,7 +104,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-gray-900 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-gray-700 disabled:opacity-50"
+            className="flex-1 bg-gray-900 rounded-lg px-3 py-2.5 text-sm text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-gray-700 disabled:opacity-50"
             placeholder="Ask anything…"
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -112,12 +114,12 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors touch-manipulation"
+            className="flex-none px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors touch-manipulation"
           >
             Send
           </button>
         </div>
       </div>
-    </div>
+    </>
   )
 }
