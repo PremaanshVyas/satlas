@@ -10,7 +10,7 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 
 ---
 
-## Current state (start of Session 18)
+## Current state (mid Session 18, AWS still pending)
 
 - **Frontend:** live at `getsatlas.vercel.app` (Vercel project renamed to `satlas`)
   - Real-time cloud layer (clouds.matteason.co.uk)
@@ -20,6 +20,12 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
   - Dot sizing by type (GEO 1.5×, debris 0.6×)
   - Multi-satellite selection tray (NORAD ID keyed Maps)
   - Cloud toggle, AI category counts, mobile-safe layout (100dvh + safe-area)
+  - **NEW:** Framer Motion animations throughout — tray slide-up, card fade-scale, chat panel easeOut slide, chat button spring scale
+  - **NEW:** Vaul bottom sheet for satellite info on mobile (<640px); `SatInfoCard` shared component
+  - **NEW:** Geist font (Google Fonts CDN), Tailwind v4 `@theme` declaration
+  - **NEW:** NASA MODIS cloud-free Earth texture (`land_ocean_ice_8192`); specular + normal maps preloaded
+  - **NEW:** `find_satellites_overhead` AI tool live — propagates ~5-8k payloads, top 25 by elevation with compass direction
+  - **NEW:** Rate limiting on `/api/chat` — 15 req/min per IP, 500-char message cap, 429/400 responses
 - **Platform rename done:** GitHub repo is `PremaanshVyas/satlas`, all code/docs updated. `satlas.app` domain not yet registered — using `getsatlas.vercel.app` until then.
 - **Vercel env vars set:** `ANTHROPIC_API_KEY`, `SPACE_TRACK_USER`, `SPACE_TRACK_PASS` — all active. `VITE_CATALOG_URL` not yet set (added after terraform apply).
 - **Python orbital service:** code ready in `apps/orbital/` — NOT yet running on ECS (pending `terraform apply`)
@@ -128,8 +134,8 @@ The ECS task's startup event (`main.py`) calls `run_migrations()` + `refresh_loo
 Once the backend URL is confirmed working:
 - Expose pass prediction in the UI (currently only via AI chat)
 - Public API endpoints with basic docs
-- Rate limiting on the Vercel function
 - Consider registering a domain + HTTPS on ALB
+- `docs/architecture.md` (not yet written — overview diagram + service boundaries)
 
 ---
 
