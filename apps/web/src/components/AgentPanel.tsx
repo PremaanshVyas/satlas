@@ -43,7 +43,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-950/95 backdrop-blur-sm">
+    <div className="absolute inset-0 flex flex-col bg-gray-950/95 backdrop-blur-sm">
       {/* Message list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
         {messages.length === 0 && (

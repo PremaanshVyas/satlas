@@ -241,7 +241,7 @@ export default function App() {
             <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
             <span className="text-sm font-medium text-gray-200">AI Assistant</span>
           </div>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 relative">
             <AgentPanel
               messages={messages}
               isLoading={isLoading}
