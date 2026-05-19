@@ -89,11 +89,13 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
         className="flex-none border-t border-gray-800 px-3 pt-3"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
       >
-        <div className="flex items-center gap-2">
+        {/* min-w-0 on the row prevents the input's browser-default min-width
+            from overflowing the panel and clipping the Send button */}
+        <div className="flex items-center gap-2 min-w-0">
           {onClose && (
             <button
               onClick={onClose}
-              className="flex-none w-10 h-10 flex items-center justify-center rounded-lg bg-gray-900 text-gray-500 hover:text-gray-300 active:text-white transition-colors touch-manipulation"
+              className="flex-none w-9 h-9 flex items-center justify-center rounded-lg bg-gray-900 text-gray-500 hover:text-gray-300 active:text-white transition-colors touch-manipulation"
               aria-label="Close chat"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -104,7 +106,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-gray-900 rounded-lg px-3 py-2.5 text-sm text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-gray-700 disabled:opacity-50"
+            className="min-w-0 flex-1 bg-gray-900 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-gray-700 disabled:opacity-50"
             placeholder="Ask anything…"
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -114,7 +116,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="flex-none px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors touch-manipulation"
+            className="flex-none px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors touch-manipulation"
           >
             Send
           </button>
