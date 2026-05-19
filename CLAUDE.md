@@ -111,9 +111,9 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 18 complete — all frontend work done, Send button bug resolved. AWS infra blocked on card verification.
+**Current phase:** Session 19 complete — AWS stack fully live. ECS Fargate serving orbital API from Sydney, CloudFront serving catalog from Melbourne edge.
 
-**Next milestone:** Session 19 — run `terraform apply` in `infra/terraform/`, update `VITE_CATALOG_URL` on Vercel, set `AWS_ACCOUNT_ID` GitHub variable, add Sentry DSN to ECS task. Then: pass prediction in UI, public API docs, domain registration + HTTPS on ALB.
+**Next milestone:** Session 20 — pass prediction panel in UI, public API docs page, domain registration + HTTPS on ALB.
 
 **Pre-Session 18 housekeeping completed:**
 - [x] Platform renamed from "Aussie Sky" to "Satlas" across all code, infra, and docs
@@ -152,7 +152,27 @@ satlas/
 
 **Session 18 cont. — Send button clip fixed (3-attempt journey, see ADR):** Final fix: `position: fixed` panel with `style={{ top: 0, bottom: 0 }}`; AgentPanel renders as `<>` fragment (direct flex children, no height inheritance); `min-w-0` on flex row div + `<input>` to prevent browser-default input min-width from pushing Send off-screen. 54 tests passing. No open layout bugs.
 
-**Blockers:** AWS card verification needed before `terraform apply`.
+**Session 19 completed tasks:**
+- [x] AWS account set up, IAM user `satlas-admin` created
+- [x] Terraform HCL syntax fixed (semicolons → multiline blocks in vpc.tf)
+- [x] RDS engine version bumped 15.7 → 15.18 (15.7 not available in ap-southeast-2)
+- [x] RDS db name/username renamed aussiesky → satlas
+- [x] `terraform apply` — all 47 resources created in ap-southeast-2
+- [x] Secrets Manager populated: ANTHROPIC_API_KEY, SPACE_TRACK_USER/PASS, SENTRY_DSN
+- [x] Docker image built for linux/amd64 (ARM Mac → cross-compile required), pushed to ECR
+- [x] Sentry init guarded: only runs when DSN starts with `https://` — placeholder no longer crashes startup
+- [x] ECS Fargate task running, health check passing
+- [x] S3 catalog.tle written by ECS on startup (4.8MB from Space-Track)
+- [x] CloudFront serving from MEL51-P2 (Melbourne edge)
+- [x] Vercel `VITE_CATALOG_URL` set to CloudFront URL, redeployed
+- [x] GitHub `AWS_ACCOUNT_ID` variable set, CI ECR push job active
+
+**Live endpoints:**
+- ALB: `http://satlas-1659207311.ap-southeast-2.elb.amazonaws.com`
+- CloudFront catalog: `https://dgsll6twimcwl.cloudfront.net/catalog.tle`
+- Frontend: `https://getsatlas.vercel.app`
+
+**No blockers.**
 
 ---
 
@@ -161,6 +181,10 @@ satlas/
 Format: date, decision, rationale, rule to remember.
 
 Pre-Session-12 decisions archived in `docs/decisions-archive.md`.
+
+- **2026-05-20 — Session 19: Docker images built on Apple Silicon must use `--platform linux/amd64` for ECS Fargate.** ECS Fargate runs on x86_64. A Docker image built on an M-series Mac without `--platform linux/amd64` is ARM-only. ECS error: "image Manifest does not contain descriptor matching platform 'linux/amd64'". Fix: always pass `--platform linux/amd64` when building images destined for ECS. Rule: add `--platform linux/amd64` to every `docker build` command in CI and local builds for ECS targets; the Dockerfile itself needs no changes.
+
+- **2026-05-20 — Session 19: Sentry SDK crashes on invalid DSN at import time, not at first event send.** `sentry_sdk.init(dsn='placeholder')` throws during module import — before FastAPI can even start, before the `/health` route is registered. ECS health check fails → ALB deregisters target → 503. Fix: guard init with `if dsn and dsn.startswith('https://')`. Rule: any SDK that validates config at init time will crash the process before the HTTP server starts — always guard optional integrations so the app boots without them.
 
 - **2026-05-13 — Architectural rule: Claude is the presenter, never the calculator.** Claude must not compute, infer, or guess any data value shown to the user — not time, not timezone offsets, not satellite positions, not pass windows. Every value must come from a backend tool result or a pre-computed server-side value. If data is missing, say unavailable. Violation that prompted this rule: passed UTC time and let Claude infer the Melbourne offset → got AEST/AEDT wrong. Fix pattern: compute it server-side, hand Claude the answer to format.
 
