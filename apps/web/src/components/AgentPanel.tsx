@@ -43,7 +43,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-gray-950/95 backdrop-blur-sm">
+    <div className="h-full flex flex-col bg-gray-950/95 backdrop-blur-sm">
       {/* Message list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
         {messages.length === 0 && (
@@ -84,7 +84,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
 
       {/* Input */}
       <div
-        className="border-t border-gray-800 p-3 flex-shrink-0"
+        className="border-t border-gray-800 p-3 flex-none"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
       >
         <div className="flex gap-2">

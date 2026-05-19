@@ -129,20 +129,11 @@ The ECS task's startup event (`main.py`) calls `run_migrations()` + `refresh_loo
 
 ---
 
-## Open bug to fix first thing next session
+## ✅ Send button clip — FIXED
 
-**Send button clipped at bottom of chat panel.** The last pixel(s) of the "Send" button text are cut off. Multiple attempts made (safe-area padding, overflow-hidden, flex-1/min-h-0 chain, inset-y-0) — all failed. Root cause not confirmed.
+Root cause: `overflow: hidden` on the root div clipped at exactly 100dvh. Chat panel was `absolute inset-y-0` so its height depended on the parent layout chain; sub-pixel rounding from borders + `env(safe-area-inset-*)` pushed content 1px past the boundary.
 
-**How to debug:** Open DevTools → inspect the chat panel chain. Check computed heights of:
-1. Root div (`relative w-screen`, `height: 100dvh`) 
-2. Chat panel (`absolute inset-y-0 right-0`, `flex flex-col`)
-3. Content wrapper (`flex-1 min-h-0 flex flex-col`)
-4. AgentPanel root (`flex flex-col flex-1 min-h-0`)
-5. Input bar (`flex-shrink-0`)
-
-Verify the sum of (header + messages + input bar) equals the panel height. If any element is overflowing its parent, that's the culprit. Fix from evidence, not theory.
-
-Files involved: `apps/web/src/App.tsx` (panel + wrapper), `apps/web/src/components/AgentPanel.tsx` (root div + input bar).
+Fix: chat panel changed to `position: fixed inset-y-0` (positions against the viewport, not the parent — no layout drift). AgentPanel root changed to `h-full flex flex-col`. Root div to `overflow-x-hidden`. Build + 54 tests clean. No open layout bugs.
 
 ## V1 after AWS deploy
 
