@@ -10,7 +10,7 @@ Premaansh ("mickey") — CS student at RMIT Melbourne, building this for Austral
 
 ---
 
-## Current state (mid Session 18, AWS still pending)
+## Current state (end of Session 18, AWS still pending)
 
 - **Frontend:** live at `getsatlas.vercel.app` (Vercel project renamed to `satlas`)
   - Real-time cloud layer (clouds.matteason.co.uk)
@@ -128,6 +128,21 @@ The ECS task's startup event (`main.py`) calls `run_migrations()` + `refresh_loo
 ```
 
 ---
+
+## Open bug to fix first thing next session
+
+**Send button clipped at bottom of chat panel.** The last pixel(s) of the "Send" button text are cut off. Multiple attempts made (safe-area padding, overflow-hidden, flex-1/min-h-0 chain, inset-y-0) — all failed. Root cause not confirmed.
+
+**How to debug:** Open DevTools → inspect the chat panel chain. Check computed heights of:
+1. Root div (`relative w-screen`, `height: 100dvh`) 
+2. Chat panel (`absolute inset-y-0 right-0`, `flex flex-col`)
+3. Content wrapper (`flex-1 min-h-0 flex flex-col`)
+4. AgentPanel root (`flex flex-col flex-1 min-h-0`)
+5. Input bar (`flex-shrink-0`)
+
+Verify the sum of (header + messages + input bar) equals the panel height. If any element is overflowing its parent, that's the culprit. Fix from evidence, not theory.
+
+Files involved: `apps/web/src/App.tsx` (panel + wrapper), `apps/web/src/components/AgentPanel.tsx` (root div + input bar).
 
 ## V1 after AWS deploy
 

@@ -144,8 +144,13 @@ satlas/
 - [x] Country borders feature spec: `docs/superpowers/specs/2026-05-19-country-borders-feature.md` — Natural Earth TopoJSON borders at radius 1.001, click → centroid lookup → overhead panel, `/api/overhead` Vercel function. Added to README V2 roadmap.
 - [x] Rate limiting + input validation on `/api/chat`: sliding window 15 req/min per IP, max message 500 chars, 429/400 responses.
 - [x] Earth texture swapped to NASA MODIS cloud-free (`land_ocean_ice_8192`); colour shader stripped to raw texture sample + 3.5× night lights boost (no grading). Specular + normal maps downloaded and preloaded for future sun feature.
-- [x] Frontend UI polish: Framer Motion animations (tray slide-up, card fade-scale, chat panel easeOut slide, chat button spring), Vaul bottom sheet for mobile satellite info card, Geist font. `SatInfoCard` extracted as shared component.
+- [x] Frontend UI polish: Framer Motion animations (tray slide-up, card fade-scale, chat button spring), Vaul bottom sheet for mobile satellite info card, Geist font. `SatInfoCard` extracted as shared component. Chat panel uses plain conditional render (no animation — spring overshoot attempts all failed).
 - [x] CI lint fixed: `set-state-in-effect` disable comment on MediaQueryList sync; `matchMedia` mock in test-setup.ts.
+- [x] Globe drag vs click: `mousedown` position recorded; `onCanvasClick` ignores moves >5px — no accidental satellite picks during globe rotation.
+- [x] Satellite info card metadata: always renders (no conditional hide), `—` for missing fields. `LAUNCH_SITE` col 7 added to satcat parser with 35-entry site map. Retroactive meta fill when satcat loads after click. Cache key bumped to `satlas-satcat-v2`.
+- [x] AgentPanel safe-area bottom padding added; flex chain corrected (flex-1 min-h-0 through all levels, inset-y-0 on panel).
+
+**Known open bug (carry into next session):** The "d" in the Send button is still clipped at the bottom of the chat panel on some viewports. Multiple flex/overflow attempts made — root cause is likely sub-pixel rounding or a height constraint not propagating. Next session: open DevTools, inspect actual computed heights on the panel chain, and fix from evidence rather than theory.
 
 **Blockers:** AWS card verification needed before `terraform apply`.
 
