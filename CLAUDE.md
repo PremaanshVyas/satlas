@@ -111,9 +111,9 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 18 in progress — AWS card pending (tonight). `find_satellites_overhead` AI tool shipped. Pending: `terraform apply` and related setup.
+**Current phase:** Session 18 complete — all frontend work done, Send button bug resolved. AWS infra blocked on card verification.
 
-**Next milestone:** Session 18 cont. — run `terraform apply` in `infra/terraform/`, update Vercel env var `VITE_CATALOG_URL` with CloudFront domain, add Sentry DSN to ECS task env vars. Then resume V1 roadmap.
+**Next milestone:** Session 19 — run `terraform apply` in `infra/terraform/`, update `VITE_CATALOG_URL` on Vercel, set `AWS_ACCOUNT_ID` GitHub variable, add Sentry DSN to ECS task. Then: pass prediction in UI, public API docs, domain registration + HTTPS on ALB.
 
 **Pre-Session 18 housekeeping completed:**
 - [x] Platform renamed from "Aussie Sky" to "Satlas" across all code, infra, and docs
@@ -150,7 +150,7 @@ satlas/
 - [x] Satellite info card metadata: always renders (no conditional hide), `—` for missing fields. `LAUNCH_SITE` col 7 added to satcat parser with 35-entry site map. Retroactive meta fill when satcat loads after click. Cache key bumped to `satlas-satcat-v2`.
 - [x] AgentPanel safe-area bottom padding added; flex chain corrected (flex-1 min-h-0 through all levels, inset-y-0 on panel).
 
-**Session 18 cont. — Send button clip fixed:** Chat panel changed to `position: fixed`, AgentPanel root to `h-full flex flex-col`. Build + 54 tests passing. Bug closed.
+**Session 18 cont. — Send button clip fixed (3-attempt journey, see ADR):** Final fix: `position: fixed` panel with `style={{ top: 0, bottom: 0 }}`; AgentPanel renders as `<>` fragment (direct flex children, no height inheritance); `min-w-0` on flex row div + `<input>` to prevent browser-default input min-width from pushing Send off-screen. 54 tests passing. No open layout bugs.
 
 **Blockers:** AWS card verification needed before `terraform apply`.
 
@@ -256,7 +256,7 @@ Pre-Session-12 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-19 — Session 18: Chat panel uses easeOut tween, not spring, to prevent overshoot glitch.** Framer Motion spring animations (`type: 'spring'`) can overshoot the target value before settling. On the full-height chat panel (`x: '100%' → 0`), the overshoot moved the panel slightly past the left viewport edge, making it appear to "flash wide" before snapping back. Fix: `transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}` (CSS ease cubic-bezier, no overshoot). The chat button `type: 'spring'` is kept intentionally — small scale animation; subtle bounce is desirable there. Rule: use spring animations for small UI elements (buttons, chips) where bounce adds character; use easeOut tweens for large panel slides where overshoot causes visible layout jank.
 
-- **2026-05-19 — Session 18: Chat panel `position: fixed` fixes Send button clip permanently.** The chat panel was `absolute inset-y-0` (positions relative to the parent element). The root has `overflow: hidden` which clips at exactly 100dvh. Sub-pixel rounding from border widths + `env(safe-area-inset-*)` padding inside the flex chain caused 1px overflow that was clipped by the root — the "d" in "Send" was at that exact pixel. Fix: (1) Chat panel changed to `position: fixed inset-y-0` — fixed elements position against the viewport, not the layout parent, eliminating sub-pixel drift from parent layout. (2) Add `overflow-hidden` to the panel to self-clip its own children. (3) Wrapper div loses `flex flex-col` (not needed since AgentPanel fills via `h-full`). (4) AgentPanel root changed from `flex flex-col flex-1 min-h-0` to `h-full flex flex-col` — percentage height resolves against the wrapper's flex-determined height (definite in CSS Flexbox spec). (5) Root changed to `overflow-x-hidden` so it only clips horizontal overflow (not needed for fixed elements, but more semantically correct). Rule: when a flex chain overflows by 1px due to sub-pixel accumulation, the fix is not more `min-h-0` — it's removing the layout dependency entirely. Full-screen overlay panels should use `position: fixed` instead of `absolute`, so their height is always exactly the viewport height.
+- **2026-05-19 — Session 18: Send button clip — 3-attempt debugging journey; root cause was `min-w-0` on input.** The bug was described as "d in Send button clipped" but was actually horizontal (right-side) clipping of "nd" in "Send". Three attempts needed to expose the true cause. **Attempt 1** (wrong diagnosis): Thought it was vertical sub-pixel overflow. Changed panel from `absolute inset-y-0` → `position: fixed`; made AgentPanel `h-full flex flex-col`. In Safari, `h-full` resolves to `auto` when the parent has no *explicit* height — only flex-determined. CSS 2.1 §10.5: percentage heights require a "specified" (non-auto) height on the containing block. Safari strictly enforces this; AgentPanel became content-sized. Still broken. **Attempt 2** (wrong): Made panel `relative`, AgentPanel `absolute inset-0 flex flex-col`. Chrome: mostly worked. Safari: AgentPanel got `height: 0` — same CSS 2.1 spec issue applies to absolutely positioned children of flex items without explicit heights. User reported: "I can't see it in Safari and very tiny in Chrome." **Attempt 3** (correct): (1) Panel: `position: fixed` with `style={{ top: 0, bottom: 0 }}` — inline style avoids Tailwind class quirks, positions against viewport always. (2) AgentPanel renders as `<>` fragment — message list (`flex-1 min-h-0`) and input bar (`flex-none`) become direct flex children of the fixed panel, eliminating all height propagation across component boundaries. No spec ambiguity. (3) `min-w-0` on both the flex row `<div>` AND the `<input>` element. HTML inputs have a browser-default `min-width` derived from the placeholder text ("Ask anything…" ≈ 150-200px). Without `min-w-0`, `flex-1` cannot shrink the input below that minimum, so the Send button is pushed past the panel's right edge and clipped by `overflow-hidden`. Root div: `overflow-x-hidden` (not `overflow-hidden`) — fixed elements aren't clipped by ancestor overflow, but the directional change is semantically correct. Rule: (1) Full-screen overlay panels: use `position: fixed` with `style={{ top: 0, bottom: 0 }}`. (2) For components that must fill a flex item: render as a fragment so children participate directly in the flex context — never rely on `h-full` or `absolute inset-0` across component boundaries. (3) Any `flex-1` on `<input>`: always add `min-w-0` to both the input and its flex container — browser-default input min-width is invisible until it overflows.
 
 - **2026-05-19 — Session 18: `find_satellites_overhead` implemented in Node.js, not Python.** The README and chat UI claimed "find satellites overhead" worked — it didn't. The `api/chat.ts` only had 4 tools; there was no overhead search tool at all. Fix: added a 5th tool to `chat.ts` that (1) fetches the full catalog from `/api/catalog` (Vercel CDN-cached, ~50ms warm), (2) strips debris/rocket bodies by name heuristic reducing ~20k to ~5-8k payloads, (3) propagates all of them to the same `now` instant with a single pre-computed GMST, and (4) returns the top 25 by elevation with compass direction. Key design: computing GMST once before the loop (not inside) is correct — all satellites are evaluated at the same instant. `CATALOG_BASE` env var allows local dev override. Total tool execution: ~1-2s warm, ~5-6s cold — within Vercel Hobby's 10s limit. Rule: for bulk propagation to the same instant, compute GMST once outside the loop; per-satellite GMST computation is wasted work since the time doesn't change between satellites.
 
@@ -281,7 +281,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-18-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-19-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -305,7 +305,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | File | What it contains |
 |------|-----------------|
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
-| `docs/session-18-bootstrap.md` | Next session full context prompt — paste at start of Session 18. |
+| `docs/session-18-bootstrap.md` | Session 18 bootstrap (historical). |
+| `docs/session-19-bootstrap.md` | Next session full context prompt — paste at start of Session 19. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–11, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |

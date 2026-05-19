@@ -129,11 +129,21 @@ The ECS task's startup event (`main.py`) calls `run_migrations()` + `refresh_loo
 
 ---
 
-## ✅ Send button clip — FIXED
+## ✅ Send button clip — FIXED (3-attempt journey)
 
-Root cause: `overflow: hidden` on the root div clipped at exactly 100dvh. Chat panel was `absolute inset-y-0` so its height depended on the parent layout chain; sub-pixel rounding from borders + `env(safe-area-inset-*)` pushed content 1px past the boundary.
+The bug was horizontal (right-side) clipping of "nd" in "Send", not vertical. Required 3 attempts to isolate.
 
-Fix: chat panel changed to `position: fixed inset-y-0` (positions against the viewport, not the parent — no layout drift). AgentPanel root changed to `h-full flex flex-col`. Root div to `overflow-x-hidden`. Build + 54 tests clean. No open layout bugs.
+**Attempt 1** (wrong): Changed panel `absolute` → `fixed`, AgentPanel `h-full flex flex-col`. Safari: `h-full` resolves to `auto` when parent has no explicit height (CSS 2.1 §10.5). Still broken.
+
+**Attempt 2** (wrong): `relative` wrapper, AgentPanel `absolute inset-0 flex flex-col`. Chrome: mostly OK. Safari: AgentPanel height 0 — same spec issue. User reported "I can't see it in Safari."
+
+**Attempt 3** (correct, final):
+1. Panel: `position: fixed` with `style={{ top: 0, bottom: 0 }}` (inline, not Tailwind class)
+2. AgentPanel renders `<>` fragment — message list + input bar are direct flex children of the fixed panel, no height inheritance across component boundaries
+3. `min-w-0` on both the flex row `<div>` AND the `<input>` — browser-default input `min-width` (based on placeholder text) was pushing Send past the `overflow-hidden` edge
+4. Root div: `overflow-x-hidden` (not `overflow-hidden`)
+
+54 tests passing. Deployed. No open layout bugs.
 
 ## V1 after AWS deploy
 
