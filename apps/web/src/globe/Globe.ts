@@ -146,6 +146,9 @@ export class Globe {
 
   // Satellite catalog metadata (country, launch date, etc.) keyed by NORAD ID.
   private satcat: Map<string, SatcatEntry> = new Map()
+  // Last satellite whose info card is showing — used to retroactively fill meta once satcat loads.
+  private _lastInfoNorad: string | null = null
+  private _lastInfoSatrec: satellite.SatRec | null = null
 
   // Live position ticking for the selected satellite info card.
   private liveTickInterval: ReturnType<typeof setInterval> | null = null
@@ -209,7 +212,18 @@ export class Globe {
     canvas.addEventListener('click', this.onCanvasClick)
     canvas.addEventListener('mousemove', this.onCanvasMouseMove)
 
-    void fetchSatcat().then(m => { if (this.mounted) this.satcat = m })
+    void fetchSatcat().then(m => {
+      if (!this.mounted) return
+      this.satcat = m
+      // If a satellite was selected before satcat loaded, re-fire with the now-available meta.
+      if (this._lastInfoNorad && this._lastInfoSatrec) {
+        const meta = m.get(this._lastInfoNorad) ?? null
+        if (meta) {
+          const orbital = Globe.computeOrbitalParams(this._lastInfoSatrec)
+          this.onSatelliteSelectInfo?.(orbital, meta)
+        }
+      }
+    })
   }
 
   private async refreshIssTle(): Promise<void> {
@@ -416,6 +430,8 @@ export class Globe {
 
   private handleSatSelect(noradId: string, satrec: satellite.SatRec): void {
     this.startLiveTick(satrec)
+    this._lastInfoNorad = noradId
+    this._lastInfoSatrec = satrec
     const orbital = Globe.computeOrbitalParams(satrec)
     const meta = this.satcat.get(noradId) ?? null
     this.onSatelliteSelectInfo?.(orbital, meta)
