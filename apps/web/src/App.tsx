@@ -231,12 +231,9 @@ export default function App() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      {/* Chat panel — always in DOM, animates x to avoid mount-flash */}
-      <motion.div
-        initial={false}
-        animate={{ x: chatOpen ? 0 : '100%' }}
-        transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-        className="absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col"
+      {/* Chat panel — CSS transition; always in DOM so no Framer mount-flash */}
+      <div
+        className={`absolute top-0 right-0 h-full w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col transition-transform duration-[220ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] ${chatOpen ? 'translate-x-0' : 'translate-x-full'}`}
         aria-hidden={!chatOpen}
       >
         <div
@@ -256,7 +253,7 @@ export default function App() {
             onClose={() => setChatOpen(false)}
           />
         </div>
-      </motion.div>
+      </div>
 
       {/* Chat toggle button — scales in when chat is closed */}
       <AnimatePresence>
