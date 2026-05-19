@@ -53,6 +53,7 @@ function parseTleText(text: string): TleRecord[] {
 // ── Catalog fetch for bulk queries (overhead) ────────────────────────────────
 
 const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://getsatlas.vercel.app'
+const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL ?? 'http://satlas-1659207311.ap-southeast-2.elb.amazonaws.com'
 
 async function fetchCatalogTles(): Promise<TleRecord[]> {
   const res = await fetch(`${CATALOG_BASE}/api/catalog`, { signal: AbortSignal.timeout(8000) })
@@ -60,6 +61,25 @@ async function fetchCatalogTles(): Promise<TleRecord[]> {
   const tles = parseTleText(await res.text())
   // Space-Track prefixes name lines with "0 " — strip it
   return tles.map(r => ({ ...r, name: r.name.replace(/^0 /, '') }))
+}
+
+// Fetch a single TLE from the CloudFront catalog — avoids CelesTrak cloud IP blocks
+const CLOUDFRONT_CATALOG = process.env.CLOUDFRONT_CATALOG ?? 'https://dgsll6twimcwl.cloudfront.net/catalog.tle'
+let _catalogCache: TleRecord[] | null = null
+let _catalogFetchedAt = 0
+async function fetchTle(query: string): Promise<TleRecord | null> {
+  const now = Date.now()
+  if (!_catalogCache || now - _catalogFetchedAt > 120_000) {
+    const res = await fetch(CLOUDFRONT_CATALOG, { signal: AbortSignal.timeout(8000) })
+    if (!res.ok) return null
+    const tles = parseTleText(await res.text())
+    _catalogCache = tles.map(r => ({ ...r, name: r.name.replace(/^0 /, '') }))
+    _catalogFetchedAt = now
+  }
+  const isNorad = /^\d+$/.test(query.trim())
+  if (isNorad) return _catalogCache.find(r => r.noradId === query.trim()) ?? null
+  const q = query.trim().toUpperCase()
+  return _catalogCache.find(r => r.name.toUpperCase().includes(q)) ?? null
 }
 
 function isDebrisOrRocketBody(name: string): boolean {
@@ -90,37 +110,6 @@ async function fetchTle(query: string): Promise<TleRecord | null> {
 
 const MU = 398600.4418  // km³/s²
 const R_EARTH = 6371    // km
-
-function computeSatInfo(rec: TleRecord) {
-  const satrec = satellite.twoline2satrec(rec.tle1, rec.tle2)
-  const now = new Date()
-  const posVel = satellite.propagate(satrec, now)
-  if (!posVel.position || typeof posVel.position === 'boolean') return { error: 'Propagation failed' }
-
-  const pos = posVel.position as satellite.EciVec3<number>
-  const vel = posVel.velocity as satellite.EciVec3<number>
-  const gmst = satellite.gstime(now)
-  const geod = satellite.eciToGeodetic(pos, gmst)
-  const velKms = Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
-
-  const noRads = satrec.no / 60       // rad/min → rad/s
-  const a = Math.cbrt(MU / (noRads * noRads))
-  const e = satrec.ecco
-  const period = (2 * Math.PI / noRads) / 60  // seconds → minutes
-
-  return {
-    name: rec.name,
-    norad_id: rec.noradId,
-    latitude:  +satellite.degreesLat(geod.latitude).toFixed(4),
-    longitude: +satellite.degreesLong(geod.longitude).toFixed(4),
-    altitude_km: +geod.height.toFixed(1),
-    velocity_kms: +velKms.toFixed(3),
-    inclination: +(satrec.inclo * 180 / Math.PI).toFixed(2),
-    period_minutes: +period.toFixed(2),
-    apogee_km:  +(a * (1 + e) - R_EARTH).toFixed(0),
-    perigee_km: +(a * (1 - e) - R_EARTH).toFixed(0),
-  }
-}
 
 interface Pass {
   start: string
@@ -188,9 +177,12 @@ function computePasses(rec: TleRecord, latDeg: number, lonDeg: number, hoursAhea
 // ── Tool implementations (no Railway) ────────────────────────────────────────
 
 async function toolGetSatelliteInfo(query: string): Promise<unknown> {
-  const rec = await fetchTle(query)
-  if (!rec) return { error: `Satellite not found: ${query}` }
-  return computeSatInfo(rec)
+  const res = await fetch(
+    `${ORBITAL_SERVICE_URL}/satellite-info?query=${encodeURIComponent(query)}`,
+    { signal: AbortSignal.timeout(8000) },
+  )
+  if (!res.ok) return { error: `Satellite not found: ${query}` }
+  return res.json()
 }
 
 async function toolPredictPasses(
