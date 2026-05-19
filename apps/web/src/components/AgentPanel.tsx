@@ -83,7 +83,10 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-800 p-3">
+      <div
+        className="border-t border-gray-800 p-3 flex-shrink-0"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+      >
         <div className="flex gap-2">
           {onClose && (
             <button
