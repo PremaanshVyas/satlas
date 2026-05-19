@@ -118,6 +118,8 @@ export class Globe {
   private lastPositionBuffer: Float32Array | null = null
   private clickCanvas: HTMLCanvasElement | null = null
   private _projPos = new THREE.Vector3()
+  private _mouseDownX = 0
+  private _mouseDownY = 0
 
   // Per-satellite dot scale (GEO → 1.5×, DEBRIS → 0.6×, others → 1.0)
   private satScales: Float32Array | null = null
@@ -203,6 +205,7 @@ export class Globe {
     }, 30 * 60 * 1000)
 
     this.clickCanvas = canvas
+    canvas.addEventListener('mousedown', this.onCanvasMouseDown)
     canvas.addEventListener('click', this.onCanvasClick)
     canvas.addEventListener('mousemove', this.onCanvasMouseMove)
 
@@ -634,8 +637,18 @@ export class Globe {
 
   // ── Click handler ────────────────────────────────────────────────────────────
 
+  private onCanvasMouseDown = (e: MouseEvent): void => {
+    this._mouseDownX = e.clientX
+    this._mouseDownY = e.clientY
+  }
+
   private onCanvasClick = (e: MouseEvent): void => {
     if (!this.onSatelliteClick) return
+    // Ignore if the pointer travelled more than 5px — that was a drag, not a click.
+    const dx = e.clientX - this._mouseDownX
+    const dy = e.clientY - this._mouseDownY
+    if (dx * dx + dy * dy > 25) return
+
     const canvas = e.target as HTMLCanvasElement
     const rect = canvas.getBoundingClientRect()
     const clickX = e.clientX - rect.left
@@ -904,6 +917,7 @@ export class Globe {
     if (this.catalogRefreshInterval !== null) { clearInterval(this.catalogRefreshInterval); this.catalogRefreshInterval = null }
     if (this.issTleInterval !== null) { clearInterval(this.issTleInterval); this.issTleInterval = null }
     if (this.clickCanvas !== null) {
+      this.clickCanvas.removeEventListener('mousedown', this.onCanvasMouseDown)
       this.clickCanvas.removeEventListener('click', this.onCanvasClick)
       this.clickCanvas.removeEventListener('mousemove', this.onCanvasMouseMove)
       this.clickCanvas = null
