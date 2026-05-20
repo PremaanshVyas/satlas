@@ -67,15 +67,22 @@ async def get_passes(
     longitude: float = Query(..., ge=-180, le=180),
     hours_ahead: int = Query(24, ge=1, le=168),
     norad_id: Optional[str] = Query(None, description='NORAD catalog ID; omit for ISS'),
+    tle1: Optional[str] = Query(None, description='TLE line 1 (takes precedence over norad_id lookup)'),
+    tle2: Optional[str] = Query(None, description='TLE line 2'),
+    name: Optional[str] = Query(None, description='Satellite name'),
 ) -> dict[str, list[dict]]:
     try:
-        tle1 = tle2 = name = None
-        if norad_id:
-            catalog = await get_satellites()
-            entry = next((s for s in catalog if s.get('norad_id') == norad_id), None)
-            if entry is None:
-                raise HTTPException(status_code=404, detail=f'Satellite {norad_id} not found in catalog')
-            tle1, tle2, name = entry['tle1'], entry['tle2'], entry['name']
+        if not tle1 or not tle2:
+            # Vercel api/pass.ts resolves TLEs before calling here; this path is
+            # only used when calling the ALB directly (e.g. from the AI chat tool).
+            if norad_id:
+                catalog = await get_satellites()
+                entry = next((s for s in catalog if s.get('norad_id') == norad_id), None)
+                if entry is None:
+                    raise HTTPException(status_code=404, detail=f'Satellite {norad_id} not found in catalog')
+                tle1, tle2, name = entry['tle1'], entry['tle2'], entry['name']
+            else:
+                tle1 = tle2 = name = None
         return {'passes': predict_passes(latitude, longitude, hours_ahead, tle1=tle1, tle2=tle2, name=name)}
     except HTTPException:
         raise
