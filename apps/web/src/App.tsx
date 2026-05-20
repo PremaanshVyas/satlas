@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Drawer } from 'vaul'
 import GlobeView from './components/GlobeView'
@@ -127,6 +128,14 @@ export default function App() {
         onRemoveReady={(fn) => { removeFromSelectionRef.current = fn }}
         onSelectReady={(fn) => { selectSatRef.current = fn }}
       />
+
+      {/* API docs link — top-right corner */}
+      <Link
+        to="/docs"
+        className="absolute top-3 right-4 z-20 text-xs text-gray-500 hover:text-gray-300 transition-colors font-mono"
+      >
+        API
+      </Link>
 
       {/* Selection tray — animates up from bottom-left */}
       <AnimatePresence>
