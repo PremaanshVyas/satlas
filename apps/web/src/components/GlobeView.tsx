@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useGlobe } from '../hooks/useGlobe'
 import type { OrbitalParams, LivePosition, SatcatEntry } from '../hooks/useGlobe'
 import type { HighlightDirective, SetFilterDirective } from '../types/chat'
@@ -134,15 +135,21 @@ export default function GlobeView({
       {/* Overlay layer — all UI chips/buttons live here, inset from safe areas */}
       <div className="absolute inset-0 pointer-events-none">
 
-        {/* Search bar — top-center */}
+        {/* Search bar + API docs link — top-center */}
         <div
-          className="absolute left-1/2 -translate-x-1/2 z-20 pointer-events-auto"
+          className="absolute left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center gap-2"
           style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
         >
           <SearchBar
             onSearch={searchCatalog}
             onSelect={(noradId) => { selectCatalogSatellite(noradId) }}
           />
+          <Link
+            to="/docs"
+            className="flex items-center bg-gray-900/90 backdrop-blur-sm border border-gray-700/80 rounded-lg px-3 py-2 shadow-lg text-sm text-gray-400 hover:text-gray-200 transition-colors whitespace-nowrap"
+          >
+            API
+          </Link>
         </div>
 
         {/* UTC clock — top-left */}
