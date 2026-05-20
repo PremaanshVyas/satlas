@@ -61,3 +61,39 @@ class TestPredictPasses:
         passes_1h = predict_passes(self.LAT, self.LON, hours_ahead=1)
         passes_48h = predict_passes(self.LAT, self.LON, hours_ahead=48)
         assert len(passes_1h) <= len(passes_48h)
+
+
+# ISS TLE from early 2024 — epoch is stale but the predict_passes logic is the same
+_ISS_TLE1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
+_ISS_TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
+
+
+class TestPredictPassesArbitrarySatellite:
+    """predict_passes() should work for any satellite when TLE lines are supplied."""
+
+    LAT = -37.8136
+    LON = 144.9631
+
+    def test_accepts_tle_params(self):
+        result = predict_passes(
+            self.LAT, self.LON, hours_ahead=48,
+            tle1=_ISS_TLE1, tle2=_ISS_TLE2, name='ISS (ZARYA)',
+        )
+        assert isinstance(result, list)
+
+    def test_arbitrary_satellite_returns_same_schema(self):
+        result = predict_passes(
+            self.LAT, self.LON, hours_ahead=48,
+            tle1=_ISS_TLE1, tle2=_ISS_TLE2, name='ISS (ZARYA)',
+        )
+        if not result:
+            pytest.skip('No passes in 48h window')
+        p = result[0]
+        assert 'start_utc' in p
+        assert 'end_utc' in p
+        assert 'max_elevation_deg' in p
+        assert 'direction' in p
+
+    def test_omitting_tle_still_uses_iss_default(self):
+        default_result = predict_passes(self.LAT, self.LON, hours_ahead=48)
+        assert isinstance(default_result, list)

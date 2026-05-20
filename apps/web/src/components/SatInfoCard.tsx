@@ -10,13 +10,14 @@ interface SatInfoCardProps {
   orbital: OrbitalParams | null
   onDismiss?: () => void
   onAskAI: () => void
+  onPredictPasses: () => void
 }
 
 function fmt(n: number, decimals = 2) { return n.toFixed(decimals) }
 function latLabel(lat: number) { return `${Math.abs(lat).toFixed(3)}° ${lat >= 0 ? 'N' : 'S'}` }
 function lonLabel(lon: number) { return `${Math.abs(lon).toFixed(3)}° ${lon >= 0 ? 'E' : 'W'}` }
 
-export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, onAskAI }: SatInfoCardProps) {
+export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, onAskAI, onPredictPasses }: SatInfoCardProps) {
   return (
     <>
       {/* Header */}
@@ -128,8 +129,14 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
         </div>
       )}
 
-      {/* Ask AI */}
-      <div className="px-3 py-2">
+      {/* Actions */}
+      <div className="px-3 py-2 space-y-1.5">
+        <button
+          onClick={onPredictPasses}
+          className="w-full text-xs font-medium bg-gray-700/80 hover:bg-gray-600 active:bg-gray-700 text-gray-200 rounded-md py-2 sm:py-1.5 transition-colors touch-manipulation"
+        >
+          Predict passes
+        </button>
         <button
           onClick={onAskAI}
           className="w-full text-xs font-medium bg-blue-600/80 hover:bg-blue-500 active:bg-blue-700 text-white rounded-md py-2 sm:py-1.5 transition-colors touch-manipulation"

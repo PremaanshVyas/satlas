@@ -4,6 +4,7 @@ import { Drawer } from 'vaul'
 import GlobeView from './components/GlobeView'
 import AgentPanel from './components/AgentPanel'
 import SatInfoCard from './components/SatInfoCard'
+import PassPanel from './components/PassPanel'
 import { useChat } from './hooks/useChat'
 import { ALL_CATEGORIES } from './globe/Globe'
 import type { OrbitalParams, LivePosition, SatcatEntry } from './components/GlobeView'
@@ -26,6 +27,9 @@ export default function App() {
   const [selectedMeta, setSelectedMeta] = useState<SatcatEntry | null>(null)
   const [shownCategories, setShownCategories] = useState<string[]>([...ALL_CATEGORIES])
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
+
+  const [passOpen, setPassOpen] = useState(false)
+  const [passSat, setPassSat] = useState<SelectedSat | null>(null)
 
   // Mobile detection — drives Vaul vs desktop card
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640)
@@ -99,6 +103,13 @@ export default function App() {
     if (!cardSat) return
     setPrefill(`Tell me about NORAD ${cardSat.noradId} (${cardSat.name})`)
     setChatOpen(true)
+  }
+
+  function handlePredictPasses() {
+    if (!cardSat) return
+    setPassSat(cardSat)
+    setPassOpen(true)
+    handleDismissCard()
   }
 
   return (
@@ -203,6 +214,7 @@ export default function App() {
               orbital={selectedOrbital}
               onDismiss={handleDismissCard}
               onAskAI={handleAskAI}
+              onPredictPasses={handlePredictPasses}
             />
           </motion.div>
         )}
@@ -224,7 +236,44 @@ export default function App() {
                 position={livePosition}
                 orbital={selectedOrbital}
                 onAskAI={() => { handleDismissCard(); handleAskAI() }}
+                onPredictPasses={() => { handlePredictPasses() }}
               />
+            )}
+            <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+
+      {/* Desktop pass panel — same position as info card (replaces it) */}
+      <AnimatePresence>
+        {passOpen && passSat && !isMobile && (
+          <motion.div
+            key={`pass-${passSat.noradId}`}
+            initial={{ opacity: 0, y: -10, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            transition={{ duration: 0.16, ease: 'easeOut' }}
+            className="absolute top-10 left-3 mt-2 w-64 bg-gray-900/95 backdrop-blur-sm border border-gray-700/80 rounded-lg shadow-2xl z-20 overflow-hidden"
+            style={{ maxHeight: 'calc(100dvh - 6rem)' }}
+          >
+            <PassPanel sat={passSat} onClose={() => setPassOpen(false)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile pass panel — Vaul bottom sheet */}
+      <Drawer.Root
+        open={isMobile && passOpen && !!passSat}
+        onOpenChange={(open) => { if (!open) setPassOpen(false) }}
+      >
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" />
+          <Drawer.Content className="fixed bottom-0 inset-x-0 z-50 rounded-t-2xl bg-gray-900 border-t border-gray-700/80 shadow-2xl outline-none" style={{ maxHeight: '80dvh' }}>
+            <div className="mx-auto w-10 h-1 rounded-full bg-gray-700 mt-3 mb-1" />
+            {passSat && (
+              <div className="h-full overflow-hidden" style={{ maxHeight: 'calc(80dvh - 1.5rem)' }}>
+                <PassPanel sat={passSat} onClose={() => setPassOpen(false)} />
+              </div>
             )}
             <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
           </Drawer.Content>

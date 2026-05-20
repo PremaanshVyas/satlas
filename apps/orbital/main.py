@@ -1,5 +1,6 @@
 import asyncio
 import os
+from typing import Optional
 
 import sentry_sdk
 from fastapi import FastAPI, Query, HTTPException
@@ -65,9 +66,19 @@ async def get_passes(
     latitude: float = Query(..., ge=-90, le=90),
     longitude: float = Query(..., ge=-180, le=180),
     hours_ahead: int = Query(24, ge=1, le=168),
+    norad_id: Optional[str] = Query(None, description='NORAD catalog ID; omit for ISS'),
 ) -> dict[str, list[dict]]:
     try:
-        return {'passes': predict_passes(latitude, longitude, hours_ahead)}
+        tle1 = tle2 = name = None
+        if norad_id:
+            catalog = await get_satellites()
+            entry = next((s for s in catalog if s.get('norad_id') == norad_id), None)
+            if entry is None:
+                raise HTTPException(status_code=404, detail=f'Satellite {norad_id} not found in catalog')
+            tle1, tle2, name = entry['tle1'], entry['tle2'], entry['name']
+        return {'passes': predict_passes(latitude, longitude, hours_ahead, tle1=tle1, tle2=tle2, name=name)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
