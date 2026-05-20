@@ -114,7 +114,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative w-screen overflow-x-hidden bg-gray-950" style={{ height: '100dvh' }}>
+    <div className="relative w-screen overflow-hidden bg-gray-950" style={{ height: '100dvh' }}>
       {/* Globe — full screen */}
       <GlobeView
         highlight={highlight}
@@ -129,12 +129,12 @@ export default function App() {
         onSelectReady={(fn) => { selectSatRef.current = fn }}
       />
 
-      {/* API docs link — top-right corner */}
+      {/* API docs link — bottom-centre, above safe area */}
       <Link
         to="/docs"
-        className="absolute top-3 right-4 z-20 text-xs text-gray-500 hover:text-gray-300 transition-colors font-mono"
+        className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 text-xs text-gray-500 hover:text-gray-300 transition-colors font-mono"
       >
-        API
+        API docs
       </Link>
 
       {/* Selection tray — animates up from bottom-left */}
