@@ -110,25 +110,26 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 20 complete — PassPanel with Nominatim autocomplete, satcat metadata fix (Space-Track JSON via S3+CloudFront), Railway removed.
+**Current phase:** Session 21 complete — public API docs page at `/docs`, react-router-dom routing, Vercel SPA rewrite, "API" pill in search bar row.
 
-**Next milestone:** Session 21 — public API docs page, domain registration + HTTPS on ALB.
+**Next milestone:** Session 22 — domain registration + HTTPS on ALB (`satlas.app` or alt, ACM cert, ALB HTTPS listener, update Vercel env vars).
 
-**Sessions 1–19 (complete, stable):** See `docs/session-20-bootstrap.md` (S20 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19).
+**Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
 
-**Session 20 completed tasks:**
-- [x] PassPanel: satellite pass prediction UI — geolocation auto-request, reverse geocoding (Nominatim) shows city name
-- [x] PassPanel autocomplete: debounced Nominatim search (300ms), Framer Motion animated dropdown, keyboard nav (↑↓ Enter Escape), ARIA roles (`role="listbox"`, `role="option"`, `aria-selected`)
-- [x] Satcat metadata fix: source switched from CelesTrak CSV (no CORS headers, always "—") to Space-Track JSON via S3+CloudFront; ECS `_s3_refresh()` now also calls `_fetch_space_track_satcat()` and writes `satcat.json`; URL derived from `VITE_CATALOG_URL`; cache key bumped to `satlas-satcat-v3`
-- [x] SatInfoCard opsStatus colours updated to handle both legacy codes (+/D) and new 'tracked'/'decayed' values
-- [x] Railway GitHub auto-deploy removed (deleted project in Railway dashboard — was a separate GitHub app install, not in CI workflow)
-- [x] 68 frontend Vitest tests passing; 87 orbital Python tests; tsc clean; lint clean
+**Session 21 completed tasks:**
+- [x] Public API docs page at `getsatlas.vercel.app/docs` — three endpoints documented (GET /api/catalog, GET /api/pass, POST /api/chat) with parameter tables, curl examples, response samples
+- [x] react-router-dom added; `main.tsx` wraps app in BrowserRouter with `/` → App, `/docs` → ApiDocs routes
+- [x] `vercel.json` SPA rewrite: `/((?!api/).*)` → `/index.html` so hard-refreshing `/docs` doesn't 404
+- [x] "API" pill button added to the right of the search bar in GlobeView, matching the search bar's glass pill styling
+- [x] Global `overflow: hidden` moved off `html, body, #root` onto App's root div only — unblocks `/docs` scroll
+- [x] 75 frontend Vitest tests passing; 87 orbital Python tests; tsc clean; lint clean
 
 **Live endpoints:**
 - ALB: `http://satlas-1659207311.ap-southeast-2.elb.amazonaws.com`
 - CloudFront catalog: `https://dgsll6twimcwl.cloudfront.net/catalog.tle`
 - CloudFront satcat: `https://dgsll6twimcwl.cloudfront.net/satcat.json`
 - Frontend: `https://getsatlas.vercel.app`
+- API docs: `https://getsatlas.vercel.app/docs`
 
 **No blockers.**
 
@@ -164,6 +165,14 @@ Sessions 1–17 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-21 — Session 20: Railway auto-deploy was a GitHub app integration, not CI.** Railway had its own GitHub app installed, triggering deployments on every push independently of GitHub Actions. Removal: delete the Railway project in the Railway dashboard — removes the GitHub integration automatically. No code changes needed. Rule: check GitHub Apps settings (`Settings → Integrations → Applications`) for third-party integrations that auto-deploy — they are invisible in the repo's workflow files.
 
+- **2026-05-21 — Session 21: Global `overflow: hidden` blocks scrollable routes — scope it to the container.** Had `html, body, #root { overflow: hidden }` in `index.css` to lock the globe in place. Adding a `/docs` route made it impossible to scroll the API docs page. Fix: removed `overflow: hidden` from global CSS, added `overflow-hidden` directly to App's root div (the one with `height: 100dvh`). Rule: never put `overflow: hidden` globally when the app has multiple route types; scope it to the container that needs it.
+
+- **2026-05-21 — Session 21: API docs param names wrong in first pass — always read the handler.** Initial `ApiDocs.tsx` documented `/api/pass` with `norad`, `lat`, `lon`, `hours`. The actual handler (`api/pass.ts` line 69) uses `norad_id`, `latitude`, `longitude`, `hours_ahead`. Caught by code quality reviewer before ship. Fix: corrected both the params table and the curl example. Rule: when documenting an API, read the actual handler to verify parameter names — never infer from usage examples or intuition.
+
+- **2026-05-21 — Session 21: Hard-coded origin URL is wrong on preview deployments — use `window.location.origin`.** First pass set `const BASE = 'https://getsatlas.vercel.app'` — curl examples on any preview deployment would point at production. Fix: `const BASE = window.location.origin` (safe since ApiDocs is a client-only component). Test assertion updated to match on the "Base URL:" label text rather than the URL value (jsdom gives `http://localhost`). Rule: never hard-code the production origin in client-rendered content; use `window.location.origin`.
+
+- **2026-05-21 — Session 21: Any `<Link>` in the render tree requires `MemoryRouter` in tests.** Adding `Link` to `GlobeView.tsx` (a child of App) caused `App.test.tsx` to fail with "Cannot destructure property 'basename' of useContext(...) as it is null" — the router context was missing. Fix: wrap the `render(<App />)` call in `<MemoryRouter>`. Rule: whenever `Link` or `useNavigate` appears anywhere in the component tree being tested, the test render must be wrapped in `MemoryRouter`.
+
 ---
 
 ## Out of scope (so we don't drift)
@@ -183,7 +192,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-21-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-22-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -207,8 +216,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | File | What it contains |
 |------|-----------------|
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
-| `docs/session-20-bootstrap.md` | Session 20 bootstrap (historical). |
-| `docs/session-21-bootstrap.md` | Next session full context prompt — paste at start of Session 21. |
+| `docs/session-21-bootstrap.md` | Session 21 bootstrap (historical). |
+| `docs/session-22-bootstrap.md` | Next session full context prompt — paste at start of Session 22. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
