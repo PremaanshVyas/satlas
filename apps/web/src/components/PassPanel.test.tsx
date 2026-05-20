@@ -141,4 +141,71 @@ describe('PassPanel', () => {
       expect(screen.getByText(/failed to load/i)).toBeInTheDocument()
     })
   })
+
+  it('shows suggestion dropdown with city and context while typing', async () => {
+    mockGeo(false)
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (String(url).includes('search?q=')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            { lat: '-37.8136', lon: '144.9631', display_name: 'Melbourne, Victoria, Australia' },
+            { lat: '-37.9', lon: '145.1', display_name: 'Melbourne Airport, Victoria, Australia' },
+          ],
+        })
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ passes: [] }) })
+    }))
+    render(<PassPanel sat={SAT} onClose={() => {}} />)
+    await waitFor(() => screen.getByPlaceholderText(/search location/i))
+    fireEvent.change(screen.getByPlaceholderText(/search location/i), { target: { value: 'Melb' } })
+    await waitFor(() => {
+      expect(screen.getAllByText('Melbourne').length).toBeGreaterThanOrEqual(1)
+      expect(screen.getAllByText('Victoria, Australia').length).toBeGreaterThanOrEqual(1)
+    }, { timeout: 1500 })
+  })
+
+  it('clicking a suggestion selects the location and fetches passes', async () => {
+    mockGeo(false)
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (String(url).includes('search?q=')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            { lat: '-37.8136', lon: '144.9631', display_name: 'Melbourne, Victoria, Australia' },
+          ],
+        })
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ passes: [PASS] }) })
+    }))
+    render(<PassPanel sat={SAT} onClose={() => {}} />)
+    await waitFor(() => screen.getByPlaceholderText(/search location/i))
+    fireEvent.change(screen.getByPlaceholderText(/search location/i), { target: { value: 'Melb' } })
+    await waitFor(() => screen.getByText('Melbourne'), { timeout: 1500 })
+    fireEvent.mouseDown(screen.getByText('Melbourne'))
+    await waitFor(() => {
+      expect(screen.getByText('45.2°')).toBeInTheDocument()
+    })
+  })
+
+  it('pressing Escape dismisses the suggestion dropdown', async () => {
+    mockGeo(false)
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (String(url).includes('search?q=')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            { lat: '-37.8136', lon: '144.9631', display_name: 'Melbourne, Victoria, Australia' },
+          ],
+        })
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ passes: [] }) })
+    }))
+    render(<PassPanel sat={SAT} onClose={() => {}} />)
+    await waitFor(() => screen.getByPlaceholderText(/search location/i))
+    fireEvent.change(screen.getByPlaceholderText(/search location/i), { target: { value: 'Melb' } })
+    await waitFor(() => screen.getByText('Melbourne'), { timeout: 1500 })
+    fireEvent.keyDown(screen.getByPlaceholderText(/search location/i), { key: 'Escape' })
+    expect(screen.queryByText('Melbourne')).not.toBeInTheDocument()
+  })
 })

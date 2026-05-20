@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface Sat { name: string; noradId: string }
 
@@ -12,6 +12,13 @@ interface Pass {
 interface PassPanelProps {
   sat: Sat
   onClose: () => void
+}
+
+interface LocationResult {
+  lat: string
+  lon: string
+  name: string
+  displayName: string
 }
 
 type LocationState = 'requesting' | 'granted' | 'denied' | 'manual'
@@ -28,7 +35,6 @@ function formatTime(utc: string): string {
 }
 
 function tzAbbr(): string {
-  // Extract timezone abbreviation (e.g. "AEST") from the locale string
   const parts = new Intl.DateTimeFormat([], { timeZoneName: 'short' }).formatToParts(new Date())
   return parts.find(p => p.type === 'timeZoneName')?.value ?? ''
 }
@@ -43,18 +49,16 @@ async function reverseGeocode(lat: string, lon: string): Promise<string> {
     ?? data.display_name?.split(',')[0] ?? ''
 }
 
-async function forwardGeocode(query: string): Promise<{ lat: string; lon: string; name: string } | null> {
+async function searchLocations(query: string, limit = 5): Promise<LocationResult[]> {
   const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}`,
     { headers: { 'Accept-Language': 'en' } },
   )
-  const [result] = await res.json()
-  if (!result) return null
-  return {
-    lat: result.lat,
-    lon: result.lon,
-    name: result.display_name.split(',')[0],
-  }
+  const results: Array<{ lat: string; lon: string; display_name: string }> = await res.json()
+  return results.map(r => {
+    const parts = r.display_name.split(', ')
+    return { lat: r.lat, lon: r.lon, name: parts[0], displayName: r.display_name }
+  })
 }
 
 export default function PassPanel({ sat, onClose }: PassPanelProps) {
@@ -66,10 +70,12 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
   const [locationName, setLocationName] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<LocationResult[]>([])
   const [passes, setPasses] = useState<Pass[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tz] = useState(tzAbbr)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!navigator.geolocation) return
@@ -118,13 +124,39 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
     }
   }, [locState, lat, lon, fetchPasses])
 
+  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setSearchQuery(val)
+    setSuggestions([])
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!val.trim()) return
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchLocations(val)
+        setSuggestions(results)
+      } catch { /* non-critical */ }
+    }, 300)
+  }
+
+  async function handleSuggestionSelect(result: LocationResult) {
+    setSuggestions([])
+    setSearchQuery('')
+    setLat(result.lat)
+    setLon(result.lon)
+    setLocationName(result.name)
+    setLocState('granted')
+    await fetchPasses(result.lat, result.lon)
+  }
+
   async function handleLocationSearch() {
     if (!searchQuery.trim()) return
     setSearchLoading(true)
+    setSuggestions([])
     setError(null)
     try {
-      const result = await forwardGeocode(searchQuery)
-      if (!result) { setError('Location not found.'); return }
+      const results = await searchLocations(searchQuery, 1)
+      if (!results.length) { setError('Location not found.'); return }
+      const result = results[0]
       setLat(result.lat)
       setLon(result.lon)
       setLocationName(result.name)
@@ -173,7 +205,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
               </div>
             </div>
             <button
-              onClick={() => { setLocState('manual'); setSearchQuery('') }}
+              onClick={() => { setLocState('manual'); setSearchQuery(''); setSuggestions([]) }}
               className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors flex-shrink-0 touch-manipulation"
             >
               Change
@@ -182,23 +214,47 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
         )}
 
         {(locState === 'denied' || locState === 'manual') && (
-          <div className="flex gap-1.5">
-            <input
-              type="text"
-              placeholder="Search location…"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') void handleLocationSearch() }}
-              className="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500"
-            />
-            <button
-              onClick={() => void handleLocationSearch()}
-              disabled={searchLoading || loading}
-              aria-label="Go"
-              className="px-2.5 text-xs font-medium bg-blue-600/80 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors touch-manipulation"
-            >
-              {searchLoading ? '…' : 'Go'}
-            </button>
+          <div className="relative">
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                placeholder="Search location…"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') void handleLocationSearch()
+                  if (e.key === 'Escape') setSuggestions([])
+                }}
+                onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+                className="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={() => void handleLocationSearch()}
+                disabled={searchLoading || loading}
+                aria-label="Go"
+                className="px-2.5 text-xs font-medium bg-blue-600/80 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors touch-manipulation"
+              >
+                {searchLoading ? '…' : 'Go'}
+              </button>
+            </div>
+
+            {suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-8 mt-0.5 bg-gray-900 border border-gray-700 rounded overflow-hidden z-10 shadow-xl">
+                {suggestions.map((s, i) => {
+                  const context = s.displayName.split(', ').slice(1, 4).join(', ')
+                  return (
+                    <button
+                      key={i}
+                      onMouseDown={e => { e.preventDefault(); void handleSuggestionSelect(s) }}
+                      className="w-full text-left px-2.5 py-1.5 hover:bg-gray-800 transition-colors border-b border-gray-800 last:border-0"
+                    >
+                      <div className="text-xs text-gray-200 truncate">{s.name}</div>
+                      {context && <div className="text-[10px] text-gray-500 truncate">{context}</div>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
