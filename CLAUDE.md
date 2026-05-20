@@ -331,8 +331,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | File | What it contains |
 |------|-----------------|
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
-| `docs/session-18-bootstrap.md` | Session 18 bootstrap (historical). |
-| `docs/session-19-bootstrap.md` | Next session full context prompt — paste at start of Session 19. |
+| `docs/session-19-bootstrap.md` | Session 19 bootstrap (historical). |
+| `docs/session-20-bootstrap.md` | Next session full context prompt — paste at start of Session 20. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–11, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
