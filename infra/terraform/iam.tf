@@ -38,6 +38,19 @@ resource "aws_iam_role_policy" "ci_ecr" {
   })
 }
 
+resource "aws_iam_role_policy" "ci_ecs_deploy" {
+  name = "ecs-deploy"
+  role = aws_iam_role.ci.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ecs:UpdateService", "ecs:DescribeServices"]
+      Resource = "arn:aws:ecs:${var.region}:${var.account_id}:service/satlas/satlas-orbital"
+    }]
+  })
+}
+
 # ECS task execution role — lets ECS pull images and read secrets
 resource "aws_iam_role" "ecs_exec" {
   name = "${var.app_name}-ecs-exec"

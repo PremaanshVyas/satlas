@@ -90,9 +90,9 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       {/* Header */}
       <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 border-b border-gray-800 flex-shrink-0">
         <div className="min-w-0">
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Pass Prediction</div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Pass Prediction · Next 24 h</div>
           <div className="text-sm font-semibold text-white truncate leading-tight">{sat.name}</div>
-          <div className="text-xs text-gray-500">Next 24 hours</div>
+          <div className="text-[10px] text-gray-600 font-mono mt-0.5">NORAD {sat.noradId}</div>
         </div>
         <button
           onClick={onClose}

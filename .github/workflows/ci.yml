@@ -79,5 +79,13 @@ jobs:
       - name: Build and push
         run: |
           IMAGE_URI=${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-2.amazonaws.com/satlas-orbital:latest
-          docker build -t $IMAGE_URI apps/orbital/
+          docker build --platform linux/amd64 -t $IMAGE_URI apps/orbital/
           docker push $IMAGE_URI
+      - name: Force ECS redeploy
+        run: |
+          aws ecs update-service \
+            --cluster satlas \
+            --service satlas-orbital \
+            --force-new-deployment \
+            --region ap-southeast-2 \
+            > /dev/null
