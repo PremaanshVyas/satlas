@@ -4,7 +4,13 @@ import PassPanel from './PassPanel'
 
 const SAT = { name: 'ISS (ZARYA)', noradId: '25544' }
 
-// Mock geolocation
+const PASS = {
+  start_utc: '2026-05-21T10:00:00Z',
+  end_utc: '2026-05-21T10:06:00Z',
+  max_elevation_deg: 45.2,
+  direction: 'NW',
+}
+
 function mockGeo(succeed: boolean) {
   Object.defineProperty(navigator, 'geolocation', {
     writable: true,
@@ -18,6 +24,25 @@ function mockGeo(succeed: boolean) {
       }),
     },
   })
+}
+
+// Route fetch calls: Nominatim gets a location response, /api/pass gets passes
+function mockFetch(passData = [PASS], locationName = 'Melbourne') {
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (String(url).includes('nominatim')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          address: { city: locationName },
+          display_name: `${locationName}, Victoria, Australia`,
+        }),
+      })
+    }
+    return Promise.resolve({
+      ok: true,
+      json: async () => ({ passes: passData }),
+    })
+  }))
 }
 
 beforeEach(() => { vi.restoreAllMocks() })
@@ -38,7 +63,6 @@ describe('PassPanel', () => {
   })
 
   it('shows geolocation requesting state initially when geo is available', () => {
-    // Mock as pending (never calls callback)
     Object.defineProperty(navigator, 'geolocation', {
       writable: true,
       value: { getCurrentPosition: vi.fn() },
@@ -47,36 +71,52 @@ describe('PassPanel', () => {
     expect(screen.getByText(/getting your location/i)).toBeInTheDocument()
   })
 
-  it('shows manual location inputs when geolocation is denied', async () => {
+  it('shows location search input when geolocation is denied', async () => {
     mockGeo(false)
     render(<PassPanel sat={SAT} onClose={() => {}} />)
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Latitude')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText(/search location/i)).toBeInTheDocument()
     })
-    expect(screen.getByPlaceholderText('Longitude')).toBeInTheDocument()
   })
 
-  it('shows manual inputs when no geolocation API', () => {
+  it('shows location search input when no geolocation API', () => {
     Object.defineProperty(navigator, 'geolocation', { writable: true, value: undefined })
     render(<PassPanel sat={SAT} onClose={() => {}} />)
-    expect(screen.getByPlaceholderText('Latitude')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/search location/i)).toBeInTheDocument()
+  })
+
+  it('shows location name after geolocation and reverse geocoding', async () => {
+    mockGeo(true)
+    mockFetch([], 'Melbourne')
+    render(<PassPanel sat={SAT} onClose={() => {}} />)
+    await waitFor(() => {
+      expect(screen.getByText('Melbourne')).toBeInTheDocument()
+    })
+  })
+
+  it('geocodes typed location and fetches passes on search', async () => {
+    mockGeo(false)
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (String(url).includes('search?q=')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [{ lat: '-33.8688', lon: '151.2093', display_name: 'Sydney, NSW, Australia' }],
+        })
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ passes: [PASS] }) })
+    }))
+    render(<PassPanel sat={SAT} onClose={() => {}} />)
+    await waitFor(() => screen.getByPlaceholderText(/search location/i))
+    fireEvent.change(screen.getByPlaceholderText(/search location/i), { target: { value: 'Sydney' } })
+    fireEvent.click(screen.getByRole('button', { name: /go/i }))
+    await waitFor(() => {
+      expect(screen.getByText('45.2°')).toBeInTheDocument()
+    })
   })
 
   it('fetches passes and shows results when geolocation succeeds', async () => {
     mockGeo(true)
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        passes: [
-          {
-            start_utc: '2026-05-21T10:00:00Z',
-            end_utc: '2026-05-21T10:06:00Z',
-            max_elevation_deg: 45.2,
-            direction: 'NW',
-          },
-        ],
-      }),
-    }))
+    mockFetch([PASS])
     render(<PassPanel sat={SAT} onClose={() => {}} />)
     await waitFor(() => {
       expect(screen.getByText('45.2°')).toBeInTheDocument()
@@ -86,17 +126,14 @@ describe('PassPanel', () => {
 
   it('shows empty state when no passes returned', async () => {
     mockGeo(true)
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ passes: [] }),
-    }))
+    mockFetch([])
     render(<PassPanel sat={SAT} onClose={() => {}} />)
     await waitFor(() => {
       expect(screen.getByText(/no passes/i)).toBeInTheDocument()
     })
   })
 
-  it('shows error message when fetch fails', async () => {
+  it('shows error message when pass fetch fails', async () => {
     mockGeo(true)
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')))
     render(<PassPanel sat={SAT} onClose={() => {}} />)
