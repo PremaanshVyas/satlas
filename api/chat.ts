@@ -88,23 +88,6 @@ function isDebrisOrRocketBody(name: string): boolean {
          n.endsWith(' R/B') || n.endsWith(' RB') || n.includes('ROCKET BODY')
 }
 
-// CelesTrak CATNR and NAME queries work from cloud/Vercel IPs (ADR: only GROUP=active is blocked).
-async function fetchTle(query: string): Promise<TleRecord | null> {
-  const isNorad = /^\d+$/.test(query.trim())
-  const param = isNorad ? `CATNR=${encodeURIComponent(query.trim())}` : `NAME=${encodeURIComponent(query.trim())}`
-  const url = `https://celestrak.org/NORAD/elements/gp.php?${param}&FORMAT=TLE`
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'satlas/1.0 (portfolio project)' },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!res.ok) return null
-    const text = await res.text()
-    return parseTleText(text)[0] ?? null
-  } catch {
-    return null
-  }
-}
 
 // ── Orbital computations (satellite.js, runs in Vercel Node.js) ───────────────
 
