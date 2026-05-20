@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 interface Sat { name: string; noradId: string }
 
@@ -49,13 +49,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
     )
   }, [])
 
-  useEffect(() => {
-    if (locState === 'granted' && lat && lon) {
-      void fetchPasses(lat, lon)
-    }
-  }, [locState, lat, lon])
-
-  async function fetchPasses(latVal: string, lonVal: string) {
+  const fetchPasses = useCallback(async (latVal: string, lonVal: string) => {
     setLoading(true)
     setError(null)
     setPasses(null)
@@ -70,12 +64,19 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`)
       setPasses(data.passes ?? [])
-    } catch (e) {
+    } catch {
       setError('Failed to load passes. Check your connection and try again.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [sat.noradId])
+
+  useEffect(() => {
+    if (locState === 'granted' && lat && lon) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- triggered by geolocation grant, not a state cascade
+      void fetchPasses(lat, lon)
+    }
+  }, [locState, lat, lon, fetchPasses])
 
   function handleManualSearch() {
     const latN = parseFloat(lat)
