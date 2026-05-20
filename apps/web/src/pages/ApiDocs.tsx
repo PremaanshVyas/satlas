@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 
-const BASE = 'https://getsatlas.vercel.app'
+const BASE = window.location.origin
 
 interface Param {
   name: string
@@ -23,7 +23,7 @@ const ENDPOINTS: Endpoint[] = [
     method: 'GET',
     path: '/api/catalog',
     description:
-      'Full TLE (Two-Line Element) satellite catalog in 3-line text format. Approximately 20,000 active objects. Refreshed every 2 hours from Space-Track.org.',
+      'Full TLE (Two-Line Element) satellite catalog in 3-line text format. Approximately 20,000 active objects. Refreshed every 2 hours from Space-Track.org. Data is subject to Space-Track.org redistribution terms.',
     curl: `curl ${BASE}/api/catalog`,
     response: [
       '0 ISS (ZARYA)',
@@ -40,12 +40,12 @@ const ENDPOINTS: Endpoint[] = [
     description:
       'Predict upcoming passes of a satellite over a ground location. Returns start/end times (UTC ISO 8601), max elevation in degrees, compass direction, and duration.',
     params: [
-      { name: 'norad',  type: 'string', required: true,  description: 'NORAD catalog number (e.g. 25544 for ISS)' },
-      { name: 'lat',    type: 'number', required: true,  description: 'Observer latitude in decimal degrees (south = negative)' },
-      { name: 'lon',    type: 'number', required: true,  description: 'Observer longitude in decimal degrees (west = negative)' },
-      { name: 'hours',  type: 'number', required: false, description: 'Hours to search ahead. Default: 24' },
+      { name: 'norad_id',   type: 'string', required: true,  description: 'NORAD catalog number (e.g. 25544 for ISS)' },
+      { name: 'latitude',   type: 'number', required: true,  description: 'Observer latitude in decimal degrees (south = negative)' },
+      { name: 'longitude',  type: 'number', required: true,  description: 'Observer longitude in decimal degrees (west = negative)' },
+      { name: 'hours_ahead', type: 'number', required: false, description: 'Hours to search ahead. Default: 24' },
     ],
-    curl: `curl "${BASE}/api/pass?norad=25544&lat=-37.81&lon=144.96&hours=24"`,
+    curl: `curl "${BASE}/api/pass?norad_id=25544&latitude=-37.81&longitude=144.96&hours_ahead=24"`,
     response: JSON.stringify(
       {
         satellite: 'ISS (ZARYA)',

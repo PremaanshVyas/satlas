@@ -46,8 +46,8 @@ describe('ApiDocs', () => {
     expect(screen.getByText('POST')).toBeInTheDocument()
   })
 
-  it('shows the base URL', () => {
+  it('shows the base URL label', () => {
     renderApiDocs()
-    expect(screen.getByText('https://getsatlas.vercel.app')).toBeInTheDocument()
+    expect(screen.getByText(/base url/i)).toBeInTheDocument()
   })
 })
