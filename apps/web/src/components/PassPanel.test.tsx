@@ -188,6 +188,32 @@ describe('PassPanel', () => {
     })
   })
 
+  it('ArrowDown highlights first suggestion; Enter on highlighted suggestion selects it', async () => {
+    mockGeo(false)
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (String(url).includes('search?q=')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            { lat: '-37.8136', lon: '144.9631', display_name: 'Melbourne, Victoria, Australia' },
+          ],
+        })
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ passes: [PASS] }) })
+    }))
+    render(<PassPanel sat={SAT} onClose={() => {}} />)
+    const input = await waitFor(() => screen.getByPlaceholderText(/search location/i))
+    fireEvent.change(input, { target: { value: 'Melb' } })
+    await waitFor(() => screen.getAllByText('Melbourne').length > 0, { timeout: 1500 })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    const highlighted = screen.getAllByRole('option').find(
+      el => el.getAttribute('aria-selected') === 'true',
+    )
+    expect(highlighted).toBeDefined()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByText('45.2°')).toBeInTheDocument())
+  })
+
   it('pressing Escape dismisses the suggestion dropdown', async () => {
     mockGeo(false)
     vi.stubGlobal('fetch', vi.fn((url: string) => {
@@ -206,6 +232,6 @@ describe('PassPanel', () => {
     fireEvent.change(screen.getByPlaceholderText(/search location/i), { target: { value: 'Melb' } })
     await waitFor(() => screen.getByText('Melbourne'), { timeout: 1500 })
     fireEvent.keyDown(screen.getByPlaceholderText(/search location/i), { key: 'Escape' })
-    expect(screen.queryByText('Melbourne')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Melbourne')).not.toBeInTheDocument())
   })
 })
