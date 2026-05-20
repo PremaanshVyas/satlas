@@ -124,6 +124,75 @@ class TestFetchSpaceTrackTles:
         mock_client.get.assert_not_called()
 
 
+# ── _fetch_space_track_satcat ─────────────────────────────────────────────────
+
+SAMPLE_SATCAT_RAW = [
+    {
+        'INTLDES': '1998-067A', 'NORAD_CAT_ID': '25544', 'OBJECT_TYPE': 'PAYLOAD',
+        'SATNAME': 'ISS (ZARYA)', 'COUNTRY': 'ISS', 'LAUNCH': '1998-11-20',
+        'SITE': 'TTMTR', 'DECAY': None, 'CURRENT': 'Y',
+        'OBJECT_ID': '1998-067A', 'OBJECT_NUMBER': '25544',
+    }
+]
+
+
+def _mock_httpx_json(payload):
+    """Return a patched httpx.AsyncClient that returns `payload` from GET .json()."""
+    mock_resp = MagicMock()
+    mock_resp.json = MagicMock(return_value=payload)
+    mock_resp.raise_for_status = MagicMock()
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=MagicMock(raise_for_status=MagicMock()))
+    mock_client.get = AsyncMock(return_value=mock_resp)
+    return mock_client
+
+
+class TestFetchSpaceTrackSatcat:
+    def test_returns_raw_json_list(self):
+        mock_client = _mock_httpx_json(SAMPLE_SATCAT_RAW)
+        with patch('satellites.httpx.AsyncClient') as MC, patch.dict('os.environ', ENV_VARS):
+            MC.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            MC.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = asyncio.run(satellites._fetch_space_track_satcat())
+        assert result == SAMPLE_SATCAT_RAW
+
+    def test_raises_if_credentials_missing(self):
+        with patch.dict('os.environ', {}, clear=True):
+            with pytest.raises(ValueError, match='SPACETRACK_USER'):
+                asyncio.run(satellites._fetch_space_track_satcat())
+
+
+class TestS3PutSatcat:
+    def test_writes_satcat_json_to_s3(self):
+        mock_s3 = MagicMock()
+        with patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
+            satellites._s3_put_satcat(SAMPLE_SATCAT_RAW)
+        mock_s3.put_object.assert_called_once()
+        kwargs = mock_s3.put_object.call_args.kwargs
+        assert kwargs['Key'] == 'satcat.json'
+        assert kwargs['ContentType'] == 'application/json'
+
+    def test_condensed_output_has_required_fields(self):
+        import json as _json
+        mock_s3 = MagicMock()
+        with patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
+            satellites._s3_put_satcat(SAMPLE_SATCAT_RAW)
+        body = mock_s3.put_object.call_args.kwargs['Body']
+        rows = _json.loads(body)
+        assert rows[0]['norad_id'] == '25544'
+        assert rows[0]['type'] == 'PAY'   # normalized from PAYLOAD
+        assert rows[0]['launch'] == '1998-11-20'
+
+    def test_skips_when_no_bucket(self):
+        mock_s3 = MagicMock()
+        with patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {}, clear=True):
+            satellites._s3_put_satcat(SAMPLE_SATCAT_RAW)
+        mock_s3.put_object.assert_not_called()
+
+
 # ── _s3_refresh ────────────────────────────────────────────────────────────────
 
 SAMPLE_TLES = [
@@ -141,6 +210,7 @@ class TestS3Refresh:
     def test_updates_in_memory_cache(self):
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
+             patch('satellites._fetch_space_track_satcat', AsyncMock(return_value=SAMPLE_SATCAT_RAW)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
              patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
             asyncio.run(satellites._s3_refresh())
@@ -150,27 +220,30 @@ class TestS3Refresh:
     def test_writes_catalog_to_s3(self):
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
+             patch('satellites._fetch_space_track_satcat', AsyncMock(return_value=SAMPLE_SATCAT_RAW)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
              patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
             asyncio.run(satellites._s3_refresh())
-        mock_s3.put_object.assert_called_once()
-        kwargs = mock_s3.put_object.call_args.kwargs
-        assert kwargs['Bucket'] == 'satlas-catalog'
-        assert kwargs['Key'] == 'catalog.tle'
-        assert kwargs['ContentType'] == 'text/plain'
+        calls_by_key = {c.kwargs['Key']: c.kwargs for c in mock_s3.put_object.call_args_list}
+        assert 'catalog.tle' in calls_by_key
+        assert calls_by_key['catalog.tle']['Bucket'] == 'satlas-catalog'
+        assert calls_by_key['catalog.tle']['ContentType'] == 'text/plain'
+        assert 'satcat.json' in calls_by_key
 
     def test_s3_object_contains_tle_data(self):
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
+             patch('satellites._fetch_space_track_satcat', AsyncMock(return_value=SAMPLE_SATCAT_RAW)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
              patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
             asyncio.run(satellites._s3_refresh())
-        body = mock_s3.put_object.call_args.kwargs['Body']
-        assert '25544' in body
+        calls_by_key = {c.kwargs['Key']: c.kwargs for c in mock_s3.put_object.call_args_list}
+        assert '25544' in calls_by_key['catalog.tle']['Body']
 
     def test_skips_s3_write_without_bucket_env(self):
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
+             patch('satellites._fetch_space_track_satcat', AsyncMock(return_value=SAMPLE_SATCAT_RAW)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
              patch.dict('os.environ', {}, clear=True):
             asyncio.run(satellites._s3_refresh())

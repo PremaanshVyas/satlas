@@ -60,7 +60,11 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Status</span>
-            <span className={meta?.opsStatus === '+' ? 'text-green-400' : meta?.opsStatus ? 'text-gray-400' : 'text-gray-600'}>
+            <span className={
+              (meta?.opsStatus === '+' || meta?.opsStatus === 'tracked') ? 'text-green-400' :
+              (meta?.opsStatus === 'decayed' || meta?.opsStatus === 'D') ? 'text-red-400' :
+              meta?.opsStatus ? 'text-gray-400' : 'text-gray-600'
+            }>
               {meta?.opsStatus ? opsStatusLabel(meta.opsStatus) : '—'}
             </span>
           </div>

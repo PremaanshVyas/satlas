@@ -1,31 +1,34 @@
-// CelesTrak SATCAT — satellite catalog metadata (country, launch date, object type, orbital params).
-// Fetched once per session from CelesTrak's public CSV endpoint and cached in localStorage.
+// Satellite catalog metadata served from our own S3/CloudFront (written by ECS from Space-Track).
+// Fetched once per session and cached in localStorage.
 // All data is optional — if the fetch fails, the info card still shows TLE-derived params.
 
-const SATCAT_URL = 'https://celestrak.org/pub/satcat.csv'
-const SATCAT_CACHE_KEY = 'satlas-satcat-v2'
+// Derive satcat URL from the same CloudFront bucket that serves catalog.tle
+const _cfBase = (import.meta.env.VITE_CATALOG_URL as string | undefined)?.replace('/catalog.tle', '') ?? ''
+const SATCAT_URL = _cfBase ? `${_cfBase}/satcat.json` : ''
+
+const SATCAT_CACHE_KEY = 'satlas-satcat-v3'
 const SATCAT_CACHE_TTL_MS = 24 * 60 * 60 * 1000  // 24 h
 
 export interface SatcatEntry {
   noradId: string
   objectType: string   // PAY, R/B, DEB, UNK
-  opsStatus: string    // +, -, P, B, S, X, D, ?
+  opsStatus: string    // 'tracked' | 'decayed' (derived from Space-Track CURRENT/DECAY)
   owner: string        // readable country/org name
   launchDate: string   // YYYY-MM-DD or ''
   launchSite: string   // readable facility name + location or ''
   intlDes: string      // international designator e.g. "1998-067A"
 }
 
-// CelesTrak satcat.csv column indices (0-based, header row = row 0)
-// OBJECT_NAME, OBJECT_ID(intlDes), NORAD_CAT_ID, OBJECT_TYPE, OPS_STATUS_CODE,
-// OWNER, LAUNCH_DATE, LAUNCH_SITE, DECAY_DATE, ...
-const C_INTLDES    = 1
-const C_NORAD      = 2
-const C_TYPE       = 3
-const C_OPS        = 4
-const C_OWNER      = 5
-const C_LAUNCH     = 6
-const C_SITE       = 7
+// Space-Track satcat condensed row shape (as written by ECS to S3)
+interface SatcatRow {
+  norad_id: string
+  intl_des: string
+  type: string      // already normalised: PAY, R/B, DEB, UNK
+  owner: string     // country code e.g. US, CIS
+  launch: string    // YYYY-MM-DD or ''
+  site: string      // site code or ''
+  decay: string | null
+}
 
 const OWNER_MAP: Record<string, string> = {
   US: 'United States', CIS: 'Russia', CN: 'China', ESA: 'Europe (ESA)',
@@ -43,9 +46,10 @@ const OWNER_MAP: Record<string, string> = {
   PAKI: 'Pakistan', SING: 'Singapore', SWED: 'Sweden',
   SWTZ: 'Switzerland', THAI: 'Thailand', TURK: 'Turkey',
   UAE: 'UAE', USBZ: 'USA / Brazil', USEU: 'USA / Europe',
+  ISS: 'International (ISS)',
 }
 
-// CelesTrak LAUNCH_SITE codes → readable facility name + location
+// CelesTrak / Space-Track LAUNCH_SITE codes → readable facility name + location
 const SITE_MAP: Record<string, string> = {
   // United States
   AFETR: 'Cape Canaveral SFS, Florida, USA',
@@ -97,24 +101,18 @@ const SITE_MAP: Record<string, string> = {
   HGSTR: 'Hammaguira, Algeria',
 }
 
-function parseSatcatCsv(csv: string): Map<string, SatcatEntry> {
-  const lines = csv.split('\n')
+function parseSatcatJson(rows: SatcatRow[]): Map<string, SatcatEntry> {
   const map = new Map<string, SatcatEntry>()
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',')
-    if (cols.length < 8) continue
-    const norad = cols[C_NORAD]?.trim()
-    if (!norad || norad === '0') continue
-    const ownerCode = cols[C_OWNER]?.trim() ?? ''
-    const siteCode  = cols[C_SITE]?.trim() ?? ''
-    map.set(norad, {
-      noradId: norad,
-      intlDes: cols[C_INTLDES]?.trim() ?? '',
-      objectType: cols[C_TYPE]?.trim() ?? 'UNK',
-      opsStatus: cols[C_OPS]?.trim() ?? '',
-      owner: OWNER_MAP[ownerCode] ?? ownerCode,
-      launchDate: cols[C_LAUNCH]?.trim() ?? '',
-      launchSite: SITE_MAP[siteCode] ?? (siteCode || ''),
+  for (const r of rows) {
+    if (!r.norad_id) continue
+    map.set(r.norad_id, {
+      noradId: r.norad_id,
+      intlDes: r.intl_des,
+      objectType: r.type,
+      opsStatus: r.decay ? 'decayed' : 'tracked',
+      owner: OWNER_MAP[r.owner] ?? r.owner,
+      launchDate: r.launch,
+      launchSite: SITE_MAP[r.site] ?? (r.site || ''),
     })
   }
   return map
@@ -142,11 +140,12 @@ export async function fetchSatcat(): Promise<Map<string, SatcatEntry>> {
   if (_memCache) return _memCache
   const cached = loadCached()
   if (cached) { _memCache = cached; return cached }
+  if (!SATCAT_URL) return new Map()  // no CloudFront URL set (local dev without env var)
   try {
     const res = await fetch(SATCAT_URL)
     if (!res.ok) throw new Error(`satcat ${res.status}`)
-    const text = await res.text()
-    const map = parseSatcatCsv(text)
+    const rows: SatcatRow[] = await res.json()
+    const map = parseSatcatJson(rows)
     if (map.size > 100) {
       _memCache = map
       saveToCache(map)
@@ -166,6 +165,10 @@ export function objectTypeLabel(type: string): string {
 
 export function opsStatusLabel(status: string): string {
   const map: Record<string, string> = {
+    // Space-Track derived
+    'tracked': 'In orbit',
+    'decayed': 'Decayed',
+    // CelesTrak legacy codes (kept for cached data compatibility)
     '+': 'Operational', '-': 'Non-operational', 'P': 'Partially operational',
     'B': 'Standby', 'S': 'Spare', 'X': 'Extended mission', 'D': 'Decayed', '?': 'Unknown',
   }

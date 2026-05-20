@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import time
@@ -14,6 +15,15 @@ SPACETRACK_CATALOG_URL = (
     'https://www.space-track.org/basicspacedata/query/class/gp'
     '/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID/format/3le'
 )
+SPACETRACK_SATCAT_URL = (
+    'https://www.space-track.org/basicspacedata/query/class/satcat'
+    '/CURRENT/Y/format/json/orderby/NORAD_CAT_ID'
+)
+
+_SATCAT_TYPE_MAP = {
+    'PAYLOAD': 'PAY', 'ROCKET BODY': 'R/B', 'DEBRIS': 'DEB',
+    'UNKNOWN': 'UNK', 'TBA': 'UNK',
+}
 
 ISS_TLE_TTL_SECONDS = 300   # 5 min — ISS moves 7.66 km/s
 CATALOG_REFRESH_SECONDS = 2 * 60 * 60  # 2 h
@@ -60,6 +70,21 @@ async def _fetch_space_track_tles() -> list:
         return _parse_tle_text(resp.text)
 
 
+async def _fetch_space_track_satcat() -> list:
+    """Authenticate to Space-Track and fetch current SATCAT metadata as JSON."""
+    user = os.environ.get('SPACETRACK_USER')
+    password = os.environ.get('SPACETRACK_PASS')
+    if not user or not password:
+        raise ValueError('SPACETRACK_USER and SPACETRACK_PASS environment variables must be set')
+
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        login_resp = await client.post(SPACETRACK_LOGIN_URL, data={'identity': user, 'password': password})
+        login_resp.raise_for_status()
+        resp = await client.get(SPACETRACK_SATCAT_URL)
+        resp.raise_for_status()
+        return resp.json()
+
+
 def _s3_put(tle_records: list) -> None:
     """Write TLE records as 3LE text to S3. No-op if CATALOG_BUCKET is not set."""
     bucket = os.environ.get('CATALOG_BUCKET')
@@ -83,12 +108,47 @@ def _s3_put(tle_records: list) -> None:
     )
 
 
+def _s3_put_satcat(rows: list) -> None:
+    """Write condensed SATCAT JSON to S3. No-op if CATALOG_BUCKET is not set."""
+    bucket = os.environ.get('CATALOG_BUCKET')
+    if not bucket:
+        return
+
+    condensed = [
+        {
+            'norad_id': r.get('NORAD_CAT_ID', ''),
+            'intl_des': r.get('OBJECT_ID', '') or r.get('INTLDES', ''),
+            'type': _SATCAT_TYPE_MAP.get(r.get('OBJECT_TYPE', ''), 'UNK'),
+            'owner': r.get('COUNTRY', ''),
+            'launch': r.get('LAUNCH', '') or '',
+            'site': r.get('SITE', '') or '',
+            'decay': r.get('DECAY') or None,
+        }
+        for r in rows
+        if r.get('NORAD_CAT_ID')
+    ]
+
+    s3 = boto3.client('s3')
+    s3.put_object(
+        Bucket=bucket,
+        Key='satcat.json',
+        Body=json.dumps(condensed, separators=(',', ':')),
+        ContentType='application/json',
+        CacheControl='public, max-age=7200',
+    )
+
+
 async def _s3_refresh() -> None:
-    """Fetch full catalog from Space-Track, update in-memory cache, write to S3."""
+    """Fetch full catalog and SATCAT from Space-Track, update in-memory cache, write to S3."""
     tles = await _fetch_space_track_tles()
     _cache['tles'] = tles
     _cache['fetched_at'] = time.time()
     _s3_put(tles)
+    try:
+        satcat = await _fetch_space_track_satcat()
+        _s3_put_satcat(satcat)
+    except Exception as exc:
+        logging.getLogger(__name__).warning('SATCAT refresh failed (non-fatal): %s', exc)
 
 
 async def refresh_loop() -> None:
