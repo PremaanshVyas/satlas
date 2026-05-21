@@ -85,8 +85,8 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
               onMouseDown={e => { e.preventDefault(); handleSelect(r) }}
               onMouseEnter={() => setActiveIdx(i)}
             >
-              <span className="font-mono text-[11px] text-secondary truncate">{r.name}</span>
-              <span className="font-mono text-[8px] text-label flex-shrink-0">{r.noradId}</span>
+              <span className="font-mono text-[12px] text-secondary truncate">{r.name}</span>
+              <span className="font-mono text-[10px] text-label flex-shrink-0">{r.noradId}</span>
             </button>
           ))}
         </div>

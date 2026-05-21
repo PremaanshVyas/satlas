@@ -139,7 +139,7 @@ export default function GlobeView({
           />
           <Link
             to="/docs"
-            className="flex items-center bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors whitespace-nowrap"
+            className="flex items-center bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg font-mono text-[11px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors whitespace-nowrap"
           >
             API Docs
           </Link>
@@ -147,7 +147,7 @@ export default function GlobeView({
 
         {/* UTC clock — top-left */}
         <div
-          className="absolute left-3 font-mono text-[11px] text-label select-none"
+          className="absolute left-3 font-mono text-[13px] text-secondary select-none"
           style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
         >
           {utcClock}
@@ -157,7 +157,7 @@ export default function GlobeView({
         {!isLoading && (
           satelliteCount > 0 ? (
             <div
-              className="absolute right-3 font-mono text-[11px] text-accent select-none"
+              className="absolute right-3 font-mono text-[13px] text-accent select-none"
               style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
             >
               <span className="hidden sm:inline">Tracking </span>
@@ -166,7 +166,7 @@ export default function GlobeView({
             </div>
           ) : (
             <div
-              className="absolute right-3 font-mono text-[11px] text-label select-none animate-pulse"
+              className="absolute right-3 font-mono text-[13px] text-label select-none animate-pulse"
               style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
             >
               <span className="sm:hidden">Loading…</span>
@@ -179,29 +179,29 @@ export default function GlobeView({
         <button
           onClick={toggleClouds}
           title={cloudsVisible ? 'Hide clouds' : 'Show clouds'}
-          className={`absolute right-3 z-20 flex items-center gap-1 pointer-events-auto px-2.5 py-1 rounded-[2px] font-mono text-[8px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
+          className={`absolute right-3 z-20 flex items-center gap-1.5 pointer-events-auto px-3 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
             cloudsVisible
               ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
               : 'border-[rgba(255,255,255,0.07)] text-label hover:text-secondary'
           }`}
-          style={{ top: `max(2.5rem, calc(${safeTop} + 2rem))` }}
+          style={{ top: `max(2.75rem, calc(${safeTop} + 2.25rem))` }}
         >
-          <span>☁</span>
-          <span className="hidden sm:inline">{cloudsVisible ? 'On' : 'Off'}</span>
+          <span className="text-[13px] leading-none">☁</span>
+          <span>{cloudsVisible ? 'On' : 'Off'}</span>
         </button>
 
-        {/* Category filter pills — bottom-right with glass background */}
+        {/* Category filter pills — bottom-center with glass background */}
         <div
-          className="absolute right-3 pointer-events-auto"
+          className="absolute left-1/2 -translate-x-1/2 pointer-events-auto"
           style={{ bottom: `max(1rem, calc(${safeBottom} + 0.5rem))` }}
         >
-          <div className="flex gap-1.5 flex-wrap justify-end bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2.5 py-2 shadow-lg">
+          <div className="flex gap-1.5 flex-wrap justify-center bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg">
             {ALL_CATEGORIES.map(cat => (
               <button
                 key={cat}
                 data-active={activeCategories.has(cat)}
                 onClick={() => toggleCategory(cat)}
-                className={`px-2.5 py-1 rounded-[2px] font-mono text-[8px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
+                className={`px-3 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
                   activeCategories.has(cat)
                     ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
                     : 'border-[rgba(255,255,255,0.07)] text-label hover:text-secondary hover:border-[rgba(255,255,255,0.12)]'
@@ -223,8 +223,8 @@ export default function GlobeView({
               transform: 'translateY(-100%)',
             }}
           >
-            <div className="font-mono text-[10px] text-secondary">{hoverInfo.name}</div>
-            <div className="font-mono text-[8px] text-label">{hoverInfo.altKm.toLocaleString()} km</div>
+            <div className="font-mono text-[12px] text-secondary">{hoverInfo.name}</div>
+            <div className="font-mono text-[10px] text-label">{hoverInfo.altKm.toLocaleString()} km</div>
           </div>
         )}
 
@@ -232,7 +232,7 @@ export default function GlobeView({
 
       {/* Loading overlay — full bleed, outside the safe-area wrapper */}
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#080808] font-mono text-[9px] text-label tracking-[0.1em] uppercase">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#080808] font-mono text-[11px] text-label tracking-[0.1em] uppercase">
           Initializing…
         </div>
       )}

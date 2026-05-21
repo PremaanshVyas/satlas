@@ -46,12 +46,12 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
                 <span className="relative inline-flex rounded-full h-[6px] w-[6px] bg-accent" />
               </span>
             )}
-            <div className="font-mono text-[11px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{sat.name}</div>
+            <div className="font-mono text-[13px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{sat.name}</div>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <span className="font-mono text-[8px] text-label">NORAD ID · {sat.noradId}</span>
+            <span className="font-mono text-[10px] text-label">NORAD ID · {sat.noradId}</span>
             {meta && (
-              <span className={`font-mono text-[7px] px-1.5 py-0.5 rounded-[2px] border ${badgeClass(meta.objectType)}`}>
+              <span className={`font-mono text-[8px] px-1.5 py-0.5 rounded-[2px] border ${badgeClass(meta.objectType)}`}>
                 {objectTypeLabel(meta.objectType)}
               </span>
             )}
@@ -68,82 +68,82 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
 
       {/* Catalog */}
       <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)]">
-        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-2">Catalog</div>
+        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#555555] mb-2">Catalog</div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           <div>
-            <div className="font-mono text-[8px] text-label mb-0.5">Owner</div>
-            <div className="font-mono text-[10px] font-light text-secondary truncate">{meta?.owner || '—'}</div>
+            <div className="font-mono text-[10px] text-label mb-0.5">Owner</div>
+            <div className="font-mono text-[12px] font-light text-secondary truncate">{meta?.owner || '—'}</div>
           </div>
           <div>
-            <div className="font-mono text-[8px] text-label mb-0.5">Launched</div>
-            <div className="font-mono text-[10px] font-light text-secondary">{meta?.launchDate || '—'}</div>
+            <div className="font-mono text-[10px] text-label mb-0.5">Launched</div>
+            <div className="font-mono text-[12px] font-light text-secondary">{meta?.launchDate || '—'}</div>
           </div>
           <div>
-            <div className="font-mono text-[8px] text-label mb-0.5">Status</div>
+            <div className="font-mono text-[10px] text-label mb-0.5">Status</div>
             <div className={`font-mono text-[10px] font-light ${statusColor(meta?.opsStatus)}`}>
               {meta?.opsStatus ? opsStatusLabel(meta.opsStatus) : '—'}
             </div>
           </div>
           <div>
-            <div className="font-mono text-[8px] text-label mb-0.5">Designator</div>
-            <div className="font-mono text-[10px] font-light text-secondary">{meta?.intlDes || '—'}</div>
+            <div className="font-mono text-[10px] text-label mb-0.5">Designator</div>
+            <div className="font-mono text-[12px] font-light text-secondary">{meta?.intlDes || '—'}</div>
           </div>
         </div>
         {meta?.launchSite && (
           <div className="mt-2">
-            <div className="font-mono text-[8px] text-label mb-0.5">Launch Site</div>
-            <div className="font-mono text-[10px] font-light text-secondary leading-snug">{meta.launchSite}</div>
+            <div className="font-mono text-[10px] text-label mb-0.5">Launch Site</div>
+            <div className="font-mono text-[12px] font-light text-secondary leading-snug">{meta.launchSite}</div>
           </div>
         )}
       </div>
 
       {/* Live Position */}
       <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)]">
-        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-2">Live Position</div>
+        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#555555] mb-2">Live Position</div>
         {position ? (
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
             <div>
-              <div className="font-mono text-[8px] text-label mb-0.5">Latitude</div>
-              <div className="font-mono text-[10px] text-accent">{latLabel(position.lat)}</div>
+              <div className="font-mono text-[10px] text-label mb-0.5">Latitude</div>
+              <div className="font-mono text-[12px] text-accent">{latLabel(position.lat)}</div>
             </div>
             <div>
-              <div className="font-mono text-[8px] text-label mb-0.5">Longitude</div>
-              <div className="font-mono text-[10px] text-accent">{lonLabel(position.lon)}</div>
+              <div className="font-mono text-[10px] text-label mb-0.5">Longitude</div>
+              <div className="font-mono text-[12px] text-accent">{lonLabel(position.lon)}</div>
             </div>
             <div>
-              <div className="font-mono text-[8px] text-label mb-0.5">Altitude</div>
-              <div className="font-mono text-[10px] font-light text-secondary">{position.altKm.toLocaleString()} km</div>
+              <div className="font-mono text-[10px] text-label mb-0.5">Altitude</div>
+              <div className="font-mono text-[12px] font-light text-secondary">{position.altKm.toLocaleString()} km</div>
             </div>
             <div>
-              <div className="font-mono text-[8px] text-label mb-0.5">Velocity</div>
-              <div className="font-mono text-[10px] font-light text-secondary">{fmt(position.velocity)} km/s</div>
+              <div className="font-mono text-[10px] text-label mb-0.5">Velocity</div>
+              <div className="font-mono text-[12px] font-light text-secondary">{fmt(position.velocity)} km/s</div>
             </div>
           </div>
         ) : (
-          <div className="font-mono text-[9px] text-label">Propagating…</div>
+          <div className="font-mono text-[11px] text-label">Propagating…</div>
         )}
       </div>
 
       {/* Orbital Parameters */}
       {orbital && (
         <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)]">
-          <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-2">Orbital Parameters</div>
+          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#555555] mb-2">Orbital Parameters</div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
             <div>
-              <div className="font-mono text-[8px] text-label mb-0.5">Inclination</div>
-              <div className="font-mono text-[10px] font-light text-secondary">{orbital.inclination}°</div>
+              <div className="font-mono text-[10px] text-label mb-0.5">Inclination</div>
+              <div className="font-mono text-[12px] font-light text-secondary">{orbital.inclination}°</div>
             </div>
             <div>
-              <div className="font-mono text-[8px] text-label mb-0.5">Period</div>
-              <div className="font-mono text-[10px] font-light text-secondary">{fmt(orbital.period, 1)} min</div>
+              <div className="font-mono text-[10px] text-label mb-0.5">Period</div>
+              <div className="font-mono text-[12px] font-light text-secondary">{fmt(orbital.period, 1)} min</div>
             </div>
             <div>
-              <div className="font-mono text-[8px] text-label mb-0.5">Apogee</div>
-              <div className="font-mono text-[10px] font-light text-secondary">{orbital.apogee.toLocaleString()} km</div>
+              <div className="font-mono text-[10px] text-label mb-0.5">Apogee</div>
+              <div className="font-mono text-[12px] font-light text-secondary">{orbital.apogee.toLocaleString()} km</div>
             </div>
             <div>
-              <div className="font-mono text-[8px] text-label mb-0.5">Perigee</div>
-              <div className="font-mono text-[10px] font-light text-secondary">{orbital.perigee.toLocaleString()} km</div>
+              <div className="font-mono text-[10px] text-label mb-0.5">Perigee</div>
+              <div className="font-mono text-[12px] font-light text-secondary">{orbital.perigee.toLocaleString()} km</div>
             </div>
           </div>
         </div>
@@ -153,13 +153,13 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
       <div className="px-3 py-2.5 space-y-1.5">
         <button
           onClick={onPredictPasses}
-          className="w-full font-mono text-[8px] uppercase tracking-[0.08em] border border-[rgba(255,255,255,0.09)] text-label rounded-[2px] py-2 sm:py-1.5 hover:text-secondary hover:border-[rgba(255,255,255,0.14)] transition-colors touch-manipulation"
+          className="w-full font-mono text-[10px] uppercase tracking-[0.08em] border border-[rgba(255,255,255,0.09)] text-label rounded-[2px] py-2 sm:py-1.5 hover:text-secondary hover:border-[rgba(255,255,255,0.14)] transition-colors touch-manipulation"
         >
           Predict Passes
         </button>
         <button
           onClick={onAskAI}
-          className="w-full font-mono text-[8px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent rounded-[2px] py-2 sm:py-1.5 hover:border-[rgba(0,212,255,0.4)] transition-colors touch-manipulation"
+          className="w-full font-mono text-[10px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent rounded-[2px] py-2 sm:py-1.5 hover:border-[rgba(0,212,255,0.4)] transition-colors touch-manipulation"
         >
           Ask AI
         </button>

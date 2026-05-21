@@ -144,7 +144,7 @@ export default function App() {
               onClick={() => setTrayOpen(o => !o)}
               className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] font-mono text-[9px] touch-manipulation"
             >
-              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-secondary">{selectedSats.length} Selected</span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-secondary">{selectedSats.length} Selected</span>
               <motion.svg
                 width="12" height="12" viewBox="0 0 12 12" fill="none"
                 animate={{ rotate: trayOpen ? 180 : 0 }}
@@ -178,8 +178,8 @@ export default function App() {
                           className="flex-1 min-w-0 text-left touch-manipulation"
                           onClick={() => handleTrayChipClick(sat)}
                         >
-                          <div className="font-mono text-[9px] text-secondary truncate leading-tight uppercase tracking-[0.03em]">{sat.name}</div>
-                          <div className="font-mono text-[8px] text-label mt-0.5">{sat.noradId}</div>
+                          <div className="font-mono text-[11px] text-secondary truncate leading-tight uppercase tracking-[0.03em]">{sat.name}</div>
+                          <div className="font-mono text-[10px] text-label mt-0.5">{sat.noradId}</div>
                         </button>
                         <button
                           onClick={() => handleRemoveFromTray(sat.noradId)}

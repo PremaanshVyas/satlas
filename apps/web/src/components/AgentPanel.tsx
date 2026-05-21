@@ -47,10 +47,10 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
-            <p className="font-mono text-[9px] text-label text-center leading-relaxed px-4 uppercase tracking-[0.1em]">
+            <p className="font-mono text-[11px] text-label text-center leading-relaxed px-4 uppercase tracking-[0.1em]">
               Ask about any satellite or the ISS.
               <br />
-              <span className="text-[#3a3a3a] mt-1 block">
+              <span className="text-[#555555] mt-1 block">
                 e.g. "Where is the ISS right now?"
               </span>
             </p>
@@ -62,7 +62,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[88%] rounded-[3px] px-3 py-2 font-mono text-[11px] font-light whitespace-pre-wrap leading-relaxed ${
+              className={`max-w-[88%] rounded-[3px] px-3 py-2 font-mono text-[13px] font-light whitespace-pre-wrap leading-relaxed ${
                 msg.role === 'user'
                   ? 'bg-[rgba(0,212,255,0.08)] border border-[rgba(0,212,255,0.15)] text-white'
                   : 'border border-[rgba(255,255,255,0.06)] text-secondary'
@@ -101,7 +101,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
           <input
             ref={inputRef}
             type="text"
-            className="min-w-0 flex-1 bg-[rgba(9,9,9,0.72)] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 font-mono text-[11px] text-secondary placeholder:text-label outline-none focus:border-[rgba(0,212,255,0.3)] transition-colors disabled:opacity-50"
+            className="min-w-0 flex-1 bg-[rgba(9,9,9,0.72)] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 font-mono text-[13px] text-secondary placeholder:text-label outline-none focus:border-[rgba(0,212,255,0.3)] transition-colors disabled:opacity-50"
             placeholder="Ask anything…"
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -111,7 +111,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="flex-none px-3 py-2 rounded-[2px] font-mono text-[8px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent hover:border-[rgba(0,212,255,0.4)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors touch-manipulation"
+            className="flex-none px-3 py-2 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent hover:border-[rgba(0,212,255,0.4)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors touch-manipulation"
           >
             Send
           </button>

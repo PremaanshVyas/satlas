@@ -223,9 +223,9 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       {/* Header */}
       <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2.5 border-b border-[rgba(255,255,255,0.04)] flex-shrink-0">
         <div className="min-w-0">
-          <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-1">Pass Prediction · Next 24 h</div>
-          <div className="font-mono text-[11px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{sat.name}</div>
-          <div className="font-mono text-[8px] text-label mt-0.5">NORAD ID · {sat.noradId}</div>
+          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#555555] mb-1">Pass Prediction · Next 24 h</div>
+          <div className="font-mono text-[13px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{sat.name}</div>
+          <div className="font-mono text-[10px] text-label mt-0.5">NORAD ID · {sat.noradId}</div>
         </div>
         <button
           onClick={onClose}
@@ -236,10 +236,10 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
 
       {/* Location */}
       <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)] flex-shrink-0">
-        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-2">Observer Location</div>
+        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#555555] mb-2">Observer Location</div>
 
         {locState === 'requesting' && (
-          <div className="font-mono text-[9px] text-label">Getting your location…</div>
+          <div className="font-mono text-[11px] text-label">Getting your location…</div>
         )}
 
         {locState === 'granted' && (
@@ -248,14 +248,14 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
               {locationName && (
                 <div className="font-mono text-[10px] text-secondary">{locationName}</div>
               )}
-              <div className="font-mono text-[9px] text-label mt-0.5">
+              <div className="font-mono text-[11px] text-label mt-0.5">
                 {parseFloat(lat).toFixed(2)}° {parseFloat(lat) >= 0 ? 'N' : 'S'},{' '}
                 {parseFloat(lon).toFixed(2)}° {parseFloat(lon) >= 0 ? 'E' : 'W'}
               </div>
             </div>
             <button
               onClick={() => { setLocState('manual'); setSearchQuery(''); setSuggestions([]); setActiveIndex(-1) }}
-              className="font-mono text-[8px] uppercase tracking-[0.08em] text-label hover:text-secondary transition-colors flex-shrink-0 touch-manipulation"
+              className="font-mono text-[10px] uppercase tracking-[0.08em] text-label hover:text-secondary transition-colors flex-shrink-0 touch-manipulation"
             >
               Change
             </button>
@@ -273,7 +273,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                   onChange={handleSearchChange}
                   onKeyDown={handleKeyDown}
                   onBlur={() => setTimeout(() => { setSuggestions([]); setActiveIndex(-1) }, 150)}
-                  className="w-full bg-[rgba(9,9,9,0.72)] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 font-mono text-[9px] text-secondary placeholder:text-label focus:outline-none focus:border-[rgba(0,212,255,0.3)] transition-colors pr-6"
+                  className="w-full bg-[rgba(9,9,9,0.72)] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 font-mono text-[11px] text-secondary placeholder:text-label focus:outline-none focus:border-[rgba(0,212,255,0.3)] transition-colors pr-6"
                 />
                 {suggestionsLoading && (
                   <div className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -285,7 +285,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                 onClick={() => void handleLocationSearch()}
                 disabled={searchLoading || loading}
                 aria-label="Go"
-                className="px-2.5 font-mono text-[8px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent rounded-[2px] hover:border-[rgba(0,212,255,0.4)] disabled:opacity-40 transition-colors touch-manipulation flex-shrink-0"
+                className="px-2.5 font-mono text-[10px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent rounded-[2px] hover:border-[rgba(0,212,255,0.4)] disabled:opacity-40 transition-colors touch-manipulation flex-shrink-0"
               >
                 {searchLoading ? '…' : 'Go'}
               </button>
@@ -318,8 +318,8 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                           <path d="M8 1a5 5 0 0 1 5 5c0 3.5-5 9-5 9S3 9.5 3 6a5 5 0 0 1 5-5zm0 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
                         </svg>
                         <div className="min-w-0">
-                          <div className="font-mono text-[9px] text-secondary truncate">{s.name}</div>
-                          {context && <div className="font-mono text-[8px] text-label truncate mt-0.5">{context}</div>}
+                          <div className="font-mono text-[11px] text-secondary truncate">{s.name}</div>
+                          {context && <div className="font-mono text-[10px] text-label truncate mt-0.5">{context}</div>}
                         </div>
                       </li>
                     )
@@ -334,14 +334,14 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       {/* Results */}
       <div className="overflow-y-auto max-h-[50dvh] min-h-[60px]">
         {loading && (
-          <div className="px-3 py-4 font-mono text-[9px] text-label text-center">Computing passes…</div>
+          <div className="px-3 py-4 font-mono text-[11px] text-label text-center">Computing passes…</div>
         )}
         {error && (
           <div className="px-3 py-3 font-mono text-[9px] text-danger">{error}</div>
         )}
         {passes !== null && !loading && (
           passes.length === 0 ? (
-            <div className="px-3 py-4 font-mono text-[9px] text-label text-center">
+            <div className="px-3 py-4 font-mono text-[11px] text-label text-center">
               No passes above 10° in the next 24 hours.
             </div>
           ) : (
@@ -350,19 +350,19 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                 <div key={i} className="px-3 py-2.5">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="font-mono text-[10px] font-medium text-secondary">{formatTime(p.start_utc)}</span>
-                      {tz && <span className="font-mono text-[8px] text-label">{tz}</span>}
+                      <span className="font-mono text-[12px] font-medium text-secondary">{formatTime(p.start_utc)}</span>
+                      {tz && <span className="font-mono text-[10px] text-label">{tz}</span>}
                     </div>
-                    <span className="font-mono text-[8px] text-label">{durationMin(p.start_utc, p.end_utc)}</span>
+                    <span className="font-mono text-[10px] text-label">{durationMin(p.start_utc, p.end_utc)}</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <div>
                       <div className="font-mono text-[7px] uppercase tracking-[0.14em] text-[#3a3a3a] mb-0.5">Max Elevation</div>
-                      <div className="font-mono text-[10px] font-light text-secondary">{p.max_elevation_deg}°</div>
+                      <div className="font-mono text-[12px] font-light text-secondary">{p.max_elevation_deg}°</div>
                     </div>
                     <div className="flex flex-col items-center">
                       <CompassRose direction={p.direction} />
-                      <div className="font-mono text-[8px] text-label mt-0.5">{p.direction}</div>
+                      <div className="font-mono text-[10px] text-label mt-0.5">{p.direction}</div>
                     </div>
                   </div>
                 </div>
