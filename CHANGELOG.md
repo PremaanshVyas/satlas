@@ -4,6 +4,24 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 25] — Frontend redesign: Nothing/Terminal aesthetic (2026-05-21)
+
+### What shipped
+
+Full visual restyle of the Satlas frontend across 9 files. No logic changes, no new packages, no routing changes — pure CSS layer.
+
+**Design system.** JetBrains Mono replaces Geist as the single typeface. Electric cyan `#00d4ff` is the accent colour: live satellite data, active status indicators, primary action buttons, category pills when selected. Tailwind v4 `@theme` block defines named tokens (`text-accent`, `text-secondary`, `text-label`, `text-danger`, `text-warn`, `font-mono`) that propagate consistently to all components. Background is near-black `#080808`.
+
+**Glass panels.** Every floating UI surface — SatInfoCard, PassPanel location search, SearchBar, AgentPanel input, selection tray, chat toggle, API Docs link — uses the same glass shell: `bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px]`. Section dividers are even subtler: `border-[rgba(255,255,255,0.04)]`.
+
+**Component highlights.** SatInfoCard: full-word labels (Owner, Launched, Latitude, Longitude — never abbreviations), cyan pulsing dot for active satellites, cyan live lat/lon values, danger/warn badge tints for debris and rocket bodies. PassPanel: CompassRose needle recoloured to `#00d4ff`. AgentPanel: user bubbles get a cyan tint; AI bubbles transparent with hairline border; streaming dots cyan. GlobeView: UTC clock and satellite count become bare text overlays (no chip backgrounds); category pills use cyan active state. ApiDocs: full monospace terminal page, GET badge cyan, POST badge amber.
+
+### No regressions
+
+All 75 tests passed throughout. Tests check semantic content (headings, links, endpoint paths, badge text) not CSS classes, so they were unaffected.
+
+---
+
 ## [Session 24] — V1 polish: pulsing dot, compass rose, docs footer (2026-05-21)
 
 ### What shipped

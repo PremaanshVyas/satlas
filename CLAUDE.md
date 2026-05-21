@@ -110,11 +110,21 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 24 complete — V1 polish backlog fully cleared. V1 milestone closed.
+**Current phase:** Session 25 complete — full frontend redesign (Nothing/Terminal aesthetic, JetBrains Mono, electric cyan, glass panels).
 
-**Next milestone:** Session 25 — V1 complete; discuss V2 direction (vision pipeline, orbit history, Go gateway).
+**Next milestone:** Session 26 — V2 direction decision (vision pipeline, orbit history, Go gateway, or more agent tools).
 
 **Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
+
+**Session 25 completed tasks:**
+- [x] Full frontend redesign — Nothing/Terminal aesthetic across 9 files
+- [x] JetBrains Mono font replacing Geist throughout
+- [x] Design tokens: `--color-accent: #00d4ff`, `--color-secondary: #888888`, `--color-label: #2a2a2a`, danger/warn
+- [x] SatInfoCard, PassPanel, AgentPanel, SearchBar — full restyle with glass panels
+- [x] GlobeView overlays — bare text clock/count, cyan category pills, "API Docs" label
+- [x] App chrome — glass chat toggle, subtle "AI · Assistant" header, tray restyle
+- [x] ApiDocs — monospace terminal page with GET=cyan, POST=amber badges
+- [x] Compass rose needle and pulsing dot recoloured to cyan
 
 **Session 24 completed tasks:**
 - [x] Pulsing green dot in SatInfoCard header (`animate-ping`, shown when `opsStatus` is `+` or `tracked`)
@@ -199,6 +209,10 @@ Sessions 1–17 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-21 — Session 22 hotfix: `flex-1 overflow-y-auto` requires bounded parent `height`, not just `maxHeight`.** Desktop PassPanel container had `maxHeight: calc(100dvh - 6rem)` but no `height`. With no explicit height on the flex container, `flex-1` in the child resolves to content height, so `overflow-y-auto` never triggers — tall pass lists are silently clipped by the parent's `overflow: hidden`. Fix: replaced `flex-1 overflow-y-auto min-h-0` on the results div with `overflow-y-auto max-h-[50dvh]` — scroll cap works independently of the parent chain. Rule: for a scrollable region inside an absolutely-positioned card that only has `maxHeight`, do not rely on `flex-1`; set `max-height` directly on the scrollable element.
 
+- **2026-05-21 — Session 25: Frontend redesign used pure CSS token replacement — no logic changes needed.** Nothing/Terminal aesthetic achieved entirely via Tailwind class swaps across 9 files. Key pattern: Tailwind v4 `@theme` block defines named tokens (`--color-accent`, `--color-secondary`, `--color-label` etc.) which become named utilities (`text-accent`, `text-secondary`, `text-label`). These propagate to all components without using arbitrary values. All 75 tests continued to pass because tests assert on content/structure, not CSS classes. Rule: for a pure CSS redesign, define tokens in `@theme` first — it makes every subsequent class replacement consistent and grep-able.
+
+- **2026-05-21 — Session 25: Final reviewer caught legacy `bg-gray-*` classes missed in targeted edits.** The per-file implementer subagents (Tasks 6 and 7) missed: (1) desktop SatInfoCard/PassPanel wrapper divs in App.tsx (still `bg-gray-900/95 border-gray-700/80 rounded-lg`), (2) Vaul mobile drawer backgrounds, (3) globe hover tooltip, (4) loading overlay, (5) tray divider. The holistic final review caught all 6 locations. Rule: targeted edits to large files (App.tsx, GlobeView.tsx) need a grep scan for old-palette classes after the fact — a holistic review after all tasks complete catches what per-task reviews miss.
+
 ---
 
 ## Out of scope (so we don't drift)
@@ -218,7 +232,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-23-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-25-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -245,7 +259,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/session-21-bootstrap.md` | Session 21 bootstrap (historical). |
 | `docs/session-22-bootstrap.md` | Session 22 bootstrap (historical). |
 | `docs/session-23-bootstrap.md` | Session 23 bootstrap (historical). |
-| `docs/session-24-bootstrap.md` | Session 24 bootstrap — paste at start of Session 25 (contains S25 direction). |
+| `docs/session-24-bootstrap.md` | Session 24 bootstrap (historical). |
+| `docs/session-25-bootstrap.md` | Session 25 bootstrap — paste at start of Session 26 (contains V2 direction options). |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
