@@ -35,14 +35,14 @@ function CompassRose({ direction }: { direction: string }) {
   const angle = DIR_ANGLES[direction.toUpperCase()] ?? 0
   return (
     <svg width="34" height="34" viewBox="-17 -17 34 34" aria-label={`Direction: ${direction}`}>
-      <circle r="14" fill="none" stroke="#374151" strokeWidth="1" />
-      <line x1="0" y1="-14" x2="0" y2="-10" stroke="#4B5563" strokeWidth="1" />
-      <line x1="14" y1="0"  x2="10" y2="0"  stroke="#4B5563" strokeWidth="1" />
-      <line x1="0" y1="14"  x2="0" y2="10"  stroke="#4B5563" strokeWidth="1" />
-      <line x1="-14" y1="0" x2="-10" y2="0" stroke="#4B5563" strokeWidth="1" />
-      <text x="0" y="-15" textAnchor="middle" fontSize="4.5" fill="#6B7280" fontFamily="sans-serif">N</text>
+      <circle r="14" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+      <line x1="0" y1="-14" x2="0" y2="-10" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+      <line x1="14" y1="0"  x2="10" y2="0"  stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+      <line x1="0" y1="14"  x2="0" y2="10"  stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+      <line x1="-14" y1="0" x2="-10" y2="0" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+      <text x="0" y="-15" textAnchor="middle" fontSize="4.5" fill="#2a2a2a" fontFamily="'JetBrains Mono',monospace">N</text>
       <g transform={`rotate(${angle})`}>
-        <polygon points="0,-9 -2.5,1 0,-4 2.5,1" fill="#60A5FA" />
+        <polygon points="0,-9 -2.5,1 0,-4 2.5,1" fill="#00d4ff" />
       </g>
     </svg>
   )
@@ -146,7 +146,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
 
   useEffect(() => {
     if (locState === 'granted' && lat && lon) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- triggered by geolocation grant, not a state cascade
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void fetchPasses(lat, lon)
     }
   }, [locState, lat, lon, fetchPasses])
@@ -175,7 +175,6 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
     setSearchQuery('')
     setLat(result.lat)
     setLon(result.lon)
-    // Show "City, Country" so users can distinguish e.g. Melbourne AU vs Melbourne FL
     const parts = result.displayName.split(', ')
     const country = parts[parts.length - 1]
     setLocationName(country && country !== parts[0] ? `${parts[0]}, ${country}` : parts[0])
@@ -222,41 +221,41 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2 border-b border-gray-800 flex-shrink-0">
+      <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2.5 border-b border-[rgba(255,255,255,0.04)] flex-shrink-0">
         <div className="min-w-0">
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Pass Prediction · Next 24 h</div>
-          <div className="text-sm font-semibold text-white truncate leading-tight">{sat.name}</div>
-          <div className="text-[10px] text-gray-600 font-mono mt-0.5">NORAD {sat.noradId}</div>
+          <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#1a1a1a] mb-1">Pass Prediction · Next 24 h</div>
+          <div className="font-mono text-[11px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{sat.name}</div>
+          <div className="font-mono text-[8px] text-label mt-0.5">NORAD ID · {sat.noradId}</div>
         </div>
         <button
           onClick={onClose}
           aria-label="Close pass panel"
-          className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-300 text-xl leading-none transition-colors touch-manipulation"
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-[#1e1e1e] hover:text-secondary text-lg leading-none transition-colors touch-manipulation"
         >×</button>
       </div>
 
       {/* Location */}
-      <div className="px-3 py-2 border-b border-gray-800 flex-shrink-0">
-        <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Observer Location</div>
+      <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)] flex-shrink-0">
+        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#1a1a1a] mb-2">Observer Location</div>
 
         {locState === 'requesting' && (
-          <div className="text-xs text-gray-500">Getting your location…</div>
+          <div className="font-mono text-[9px] text-label">Getting your location…</div>
         )}
 
         {locState === 'granted' && (
           <div className="flex items-baseline justify-between gap-2">
             <div>
               {locationName && (
-                <div className="text-xs font-medium text-gray-300">{locationName}</div>
+                <div className="font-mono text-[10px] text-secondary">{locationName}</div>
               )}
-              <div className="text-[11px] text-gray-500 font-mono">
+              <div className="font-mono text-[9px] text-label mt-0.5">
                 {parseFloat(lat).toFixed(2)}° {parseFloat(lat) >= 0 ? 'N' : 'S'},{' '}
                 {parseFloat(lon).toFixed(2)}° {parseFloat(lon) >= 0 ? 'E' : 'W'}
               </div>
             </div>
             <button
               onClick={() => { setLocState('manual'); setSearchQuery(''); setSuggestions([]); setActiveIndex(-1) }}
-              className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors flex-shrink-0 touch-manipulation"
+              className="font-mono text-[8px] uppercase tracking-[0.08em] text-label hover:text-secondary transition-colors flex-shrink-0 touch-manipulation"
             >
               Change
             </button>
@@ -274,11 +273,11 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                   onChange={handleSearchChange}
                   onKeyDown={handleKeyDown}
                   onBlur={() => setTimeout(() => { setSuggestions([]); setActiveIndex(-1) }, 150)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 pr-6"
+                  className="w-full bg-[rgba(9,9,9,0.72)] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 font-mono text-[9px] text-secondary placeholder-label focus:outline-none focus:border-[rgba(0,212,255,0.3)] transition-colors pr-6"
                 />
                 {suggestionsLoading && (
                   <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                    <div className="w-3 h-3 border border-gray-500 border-t-gray-300 rounded-full animate-spin" />
+                    <div className="w-3 h-3 border border-[rgba(255,255,255,0.1)] border-t-[rgba(0,212,255,0.5)] rounded-full animate-spin" />
                   </div>
                 )}
               </div>
@@ -286,7 +285,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                 onClick={() => void handleLocationSearch()}
                 disabled={searchLoading || loading}
                 aria-label="Go"
-                className="px-2.5 text-xs font-medium bg-blue-600/80 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors touch-manipulation flex-shrink-0"
+                className="px-2.5 font-mono text-[8px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent rounded-[2px] hover:border-[rgba(0,212,255,0.4)] disabled:opacity-40 transition-colors touch-manipulation flex-shrink-0"
               >
                 {searchLoading ? '…' : 'Go'}
               </button>
@@ -296,11 +295,11 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
               {suggestions.length > 0 && (
                 <motion.ul
                   role="listbox"
-                  initial={{ opacity: 0, y: -6 }}
+                  initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.13, ease: 'easeOut' }}
-                  className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700/80 rounded-md overflow-hidden z-10 shadow-2xl"
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.1, ease: 'easeOut' }}
+                  className="absolute top-full left-0 right-0 mt-1 bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] overflow-hidden z-10 shadow-2xl"
                 >
                   {suggestions.map((s, i) => {
                     const context = s.displayName.split(', ').slice(1, 4).join(', ')
@@ -313,14 +312,14 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                         onMouseDown={e => { e.preventDefault(); void handleSuggestionSelect(s) }}
                         onMouseEnter={() => setActiveIndex(i)}
                         onMouseLeave={() => setActiveIndex(-1)}
-                        className={`flex items-start gap-2 px-2.5 py-2 cursor-pointer border-b border-gray-800/60 last:border-0 transition-colors duration-75 ${isActive ? 'bg-gray-700/70' : 'hover:bg-gray-800/60'}`}
+                        className={`flex items-start gap-2 px-2.5 py-2 cursor-pointer border-b border-[rgba(255,255,255,0.04)] last:border-0 transition-colors duration-75 ${isActive ? 'bg-[rgba(255,255,255,0.04)]' : ''}`}
                       >
-                        <svg className="w-3 h-3 mt-0.5 flex-shrink-0 text-gray-500" fill="currentColor" viewBox="0 0 16 16">
+                        <svg className="w-3 h-3 mt-0.5 flex-shrink-0 text-label" fill="currentColor" viewBox="0 0 16 16">
                           <path d="M8 1a5 5 0 0 1 5 5c0 3.5-5 9-5 9S3 9.5 3 6a5 5 0 0 1 5-5zm0 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
                         </svg>
                         <div className="min-w-0">
-                          <div className="text-xs text-gray-200 truncate">{s.name}</div>
-                          {context && <div className="text-[10px] text-gray-500 truncate">{context}</div>}
+                          <div className="font-mono text-[9px] text-secondary truncate">{s.name}</div>
+                          {context && <div className="font-mono text-[8px] text-label truncate mt-0.5">{context}</div>}
                         </div>
                       </li>
                     )
@@ -335,35 +334,35 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       {/* Results */}
       <div className="overflow-y-auto max-h-[50dvh] min-h-[60px]">
         {loading && (
-          <div className="px-3 py-4 text-xs text-gray-500 text-center">Computing passes…</div>
+          <div className="px-3 py-4 font-mono text-[9px] text-label text-center">Computing passes…</div>
         )}
         {error && (
-          <div className="px-3 py-3 text-xs text-red-400">{error}</div>
+          <div className="px-3 py-3 font-mono text-[9px] text-danger">{error}</div>
         )}
         {passes !== null && !loading && (
           passes.length === 0 ? (
-            <div className="px-3 py-4 text-xs text-gray-500 text-center">
+            <div className="px-3 py-4 font-mono text-[9px] text-label text-center">
               No passes above 10° in the next 24 hours.
             </div>
           ) : (
-            <div className="divide-y divide-gray-800/60">
+            <div className="divide-y divide-[rgba(255,255,255,0.04)]">
               {passes.map((p, i) => (
                 <div key={i} className="px-3 py-2.5">
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-xs font-medium text-gray-200">{formatTime(p.start_utc)}</span>
-                      {tz && <span className="text-[10px] text-gray-600">{tz}</span>}
+                      <span className="font-mono text-[10px] font-medium text-secondary">{formatTime(p.start_utc)}</span>
+                      {tz && <span className="font-mono text-[8px] text-label">{tz}</span>}
                     </div>
-                    <span className="text-xs text-gray-500">{durationMin(p.start_utc, p.end_utc)}</span>
+                    <span className="font-mono text-[8px] text-label">{durationMin(p.start_utc, p.end_utc)}</span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4">
                     <div>
-                      <div className="text-[10px] text-gray-600 uppercase tracking-wider">Max El</div>
-                      <div className="text-xs font-mono text-gray-200">{p.max_elevation_deg}°</div>
+                      <div className="font-mono text-[7px] uppercase tracking-[0.14em] text-[#1a1a1a] mb-0.5">Max Elevation</div>
+                      <div className="font-mono text-[10px] font-light text-secondary">{p.max_elevation_deg}°</div>
                     </div>
                     <div className="flex flex-col items-center">
                       <CompassRose direction={p.direction} />
-                      <div className="text-[10px] text-gray-500 font-mono">{p.direction}</div>
+                      <div className="font-mono text-[8px] text-label mt-0.5">{p.direction}</div>
                     </div>
                   </div>
                 </div>
