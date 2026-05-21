@@ -50,7 +50,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
             <p className="font-mono text-[9px] text-label text-center leading-relaxed px-4 uppercase tracking-[0.1em]">
               Ask about any satellite or the ISS.
               <br />
-              <span className="text-[#1a1a1a] mt-1 block">
+              <span className="text-[#3a3a3a] mt-1 block">
                 e.g. "Where is the ISS right now?"
               </span>
             </p>

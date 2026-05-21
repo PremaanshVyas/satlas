@@ -223,20 +223,20 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       {/* Header */}
       <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2.5 border-b border-[rgba(255,255,255,0.04)] flex-shrink-0">
         <div className="min-w-0">
-          <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#1a1a1a] mb-1">Pass Prediction · Next 24 h</div>
+          <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-1">Pass Prediction · Next 24 h</div>
           <div className="font-mono text-[11px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{sat.name}</div>
           <div className="font-mono text-[8px] text-label mt-0.5">NORAD ID · {sat.noradId}</div>
         </div>
         <button
           onClick={onClose}
           aria-label="Close pass panel"
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-[#1e1e1e] hover:text-secondary text-lg leading-none transition-colors touch-manipulation"
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-label hover:text-secondary text-lg leading-none transition-colors touch-manipulation"
         >×</button>
       </div>
 
       {/* Location */}
       <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)] flex-shrink-0">
-        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#1a1a1a] mb-2">Observer Location</div>
+        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-2">Observer Location</div>
 
         {locState === 'requesting' && (
           <div className="font-mono text-[9px] text-label">Getting your location…</div>
@@ -273,7 +273,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                   onChange={handleSearchChange}
                   onKeyDown={handleKeyDown}
                   onBlur={() => setTimeout(() => { setSuggestions([]); setActiveIndex(-1) }, 150)}
-                  className="w-full bg-[rgba(9,9,9,0.72)] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 font-mono text-[9px] text-secondary placeholder-label focus:outline-none focus:border-[rgba(0,212,255,0.3)] transition-colors pr-6"
+                  className="w-full bg-[rgba(9,9,9,0.72)] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 font-mono text-[9px] text-secondary placeholder:text-label focus:outline-none focus:border-[rgba(0,212,255,0.3)] transition-colors pr-6"
                 />
                 {suggestionsLoading && (
                   <div className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -357,7 +357,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                   </div>
                   <div className="flex items-center gap-4">
                     <div>
-                      <div className="font-mono text-[7px] uppercase tracking-[0.14em] text-[#1a1a1a] mb-0.5">Max Elevation</div>
+                      <div className="font-mono text-[7px] uppercase tracking-[0.14em] text-[#3a3a3a] mb-0.5">Max Elevation</div>
                       <div className="font-mono text-[10px] font-light text-secondary">{p.max_elevation_deg}°</div>
                     </div>
                     <div className="flex flex-col items-center">

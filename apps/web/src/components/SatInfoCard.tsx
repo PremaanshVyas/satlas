@@ -18,7 +18,7 @@ function latLabel(lat: number) { return `${Math.abs(lat).toFixed(3)}° ${lat >= 
 function lonLabel(lon: number) { return `${Math.abs(lon).toFixed(3)}° ${lon >= 0 ? 'E' : 'W'}` }
 
 function statusColor(opsStatus: string | undefined) {
-  if (!opsStatus) return 'text-[#1e1e1e]'
+  if (!opsStatus) return 'text-label'
   if (opsStatus === '+' || opsStatus === 'tracked') return 'text-accent'
   if (opsStatus === 'D' || opsStatus === 'decayed') return 'text-danger'
   return 'text-warn'
@@ -28,7 +28,7 @@ function badgeClass(objectType: string) {
   if (objectType === 'PAY') return 'border-[rgba(0,212,255,0.15)] text-[rgba(0,212,255,0.5)]'
   if (objectType === 'DEB') return 'border-[rgba(255,68,68,0.2)] text-[rgba(255,68,68,0.5)]'
   if (objectType === 'R/B') return 'border-[rgba(255,170,0,0.2)] text-[rgba(255,170,0,0.5)]'
-  return 'border-[rgba(255,255,255,0.06)] text-[#2a2a2a]'
+  return 'border-[rgba(255,255,255,0.06)] text-label'
 }
 
 export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, onAskAI, onPredictPasses }: SatInfoCardProps) {
@@ -60,7 +60,7 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
         {onDismiss && (
           <button
             onClick={onDismiss}
-            className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-[#1e1e1e] hover:text-secondary text-lg leading-none transition-colors touch-manipulation"
+            className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-label hover:text-secondary text-lg leading-none transition-colors touch-manipulation"
             aria-label="Dismiss"
           >×</button>
         )}
@@ -68,7 +68,7 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
 
       {/* Catalog */}
       <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)]">
-        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#1a1a1a] mb-2">Catalog</div>
+        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-2">Catalog</div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           <div>
             <div className="font-mono text-[8px] text-label mb-0.5">Owner</div>
@@ -99,7 +99,7 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
 
       {/* Live Position */}
       <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)]">
-        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#1a1a1a] mb-2">Live Position</div>
+        <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-2">Live Position</div>
         {position ? (
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
             <div>
@@ -127,7 +127,7 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
       {/* Orbital Parameters */}
       {orbital && (
         <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)]">
-          <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#1a1a1a] mb-2">Orbital Parameters</div>
+          <div className="font-mono text-[7px] uppercase tracking-[0.18em] text-[#3a3a3a] mb-2">Orbital Parameters</div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
             <div>
               <div className="font-mono text-[8px] text-label mb-0.5">Inclination</div>
@@ -153,7 +153,7 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
       <div className="px-3 py-2.5 space-y-1.5">
         <button
           onClick={onPredictPasses}
-          className="w-full font-mono text-[8px] uppercase tracking-[0.08em] border border-[rgba(255,255,255,0.07)] text-[#2a2a2a] rounded-[2px] py-2 sm:py-1.5 hover:text-secondary hover:border-[rgba(255,255,255,0.14)] transition-colors touch-manipulation"
+          className="w-full font-mono text-[8px] uppercase tracking-[0.08em] border border-[rgba(255,255,255,0.09)] text-label rounded-[2px] py-2 sm:py-1.5 hover:text-secondary hover:border-[rgba(255,255,255,0.14)] transition-colors touch-manipulation"
         >
           Predict Passes
         </button>
