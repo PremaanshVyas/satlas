@@ -12,6 +12,9 @@ ISS_TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.5003444044352
 FRESH_ISS_TLE1 = '1 25544U 98067A   24088.00000000  .00016000  00000-0  10000-3 0  9998'
 FRESH_ISS_TLE2 = '2 25544  51.6412 190.0000 0001944  60.0000 300.0000 15.50000000443600'
 
+COSMOS_TLE1 = '1 06707U 73048A   24087.54791667 -.00000010  00000-0  00000-0 0  9990'
+COSMOS_TLE2 = '2 06707  65.8000 100.0000 0010000  50.0000 310.0000 14.29000000000001'
+
 SAMPLE_CATALOG = [
     {'name': 'ISS (ZARYA)', 'norad_id': '25544', 'tle1': ISS_TLE1, 'tle2': ISS_TLE2},
     {'name': 'HUBBLE SPACE TELESCOPE', 'norad_id': '20580',
@@ -20,6 +23,11 @@ SAMPLE_CATALOG = [
     {'name': 'STARLINK-1', 'norad_id': '44713',
      'tle1': '1 44713U 19074A   24087.54791667  .00001000  00000-0  10000-3 0  9990',
      'tle2': '2 44713  53.0000 100.0000 0001000  50.0000 310.0000 15.06000000000001'},
+    # NORAD IDs with leading zeros — catalog stores '06707', LLM may send '6707'
+    {'name': 'COSMOS 574', 'norad_id': '06707', 'tle1': COSMOS_TLE1, 'tle2': COSMOS_TLE2},
+    {'name': 'STARLINK-36707', 'norad_id': '60123',
+     'tle1': '1 60123U 24001A   24087.54791667  .00001000  00000-0  10000-3 0  9990',
+     'tle2': '2 60123  53.0000 100.0000 0001000  50.0000 310.0000 15.06000000000001'},
 ]
 
 _ISS_TLE_MOCK = {'tle1': ISS_TLE1, 'tle2': ISS_TLE2}
@@ -93,6 +101,23 @@ class TestSatelliteInfo:
         result = satellite_info(SAMPLE_CATALOG, '25544')
         assert result is not None
         assert result['norad_id'] == '25544'
+
+    def test_leading_zero_norad_id_found_without_leading_zero(self):
+        # LLM strips leading zero: '06707' → '6707'; must still find COSMOS 574
+        result = satellite_info(SAMPLE_CATALOG, '6707')
+        assert result is not None
+        assert result['name'] == 'COSMOS 574'
+
+    def test_leading_zero_norad_id_found_with_leading_zero(self):
+        # Explicit '06707' query also works
+        result = satellite_info(SAMPLE_CATALOG, '06707')
+        assert result is not None
+        assert result['name'] == 'COSMOS 574'
+
+    def test_digit_query_does_not_fall_through_to_name_search(self):
+        # '6707' must not match 'STARLINK-36707' via substring name search
+        result = satellite_info(SAMPLE_CATALOG, '6707')
+        assert result is None or result['name'] == 'COSMOS 574'
 
 
 class TestSatelliteInfoFreshTles:

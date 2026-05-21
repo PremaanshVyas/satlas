@@ -18,12 +18,15 @@ def satellite_info(catalog: list, query: str, fresh_tles: Optional[dict] = None)
 
     sat_data = None
     if query_stripped.isdigit():
+        query_int = int(query_stripped)
         for item in catalog:
-            if item['norad_id'] == query_stripped:
-                sat_data = item
-                break
-
-    if sat_data is None:
+            try:
+                if int(item['norad_id']) == query_int:
+                    sat_data = item
+                    break
+            except (ValueError, KeyError):
+                pass
+    else:
         query_lower = query_stripped.lower()
         for item in catalog:
             if query_lower in item['name'].lower():

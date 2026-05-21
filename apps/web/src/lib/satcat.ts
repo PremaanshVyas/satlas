@@ -8,7 +8,7 @@ const _cfBase = (import.meta.env.VITE_CATALOG_URL as string | undefined)?.replac
   ?? 'https://dgsll6twimcwl.cloudfront.net'
 const SATCAT_URL = `${_cfBase}/satcat.json`
 
-const SATCAT_CACHE_KEY = 'satlas-satcat-v4'
+const SATCAT_CACHE_KEY = 'satlas-satcat-v5'
 const SATCAT_CACHE_TTL_MS = 24 * 60 * 60 * 1000  // 24 h
 
 export interface SatcatEntry {
@@ -107,8 +107,11 @@ function parseSatcatJson(rows: SatcatRow[]): Map<string, SatcatEntry> {
   const map = new Map<string, SatcatEntry>()
   for (const r of rows) {
     if (!r.norad_id) continue
-    map.set(r.norad_id, {
-      noradId: r.norad_id,
+    // Space-Track omits leading zeros (e.g. '6707'); TLE catalog pads to 5 digits ('06707').
+    // Pad here so Map lookups using the TLE-derived NORAD ID always hit.
+    const paddedId = r.norad_id.padStart(5, '0')
+    map.set(paddedId, {
+      noradId: paddedId,
       intlDes: r.intl_des,
       objectType: r.type,
       opsStatus: r.decay ? 'decayed' : 'tracked',
