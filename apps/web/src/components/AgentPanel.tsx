@@ -21,7 +21,6 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
 
   useEffect(() => {
     if (prefill) {
-      // Syncing external prefill prop to local input state — intentional, fires once per prefill change
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setInput(prefill)
       inputRef.current?.focus()
@@ -42,18 +41,16 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
     }
   }
 
-  // Renders as a fragment — message list and input bar are direct flex children
-  // of the parent chat panel, keeping sizing in a single flat flex context.
   return (
     <>
-      {/* Message list — flex-1 grows to fill all space above input bar */}
+      {/* Message list */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
-            <p className="text-xs text-gray-600 text-center leading-relaxed px-4">
+            <p className="font-mono text-[9px] text-label text-center leading-relaxed px-4 uppercase tracking-[0.1em]">
               Ask about any satellite or the ISS.
               <br />
-              <span className="text-gray-700">
+              <span className="text-[#1a1a1a] mt-1 block">
                 e.g. "Where is the ISS right now?"
               </span>
             </p>
@@ -65,17 +62,17 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[88%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+              className={`max-w-[88%] rounded-[3px] px-3 py-2 font-mono text-[11px] font-light whitespace-pre-wrap leading-relaxed ${
                 msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-200'
+                  ? 'bg-[rgba(0,212,255,0.08)] border border-[rgba(0,212,255,0.15)] text-white'
+                  : 'border border-[rgba(255,255,255,0.06)] text-secondary'
               }`}
             >
               {msg.content || (msg.streaming ? (
                 <span className="inline-flex gap-1 items-center h-4">
-                  <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce [animation-delay:300ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce [animation-delay:300ms]" />
                 </span>
               ) : null)}
             </div>
@@ -84,21 +81,19 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar — flex-none, always anchored at the bottom of the panel */}
+      {/* Input bar */}
       <div
-        className="flex-none border-t border-gray-800 px-3 pt-3"
+        className="flex-none border-t border-[rgba(255,255,255,0.04)] px-3 pt-3"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
       >
-        {/* min-w-0 on the row prevents the input's browser-default min-width
-            from overflowing the panel and clipping the Send button */}
         <div className="flex items-center gap-2 min-w-0">
           {onClose && (
             <button
               onClick={onClose}
-              className="flex-none w-9 h-9 flex items-center justify-center rounded-lg bg-gray-900 text-gray-500 hover:text-gray-300 active:text-white transition-colors touch-manipulation"
+              className="flex-none w-8 h-8 flex items-center justify-center rounded-[3px] border border-[rgba(255,255,255,0.07)] font-mono text-label hover:text-secondary transition-colors touch-manipulation"
               aria-label="Close chat"
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
                 <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </button>
@@ -106,7 +101,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
           <input
             ref={inputRef}
             type="text"
-            className="min-w-0 flex-1 bg-gray-900 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-gray-700 disabled:opacity-50"
+            className="min-w-0 flex-1 bg-[rgba(9,9,9,0.72)] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 font-mono text-[11px] text-secondary placeholder:text-label outline-none focus:border-[rgba(0,212,255,0.3)] transition-colors disabled:opacity-50"
             placeholder="Ask anything…"
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -116,7 +111,7 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="flex-none px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors touch-manipulation"
+            className="flex-none px-3 py-2 rounded-[2px] font-mono text-[8px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent hover:border-[rgba(0,212,255,0.4)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors touch-manipulation"
           >
             Send
           </button>
