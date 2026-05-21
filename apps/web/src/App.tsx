@@ -294,7 +294,7 @@ export default function App() {
             style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
           >
             <div className="w-1.5 h-1.5 rounded-full bg-accent" />
-            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-label">AI · Assistant</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-secondary">AI · Assistant</span>
           </div>
           {/* Message list + input bar rendered as direct flex children */}
           <AgentPanel

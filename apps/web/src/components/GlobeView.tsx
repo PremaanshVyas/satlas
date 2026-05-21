@@ -147,7 +147,7 @@ export default function GlobeView({
 
         {/* UTC clock — top-left */}
         <div
-          className="absolute left-3 font-mono text-[9px] text-label select-none"
+          className="absolute left-3 font-mono text-[11px] text-label select-none"
           style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
         >
           {utcClock}
@@ -157,7 +157,7 @@ export default function GlobeView({
         {!isLoading && (
           satelliteCount > 0 ? (
             <div
-              className="absolute right-3 font-mono text-[9px] text-accent select-none"
+              className="absolute right-3 font-mono text-[11px] text-accent select-none"
               style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
             >
               <span className="hidden sm:inline">Tracking </span>
@@ -166,7 +166,7 @@ export default function GlobeView({
             </div>
           ) : (
             <div
-              className="absolute right-3 font-mono text-[9px] text-label select-none animate-pulse"
+              className="absolute right-3 font-mono text-[11px] text-label select-none animate-pulse"
               style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
             >
               <span className="sm:hidden">Loading…</span>
@@ -190,25 +190,27 @@ export default function GlobeView({
           <span className="hidden sm:inline">{cloudsVisible ? 'On' : 'Off'}</span>
         </button>
 
-        {/* Category filter pills — bottom-center */}
+        {/* Category filter pills — bottom-right with glass background */}
         <div
-          className="absolute left-0 right-0 flex gap-1.5 justify-center px-4 flex-wrap sm:flex-nowrap overflow-x-auto scrollbar-none pointer-events-auto"
+          className="absolute right-3 pointer-events-auto"
           style={{ bottom: `max(1rem, calc(${safeBottom} + 0.5rem))` }}
         >
-          {ALL_CATEGORIES.map(cat => (
-            <button
-              key={cat}
-              data-active={activeCategories.has(cat)}
-              onClick={() => toggleCategory(cat)}
-              className={`px-2.5 py-1 rounded-[2px] font-mono text-[8px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
-                activeCategories.has(cat)
-                  ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
-                  : 'border-[rgba(255,255,255,0.07)] text-label hover:text-secondary hover:border-[rgba(255,255,255,0.12)]'
-              }`}
-            >
-              {CATEGORY_LABELS[cat]}
-            </button>
-          ))}
+          <div className="flex gap-1.5 flex-wrap justify-end bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2.5 py-2 shadow-lg">
+            {ALL_CATEGORIES.map(cat => (
+              <button
+                key={cat}
+                data-active={activeCategories.has(cat)}
+                onClick={() => toggleCategory(cat)}
+                className={`px-2.5 py-1 rounded-[2px] font-mono text-[8px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
+                  activeCategories.has(cat)
+                    ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
+                    : 'border-[rgba(255,255,255,0.07)] text-label hover:text-secondary hover:border-[rgba(255,255,255,0.12)]'
+                }`}
+              >
+                {CATEGORY_LABELS[cat]}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Hover tooltip — screen-space positioned, pointer-events-none */}
