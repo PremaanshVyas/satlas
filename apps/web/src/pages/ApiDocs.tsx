@@ -198,6 +198,23 @@ export default function ApiDocs() {
           </div>
         ))}
       </div>
+
+      <footer className="border-t border-gray-800 px-6 py-6">
+        <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
+          <div className="flex items-center gap-4">
+            <Link to="/" className="hover:text-gray-300 transition-colors">← Globe</Link>
+            <a
+              href="https://github.com/PremaanshVyas/satlas"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-gray-300 transition-colors"
+            >
+              GitHub
+            </a>
+          </div>
+          <span>Satlas · open-source space situational awareness</span>
+        </div>
+      </footer>
     </div>
   )
 }

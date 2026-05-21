@@ -25,6 +25,12 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
         <div className="min-w-0">
           <div className="text-sm font-semibold text-white truncate leading-tight">{sat.name}</div>
           <div className="flex items-center gap-2 mt-0.5">
+            {(meta?.opsStatus === '+' || meta?.opsStatus === 'tracked') && (
+              <span className="relative flex h-2 w-2 flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+            )}
             <span className="text-xs text-gray-500">NORAD {sat.noradId}</span>
             {meta && (
               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${

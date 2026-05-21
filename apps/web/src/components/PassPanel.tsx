@@ -24,6 +24,30 @@ interface LocationResult {
 
 type LocationState = 'requesting' | 'granted' | 'denied' | 'manual'
 
+const DIR_ANGLES: Record<string, number> = {
+  N: 0, NNE: 22.5, NE: 45, ENE: 67.5,
+  E: 90, ESE: 112.5, SE: 135, SSE: 157.5,
+  S: 180, SSW: 202.5, SW: 225, WSW: 247.5,
+  W: 270, WNW: 292.5, NW: 315, NNW: 337.5,
+}
+
+function CompassRose({ direction }: { direction: string }) {
+  const angle = DIR_ANGLES[direction.toUpperCase()] ?? 0
+  return (
+    <svg width="34" height="34" viewBox="-17 -17 34 34" aria-label={`Direction: ${direction}`}>
+      <circle r="14" fill="none" stroke="#374151" strokeWidth="1" />
+      <line x1="0" y1="-14" x2="0" y2="-10" stroke="#4B5563" strokeWidth="1" />
+      <line x1="14" y1="0"  x2="10" y2="0"  stroke="#4B5563" strokeWidth="1" />
+      <line x1="0" y1="14"  x2="0" y2="10"  stroke="#4B5563" strokeWidth="1" />
+      <line x1="-14" y1="0" x2="-10" y2="0" stroke="#4B5563" strokeWidth="1" />
+      <text x="0" y="-15" textAnchor="middle" fontSize="4.5" fill="#6B7280" fontFamily="sans-serif">N</text>
+      <g transform={`rotate(${angle})`}>
+        <polygon points="0,-9 -2.5,1 0,-4 2.5,1" fill="#60A5FA" />
+      </g>
+    </svg>
+  )
+}
+
 function durationMin(start: string, end: string): string {
   const secs = (new Date(end).getTime() - new Date(start).getTime()) / 1000
   const m = Math.floor(secs / 60)
@@ -332,14 +356,14 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                     </div>
                     <span className="text-xs text-gray-500">{durationMin(p.start_utc, p.end_utc)}</span>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-3">
                     <div>
                       <div className="text-[10px] text-gray-600 uppercase tracking-wider">Max El</div>
                       <div className="text-xs font-mono text-gray-200">{p.max_elevation_deg}°</div>
                     </div>
-                    <div>
-                      <div className="text-[10px] text-gray-600 uppercase tracking-wider">Direction</div>
-                      <div className="text-xs font-mono text-gray-200">{p.direction}</div>
+                    <div className="flex flex-col items-center">
+                      <CompassRose direction={p.direction} />
+                      <div className="text-[10px] text-gray-500 font-mono">{p.direction}</div>
                     </div>
                   </div>
                 </div>
