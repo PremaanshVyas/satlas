@@ -40,9 +40,9 @@ const ENDPOINTS: Endpoint[] = [
     description:
       'Predict upcoming passes of a satellite over a ground location. Returns start/end times (UTC ISO 8601), max elevation in degrees, compass direction, and duration.',
     params: [
-      { name: 'norad_id',   type: 'string', required: true,  description: 'NORAD catalog number (e.g. 25544 for ISS)' },
-      { name: 'latitude',   type: 'number', required: true,  description: 'Observer latitude in decimal degrees (south = negative)' },
-      { name: 'longitude',  type: 'number', required: true,  description: 'Observer longitude in decimal degrees (west = negative)' },
+      { name: 'norad_id',    type: 'string', required: true,  description: 'NORAD catalog number (e.g. 25544 for ISS)' },
+      { name: 'latitude',    type: 'number', required: true,  description: 'Observer latitude in decimal degrees (south = negative)' },
+      { name: 'longitude',   type: 'number', required: true,  description: 'Observer longitude in decimal degrees (west = negative)' },
       { name: 'hours_ahead', type: 'number', required: false, description: 'Hours to search ahead. Default: 24' },
     ],
     curl: `curl "${BASE}/api/pass?norad_id=25544&latitude=-37.81&longitude=144.96&hours_ahead=24"`,
@@ -90,12 +90,12 @@ const ENDPOINTS: Endpoint[] = [
 ]
 
 function MethodBadge({ method }: { method: 'GET' | 'POST' }) {
-  const cls =
-    method === 'GET'
-      ? 'bg-green-900/40 text-green-400 border border-green-800/60'
-      : 'bg-blue-900/40 text-blue-400 border border-blue-800/60'
   return (
-    <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${cls}`}>
+    <span className={`font-mono text-[9px] uppercase tracking-[0.1em] px-2 py-0.5 rounded-[2px] border ${
+      method === 'GET'
+        ? 'border-[rgba(0,212,255,0.3)] text-accent'
+        : 'border-[rgba(255,170,0,0.3)] text-warn'
+    }`}>
       {method}
     </span>
   )
@@ -103,7 +103,7 @@ function MethodBadge({ method }: { method: 'GET' | 'POST' }) {
 
 function CodeBlock({ code }: { code: string }) {
   return (
-    <pre className="bg-gray-900 border border-gray-700/80 rounded-lg p-4 text-sm font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap">
+    <pre className="bg-[#050505] border border-[rgba(255,255,255,0.06)] rounded-[3px] p-4 font-mono text-[11px] font-light text-secondary overflow-x-auto whitespace-pre-wrap leading-relaxed">
       {code}
     </pre>
   )
@@ -111,29 +111,29 @@ function CodeBlock({ code }: { code: string }) {
 
 function ParamsTable({ params }: { params: Param[] }) {
   return (
-    <div className="bg-gray-900 border border-gray-700/80 rounded-lg p-4 overflow-x-auto">
+    <div className="border border-[rgba(255,255,255,0.06)] rounded-[3px] overflow-x-auto">
       <table className="w-full text-sm border-collapse">
         <thead>
-          <tr className="text-left text-gray-500 text-xs uppercase tracking-wider">
-            <th className="pb-2 pr-6 font-medium">Parameter</th>
-            <th className="pb-2 pr-6 font-medium">Type</th>
-            <th className="pb-2 pr-6 font-medium">Required</th>
-            <th className="pb-2 font-medium">Description</th>
+          <tr className="border-b border-[rgba(255,255,255,0.06)]">
+            <th className="text-left pb-2 pt-2.5 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Parameter</th>
+            <th className="text-left pb-2 pt-2.5 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Type</th>
+            <th className="text-left pb-2 pt-2.5 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Required</th>
+            <th className="text-left pb-2 pt-2.5 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Description</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-800/60">
+        <tbody className="divide-y divide-[rgba(255,255,255,0.04)]">
           {params.map(p => (
             <tr key={p.name}>
-              <td className="py-2 pr-6 font-mono text-gray-200">{p.name}</td>
-              <td className="py-2 pr-6 text-gray-500 font-mono text-xs">{p.type}</td>
-              <td className="py-2 pr-6">
+              <td className="py-2.5 px-4 font-mono text-[10px] text-accent">{p.name}</td>
+              <td className="py-2.5 px-4 font-mono text-[9px] font-light text-label">{p.type}</td>
+              <td className="py-2.5 px-4">
                 {p.required ? (
-                  <span className="text-blue-400 text-xs">required</span>
+                  <span className="font-mono text-[8px] text-accent">required</span>
                 ) : (
-                  <span className="text-gray-600 text-xs">optional</span>
+                  <span className="font-mono text-[8px] text-label">optional</span>
                 )}
               </td>
-              <td className="py-2 text-gray-400">{p.description}</td>
+              <td className="py-2.5 px-4 font-mono text-[10px] font-light text-secondary">{p.description}</td>
             </tr>
           ))}
         </tbody>
@@ -147,21 +147,21 @@ function EndpointSection({ endpoint }: { endpoint: Endpoint }) {
     <section>
       <div className="flex items-center gap-3 mb-3">
         <MethodBadge method={endpoint.method} />
-        <code className="text-gray-200 font-mono text-sm">{endpoint.path}</code>
+        <code className="font-mono text-[12px] text-white">{endpoint.path}</code>
       </div>
-      <p className="text-gray-400 text-sm mb-4">{endpoint.description}</p>
+      <p className="font-mono text-[11px] font-light text-secondary mb-5 leading-relaxed">{endpoint.description}</p>
       {endpoint.params && (
-        <div className="mb-4">
-          <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Parameters</h3>
+        <div className="mb-5">
+          <h3 className="font-mono text-[7px] uppercase tracking-[0.18em] text-label mb-2">Parameters</h3>
           <ParamsTable params={endpoint.params} />
         </div>
       )}
-      <div className="mb-4">
-        <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Example</h3>
+      <div className="mb-5">
+        <h3 className="font-mono text-[7px] uppercase tracking-[0.18em] text-label mb-2">Example</h3>
         <CodeBlock code={endpoint.curl} />
       </div>
       <div>
-        <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Response</h3>
+        <h3 className="font-mono text-[7px] uppercase tracking-[0.18em] text-label mb-2">Response</h3>
         <CodeBlock code={endpoint.response} />
       </div>
     </section>
@@ -170,28 +170,28 @@ function EndpointSection({ endpoint }: { endpoint: Endpoint }) {
 
 export default function ApiDocs() {
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-200">
-      <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-blue-500" />
-          <span className="font-semibold tracking-wide">Satlas API</span>
+    <div className="min-h-screen bg-[#080808] text-white">
+      <header className="border-b border-[rgba(255,255,255,0.07)] px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-secondary">Satlas API</span>
         </div>
-        <Link to="/" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
+        <Link to="/" className="font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors">
           ← Back to globe
         </Link>
       </header>
 
       <div className="max-w-3xl mx-auto px-6 py-10">
-        <h1 className="text-2xl font-bold text-white mb-2">API Reference</h1>
-        <p className="text-gray-400 text-sm mb-1">
+        <h1 className="font-mono text-[22px] font-bold text-white mb-2 tracking-[-0.01em]">API Reference</h1>
+        <p className="font-mono text-[11px] font-light text-secondary mb-1">
           Public HTTP API for satellite tracking. No authentication required.
         </p>
-        <p className="text-sm font-mono text-gray-500">
-          Base URL: <span className="text-gray-300">{BASE}</span>
+        <p className="font-mono text-[10px] text-label">
+          Base URL: <span className="text-secondary">{BASE}</span>
         </p>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 pb-16 space-y-0 divide-y divide-gray-800/40">
+      <div className="max-w-3xl mx-auto px-6 pb-16 divide-y divide-[rgba(255,255,255,0.06)]">
         {ENDPOINTS.map(ep => (
           <div key={ep.path} className="py-10 first:pt-0">
             <EndpointSection endpoint={ep} />
@@ -199,20 +199,20 @@ export default function ApiDocs() {
         ))}
       </div>
 
-      <footer className="border-t border-gray-800 px-6 py-6">
-        <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="hover:text-gray-300 transition-colors">← Globe</Link>
+      <footer className="border-t border-[rgba(255,255,255,0.07)] px-6 py-6">
+        <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-5">
+            <Link to="/" className="font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors">← Globe</Link>
             <a
               href="https://github.com/PremaanshVyas/satlas"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-gray-300 transition-colors"
+              className="font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors"
             >
               GitHub
             </a>
           </div>
-          <span>Satlas · open-source space situational awareness</span>
+          <span className="font-mono text-[9px] text-[#1a1a1a] uppercase tracking-[0.06em]">Satlas · open-source space situational awareness</span>
         </div>
       </footer>
     </div>
