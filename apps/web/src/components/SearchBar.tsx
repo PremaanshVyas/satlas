@@ -47,8 +47,8 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
 
   return (
     <div className="relative" onMouseDown={e => e.stopPropagation()}>
-      <div className="flex items-center gap-2 bg-gray-900/90 backdrop-blur-sm border border-gray-700/80 rounded-lg px-3 py-2 shadow-lg w-36 sm:w-64">
-        <svg className="w-4 h-4 text-gray-500 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+      <div className="flex items-center gap-2 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg w-36 sm:w-64">
+        <svg className="w-3.5 h-3.5 text-label flex-shrink-0" viewBox="0 0 24 24" fill="none">
           <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="1.8"/>
           <path d="m21 21-4.35-4.35" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
         </svg>
@@ -60,7 +60,7 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
           onKeyDown={handleKeyDown}
           onFocus={() => { if (results.length > 0) setOpen(true) }}
           placeholder="Search satellites…"
-          className="bg-transparent text-sm text-gray-200 placeholder-gray-600 outline-none w-full"
+          className="bg-transparent font-mono text-[11px] text-secondary placeholder:text-label outline-none w-full"
           aria-label="Search satellites"
           autoComplete="off"
           spellCheck={false}
@@ -68,25 +68,25 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
         {query && (
           <button
             onClick={() => { setQuery(''); setResults([]); setOpen(false) }}
-            className="text-gray-600 hover:text-gray-400 flex-shrink-0 leading-none"
+            className="font-mono text-label hover:text-secondary flex-shrink-0 leading-none transition-colors"
             aria-label="Clear search"
           >×</button>
         )}
       </div>
 
       {open && results.length > 0 && (
-        <div className="absolute top-full mt-1 w-full bg-gray-900/95 backdrop-blur-sm border border-gray-700/80 rounded-lg shadow-2xl overflow-hidden z-50">
+        <div className="absolute top-full mt-1 w-full bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden z-50">
           {results.map((r, i) => (
             <button
               key={r.noradId}
-              className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 transition-colors ${
-                i === activeIdx ? 'bg-gray-700/80' : 'hover:bg-gray-800/80'
+              className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-[rgba(255,255,255,0.04)] last:border-0 transition-colors ${
+                i === activeIdx ? 'bg-[rgba(255,255,255,0.04)]' : ''
               }`}
               onMouseDown={e => { e.preventDefault(); handleSelect(r) }}
               onMouseEnter={() => setActiveIdx(i)}
             >
-              <span className="text-gray-200 truncate">{r.name}</span>
-              <span className="text-gray-600 text-xs flex-shrink-0">{r.noradId}</span>
+              <span className="font-mono text-[11px] text-secondary truncate">{r.name}</span>
+              <span className="font-mono text-[8px] text-label flex-shrink-0">{r.noradId}</span>
             </button>
           ))}
         </div>
