@@ -53,7 +53,7 @@ function parseTleText(text: string): TleRecord[] {
 // ── Catalog fetch for bulk queries (overhead) ────────────────────────────────
 
 const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://getsatlas.vercel.app'
-const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL ?? 'http://satlas-1659207311.ap-southeast-2.elb.amazonaws.com'
+const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL ?? 'https://api.satlas.app'
 
 async function fetchCatalogTles(): Promise<TleRecord[]> {
   const res = await fetch(`${CATALOG_BASE}/api/catalog`, { signal: AbortSignal.timeout(8000) })

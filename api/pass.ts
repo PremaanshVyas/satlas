@@ -4,7 +4,7 @@ export const config = { maxDuration: 30 }
 
 const ORBITAL_SERVICE_URL =
   process.env.ORBITAL_SERVICE_URL ??
-  'http://satlas-1659207311.ap-southeast-2.elb.amazonaws.com'
+  'https://api.satlas.app'
 
 const CLOUDFRONT_CATALOG =
   process.env.CLOUDFRONT_CATALOG ?? 'https://dgsll6twimcwl.cloudfront.net/catalog.tle'
@@ -12,6 +12,7 @@ const CLOUDFRONT_CATALOG =
 const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://getsatlas.vercel.app'
 
 const ALLOWED_ORIGINS = [
+  'https://satlas.app',
   'https://getsatlas.vercel.app',
   'http://localhost:5173',
   'http://localhost:4173',
