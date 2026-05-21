@@ -110,7 +110,7 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 22 complete — domain registration + HTTPS on ALB (satlas.app live, api.satlas.app live).
+**Current phase:** Session 22 complete (+ pass prediction hotfix) — domain registration + HTTPS on ALB (satlas.app live, api.satlas.app live). PassPanel pass count and scroll fixed.
 
 **Next milestone:** Session 23 — polish backlog: pulsing dot in SatInfoCard, compass rose in PassPanel, /docs discoverability + Manual Step C (update VITE_ORBITAL_SERVICE_URL on Vercel to https://api.satlas.app).
 
@@ -179,6 +179,12 @@ Sessions 1–17 decisions archived in `docs/decisions-archive.md`.
 - **2026-05-21 — Session 22: ACM cert validation takes 25–35 min after nameserver change.** ACM polls DNS on its own schedule after the validation CNAME is resolvable. With a nameserver change (Namecheap → Route 53), even after NS propagation (~15 min) ACM may take another 15–20 min to poll. Rule: budget 45 min total from `terraform apply` to cert `ISSUED` when nameservers are being changed; don't assume fast validation.
 
 - **2026-05-21 — Session 22: Vercel's new recommended apex IP is 216.198.79.1, not 76.76.21.21.** Vercel is expanding IP ranges; the dashboard shows 216.198.79.1 as the recommended A record for apex domains. The old IP (76.76.21.21) still works but use the new one for fresh setups. www subdomain uses a project-specific CNAME (e.g. 899556b0778ed1b3.vercel-dns-017.com) — always get the exact value from the Vercel dashboard, don't hardcode cname.vercel-dns.com.
+
+- **2026-05-21 — Session 22 hotfix: skyfield `find_events` silently drops boundary passes.** If the satellite is already above 10° when the prediction window opens, skyfield omits the rise event — the old state machine dropped those passes because `'start_utc' not in current` at the set event. Same for passes still ongoing at window end (no set event generated). Fix: on set event, synthesize `start_utc = t0.utc_iso()` if missing; after the loop, if `current` has `start_utc` (pass still open), synthesize `end_utc = t1.utc_iso()`. Both edge cases compute alt/az at the boundary time if the peak data is also missing. Rule: any skyfield time-window prediction must handle the two boundary cases: satellite above horizon at t0, and satellite above horizon at t1.
+
+- **2026-05-21 — Session 22 hotfix: wrong Nominatim result → wrong city → wrong pass count.** User searched "Melbourne"; Nominatim returns Melbourne AU first (population ranking), but if the user accidentally picked the second suggestion (Melbourne, FL) passes dropped from 5 to 2. Fix: after search selection, display "City, Country" (e.g. "Melbourne, Australia") instead of just city name — makes disambiguation immediate and obvious. Rule: when displaying a user-selected location, always show country context so they can verify before the prediction runs.
+
+- **2026-05-21 — Session 22 hotfix: `flex-1 overflow-y-auto` requires bounded parent `height`, not just `maxHeight`.** Desktop PassPanel container had `maxHeight: calc(100dvh - 6rem)` but no `height`. With no explicit height on the flex container, `flex-1` in the child resolves to content height, so `overflow-y-auto` never triggers — tall pass lists are silently clipped by the parent's `overflow: hidden`. Fix: replaced `flex-1 overflow-y-auto min-h-0` on the results div with `overflow-y-auto max-h-[50dvh]` — scroll cap works independently of the parent chain. Rule: for a scrollable region inside an absolutely-positioned card that only has `maxHeight`, do not rely on `flex-1`; set `max-height` directly on the scrollable element.
 
 ---
 
