@@ -6,17 +6,19 @@ Paste this at the start of the next session (or rely on CLAUDE.md auto-read in C
 
 ## Where we left off
 
-**Session 22 complete.** Domain + HTTPS shipped:
+**Session 22 complete + hotfixes shipped.** Domain + HTTPS + several pass/info-card fixes:
 
-- `satlas.app` registered at Namecheap; NS records delegated to Route 53
-- ACM wildcard cert (`*.satlas.app`) issued and attached to ALB HTTPS listener (port 443)
-- HTTP port 80 redirects to HTTPS (301)
-- `api.satlas.app` → ALB alias; `satlas.app` → Vercel (216.198.79.1); `www.satlas.app` → Vercel CNAME
-- CORS updated to allow `https://satlas.app`; 90 Python tests passing
-- `https://api.satlas.app/health` → `{"status":"ok"}` ✅; HTTP→HTTPS redirect ✅
+- `satlas.app` live; `api.satlas.app` → ALB with HTTPS; HTTP→HTTPS redirect
+- Pass prediction boundary fix (boundary passes were silently dropped by skyfield edge case)
+- SatInfoCard metadata fixed (hardcoded CloudFront fallback — `VITE_CATALOG_URL` was never set in Vercel)
+- AI no longer contradicts tool data on satellite tracking status (Cosmos 574 issue)
+- Location search shows "City, Country" after selection for disambiguation
+- Pass list scroll fixed (`max-h-[50dvh] overflow-y-auto`)
 
-**One remaining manual step (do at start of Session 23):**
-Update `VITE_ORBITAL_SERVICE_URL` in Vercel env vars from the bare ALB URL to `https://api.satlas.app`, then trigger a redeploy.
+**Env vars state on Vercel (as of end of session 22):**
+- `ORBITAL_SERVICE_URL = https://api.satlas.app` ✅ (renamed from old `VITE_ORBITAL_URL`)
+- `VITE_CATALOG_URL` — NOT set (code now has hardcoded CloudFront fallback, so this is fine)
+- No manual steps needed at session start.
 
 ---
 
@@ -34,12 +36,22 @@ Update `VITE_ORBITAL_SERVICE_URL` in Vercel env vars from the bare ALB URL to `h
 
 ## Session 23 priorities
 
-1. **Manual Step C first** — update `VITE_ORBITAL_SERVICE_URL` to `https://api.satlas.app` in Vercel dashboard + redeploy. Verify chat agent works end-to-end from `satlas.app`.
+1. **Pass prediction — investigate "missing" passes before first upcoming pass.**
+   Mickey reports only seeing passes at 3am+ and expects earlier ones. Investigation needed:
+   - The ISS had passes at 10:34am and 12:13pm AEST today — both already past when he checked.
+     The prediction correctly shows upcoming passes only (starts from `_ts.now()`).
+   - However, he insists passes are missing. Possible root causes to investigate:
+     a. He's comparing to another tracker (Heavens Above, NASA) that shows lower-elevation passes
+        (< 10°). Consider lowering `altitude_degrees` from 10° to 0° in `passes.py`.
+     b. He opened the panel AFTER the last pass of the day and the "gap" (12pm → 3am next day)
+        looks wrong — may want to show "Next pass in X hours" prominently.
+     c. Scroll still not working on his device and he only sees 1 pass.
+   - **Don't change TLE logic** — the current fresh TLE is correct.
 
 2. **Polish backlog:**
    - Pulsing green dot for active satellites in SatInfoCard
    - Compass rose SVG for pass direction in PassPanel
-   - `/docs` page discoverability — link in footer or nav so it's findable without the search-bar pill
+   - `/docs` page discoverability — link in footer or nav
 
 ---
 
@@ -65,6 +77,7 @@ Update `VITE_ORBITAL_SERVICE_URL` in Vercel env vars from the bare ALB URL to `h
 - **Haiku for tool-detection, Sonnet for streaming answer** (Vercel Hobby 10s cap).
 - **External registrar + Route 53 DNS: use `resource "aws_route53_zone"`, not `data`.**
 - **Any `<Link>` in the render tree requires `MemoryRouter` in tests.**
+- **`VITE_CATALOG_URL` not needed in Vercel** — satcat.ts has hardcoded CloudFront fallback.
 
 ---
 
