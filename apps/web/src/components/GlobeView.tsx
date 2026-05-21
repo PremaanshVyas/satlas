@@ -214,15 +214,15 @@ export default function GlobeView({
         {/* Hover tooltip — screen-space positioned, pointer-events-none */}
         {hoverInfo && (
           <div
-            className="absolute z-10 bg-gray-900/90 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-gray-200 whitespace-nowrap shadow-lg"
+            className="absolute z-10 bg-[rgba(9,9,9,0.9)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2.5 py-1.5 whitespace-nowrap shadow-lg"
             style={{
               left: hoverInfo.screenX + tooltipOffset,
               top: hoverInfo.screenY - tooltipOffset,
               transform: 'translateY(-100%)',
             }}
           >
-            <div className="font-medium text-white">{hoverInfo.name}</div>
-            <div className="text-gray-400">{hoverInfo.altKm.toLocaleString()} km</div>
+            <div className="font-mono text-[10px] text-secondary">{hoverInfo.name}</div>
+            <div className="font-mono text-[8px] text-label">{hoverInfo.altKm.toLocaleString()} km</div>
           </div>
         )}
 
@@ -230,7 +230,7 @@ export default function GlobeView({
 
       {/* Loading overlay — full bleed, outside the safe-area wrapper */}
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-950 text-gray-400 text-sm tracking-wide">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#080808] font-mono text-[9px] text-label tracking-[0.1em] uppercase">
           Initializing…
         </div>
       )}

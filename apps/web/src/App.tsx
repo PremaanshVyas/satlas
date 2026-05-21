@@ -113,7 +113,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative w-screen overflow-hidden bg-gray-950" style={{ height: '100dvh' }}>
+    <div className="relative w-screen overflow-hidden bg-[#080808]" style={{ height: '100dvh' }}>
       {/* Globe — full screen */}
       <GlobeView
         highlight={highlight}
@@ -166,7 +166,7 @@ export default function App() {
                   className="mt-1 bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] overflow-hidden"
                   style={{ overflow: 'hidden' }}
                 >
-                  <div className="max-h-44 overflow-y-auto divide-y divide-gray-800/60">
+                  <div className="max-h-44 overflow-y-auto divide-y divide-[rgba(255,255,255,0.04)]">
                     {selectedSats.map(sat => (
                       <div
                         key={sat.noradId}
@@ -205,7 +205,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.16, ease: 'easeOut' }}
-            className="absolute top-10 left-3 mt-2 w-64 bg-gray-900/95 backdrop-blur-sm border border-gray-700/80 rounded-lg shadow-2xl z-20 overflow-hidden"
+            className="absolute top-10 left-3 mt-2 w-64 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl z-20 overflow-hidden"
           >
             <SatInfoCard
               sat={cardSat}
@@ -227,8 +227,8 @@ export default function App() {
       >
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" />
-          <Drawer.Content className="fixed bottom-0 inset-x-0 z-50 rounded-t-2xl bg-gray-900 border-t border-gray-700/80 shadow-2xl outline-none">
-            <div className="mx-auto w-10 h-1 rounded-full bg-gray-700 mt-3 mb-1" />
+          <Drawer.Content className="fixed bottom-0 inset-x-0 z-50 rounded-t-2xl bg-[rgba(9,9,9,0.98)] border-t border-[rgba(255,255,255,0.07)] shadow-2xl outline-none">
+            <div className="mx-auto w-10 h-1 rounded-full bg-[rgba(255,255,255,0.08)] mt-3 mb-1" />
             {cardSat && (
               <SatInfoCard
                 sat={cardSat}
@@ -253,7 +253,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.16, ease: 'easeOut' }}
-            className="absolute top-10 left-3 mt-2 w-64 bg-gray-900/95 backdrop-blur-sm border border-gray-700/80 rounded-lg shadow-2xl z-20 overflow-hidden"
+            className="absolute top-10 left-3 mt-2 w-64 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl z-20 overflow-hidden"
             style={{ maxHeight: 'calc(100dvh - 6rem)' }}
           >
             <PassPanel sat={passSat} onClose={() => setPassOpen(false)} />
@@ -268,8 +268,8 @@ export default function App() {
       >
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" />
-          <Drawer.Content className="fixed bottom-0 inset-x-0 z-50 rounded-t-2xl bg-gray-900 border-t border-gray-700/80 shadow-2xl outline-none" style={{ maxHeight: '80dvh' }}>
-            <div className="mx-auto w-10 h-1 rounded-full bg-gray-700 mt-3 mb-1" />
+          <Drawer.Content className="fixed bottom-0 inset-x-0 z-50 rounded-t-2xl bg-[rgba(9,9,9,0.98)] border-t border-[rgba(255,255,255,0.07)] shadow-2xl outline-none" style={{ maxHeight: '80dvh' }}>
+            <div className="mx-auto w-10 h-1 rounded-full bg-[rgba(255,255,255,0.08)] mt-3 mb-1" />
             {passSat && (
               <div className="h-full overflow-hidden" style={{ maxHeight: 'calc(80dvh - 1.5rem)' }}>
                 <PassPanel sat={passSat} onClose={() => setPassOpen(false)} />
