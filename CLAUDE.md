@@ -110,26 +110,27 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 21 complete — public API docs page at `/docs`, react-router-dom routing, Vercel SPA rewrite, "API" pill in search bar row.
+**Current phase:** Session 22 complete — domain registration + HTTPS on ALB (satlas.app live, api.satlas.app live).
 
-**Next milestone:** Session 22 — domain registration + HTTPS on ALB (`satlas.app` or alt, ACM cert, ALB HTTPS listener, update Vercel env vars).
+**Next milestone:** Session 23 — polish backlog: pulsing dot in SatInfoCard, compass rose in PassPanel, /docs discoverability + Manual Step C (update VITE_ORBITAL_SERVICE_URL on Vercel to https://api.satlas.app).
 
 **Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
 
-**Session 21 completed tasks:**
-- [x] Public API docs page at `getsatlas.vercel.app/docs` — three endpoints documented (GET /api/catalog, GET /api/pass, POST /api/chat) with parameter tables, curl examples, response samples
-- [x] react-router-dom added; `main.tsx` wraps app in BrowserRouter with `/` → App, `/docs` → ApiDocs routes
-- [x] `vercel.json` SPA rewrite: `/((?!api/).*)` → `/index.html` so hard-refreshing `/docs` doesn't 404
-- [x] "API" pill button added to the right of the search bar in GlobeView, matching the search bar's glass pill styling
-- [x] Global `overflow: hidden` moved off `html, body, #root` onto App's root div only — unblocks `/docs` scroll
-- [x] 75 frontend Vitest tests passing; 87 orbital Python tests; tsc clean; lint clean
+**Session 22 completed tasks:**
+- [x] Domain `satlas.app` registered at Namecheap; Route 53 hosted zone created via Terraform
+- [x] ACM wildcard cert (`*.satlas.app`) provisioned and validated
+- [x] HTTPS listener added to ALB; HTTP port 80 redirects to HTTPS
+- [x] `api.satlas.app` A alias record → ALB; `satlas.app` A record → Vercel (216.198.79.1); `www.satlas.app` CNAME → Vercel
+- [x] CORS updated: `https://satlas.app` added to `_ALLOWED_ORIGINS`; 3 new CORS tests (90 total)
+- [x] ECS image rebuilt and redeployed with CORS change
+- [x] `https://api.satlas.app/health` → `{"status":"ok"}` confirmed; HTTP → HTTPS 301 redirect confirmed
 
 **Live endpoints:**
-- ALB: `http://satlas-1659207311.ap-southeast-2.elb.amazonaws.com`
+- Frontend: `https://satlas.app` (also `https://getsatlas.vercel.app`)
+- API docs: `https://satlas.app/docs`
+- ALB (orbital API): `https://api.satlas.app` (HTTP redirects to HTTPS)
 - CloudFront catalog: `https://dgsll6twimcwl.cloudfront.net/catalog.tle`
 - CloudFront satcat: `https://dgsll6twimcwl.cloudfront.net/satcat.json`
-- Frontend: `https://getsatlas.vercel.app`
-- API docs: `https://getsatlas.vercel.app/docs`
 
 **No blockers.**
 
@@ -173,6 +174,12 @@ Sessions 1–17 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-21 — Session 21: Any `<Link>` in the render tree requires `MemoryRouter` in tests.** Adding `Link` to `GlobeView.tsx` (a child of App) caused `App.test.tsx` to fail with "Cannot destructure property 'basename' of useContext(...) as it is null" — the router context was missing. Fix: wrap the `render(<App />)` call in `<MemoryRouter>`. Rule: whenever `Link` or `useNavigate` appears anywhere in the component tree being tested, the test render must be wrapped in `MemoryRouter`.
 
+- **2026-05-21 — Session 22: Namecheap as registrar + Route 53 as DNS — use `resource` not `data` for the hosted zone.** Route 53 domain registration is blocked on Free Tier AWS accounts. Fix: register at Namecheap, create a `resource "aws_route53_zone"` in Terraform, then paste the 4 output NS records into Namecheap's Custom DNS settings. The `data "aws_route53_zone"` pattern only applies when Route 53 is the registrar. Rule: external registrar = `resource`; Route 53 registrar = `data`.
+
+- **2026-05-21 — Session 22: ACM cert validation takes 25–35 min after nameserver change.** ACM polls DNS on its own schedule after the validation CNAME is resolvable. With a nameserver change (Namecheap → Route 53), even after NS propagation (~15 min) ACM may take another 15–20 min to poll. Rule: budget 45 min total from `terraform apply` to cert `ISSUED` when nameservers are being changed; don't assume fast validation.
+
+- **2026-05-21 — Session 22: Vercel's new recommended apex IP is 216.198.79.1, not 76.76.21.21.** Vercel is expanding IP ranges; the dashboard shows 216.198.79.1 as the recommended A record for apex domains. The old IP (76.76.21.21) still works but use the new one for fresh setups. www subdomain uses a project-specific CNAME (e.g. 899556b0778ed1b3.vercel-dns-017.com) — always get the exact value from the Vercel dashboard, don't hardcode cname.vercel-dns.com.
+
 ---
 
 ## Out of scope (so we don't drift)
@@ -192,7 +199,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-22-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-23-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -217,7 +224,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 |------|-----------------|
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
 | `docs/session-21-bootstrap.md` | Session 21 bootstrap (historical). |
-| `docs/session-22-bootstrap.md` | Next session full context prompt — paste at start of Session 22. |
+| `docs/session-22-bootstrap.md` | Session 22 bootstrap (historical). |
+| `docs/session-23-bootstrap.md` | Next session full context prompt — paste at start of Session 23. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
