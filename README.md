@@ -4,17 +4,19 @@
 
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
-**Live demo:** [getsatlas.vercel.app](https://getsatlas.vercel.app)  
+**Live demo:** [satlas.app](https://satlas.app) (also [getsatlas.vercel.app](https://getsatlas.vercel.app))  
 Open the site — ~20,000 tracked objects orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker. A real-time cloud layer drapes the globe; a star field from NASA's Gaia DR2 catalog fills the background.  
 Ask: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
 Ask: _"Show all Starlink satellites"_ — it highlights every Starlink dot in violet while dimming everything else.  
 Ask: _"How many GPS satellites are tracked?"_ — reads the live count from the globe, no tool call needed.  
 Ask: _"What satellites are overhead right now from Sydney?"_ — it queries the catalog and tells you.  
-Hover any dot for name + altitude. Click to select (multiple selections supported) — see the info card with live lat/lon/altitude/velocity; hit "Ask AI" to query it. Click a satellite's trail to see where it's been.  
+Hover any dot for name + altitude. Click to select (multiple selections supported) — see the info card with live lat/lon/altitude/velocity, orbital parameters, and satellite metadata (owner, launch date, launch site). Hit "Ask AI" to query it. Click a satellite's trail to see where it's been.  
 Category filter pills toggle entire groups on/off. Cloud layer toggle in the top-right corner.  
+Open the Pass Prediction panel from any satellite info card — enter or geolocate your position; see every visible pass in the next 24 hours with times, max elevation, and approach direction.  
 The agent remembers conversation context — follow-up questions work.  
-**Status:** MVP+ — full-screen globe with cloud layer + star field, multi-satellite selection tray, floating AI chat, satellite trails, 5 agent tools (incl. real-time overhead search), AWS infrastructure code-complete
+**API docs** at [satlas.app/docs](https://satlas.app/docs) — curl-ready examples for every endpoint.  
+**Status:** V1 live — custom domain (satlas.app), HTTPS on ALB, ECS Fargate + S3/CloudFront/RDS all deployed, pass prediction for any location, satellite metadata (owner/launch date/site) from Space-Track, public API docs.
 
 ---
 
@@ -67,19 +69,20 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 
 | Layer | Tech | Status |
 |---|---|---|
-| Frontend | TypeScript, React, Three.js, Tailwind, Vite | Live |
+| Frontend | TypeScript, React, Three.js, Tailwind, Vite | Live at satlas.app |
 | Agent | Anthropic Claude API (Haiku + Sonnet) with tool use | Live |
-| Orbital compute | satellite.js in Vercel Node.js function and browser Web Worker | Live |
+| Orbital compute | Python FastAPI + skyfield (ECS Fargate) + satellite.js (browser worker) | Live at api.satlas.app |
+| Satellite catalog | S3 + CloudFront (TLE + satcat from Space-Track, refreshed by ECS) | Live |
 | CI/CD | GitHub Actions — lint + typecheck + vitest + pytest + Docker build + ECR push | Live |
-| Infra (code) | Terraform: ECS Fargate, RDS PostgreSQL, S3+CloudFront, ALB, ECR, Secrets Manager | Code-complete |
-| Frontend hosting | Vercel — frontend + AI agent function | Live |
-| Database | PostgreSQL 15 + pgvector + PostGIS (RDS) — schema migrated, pending first apply | Code-complete |
+| Infra | Terraform: ECS Fargate, RDS PostgreSQL, S3+CloudFront, ALB, ACM, Route 53, ECR | Live |
+| Frontend hosting | Vercel — frontend + AI agent/pass/catalog functions | Live |
+| Database | PostgreSQL 15 + pgvector + PostGIS (RDS) — schema migrated | Live |
 
 ---
 
 ## Data sources (all public)
 
-- **TLE catalogs** — [CelesTrak](https://celestrak.org/), Space-Track.org (free with registration)
+- **TLE catalogs** — Space-Track.org (free with registration) via ECS → S3 → CloudFront pipeline
 - **Satellite imagery** — Sentinel-2 via [Sentinel Hub](https://www.sentinel-hub.com/) and Copernicus
 - **Space weather** — [NOAA SWPC](https://www.swpc.noaa.gov/)
 - **Ground station coordinates** — public ephemerides
@@ -97,7 +100,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Dot sizing by type: GEO satellites 1.5× base size, debris 0.6× and dimmer
 - [x] Satellite trails — last 10 minutes of ECEF path on selected satellite, lime→transparent fade
 - [x] Multi-satellite selection tray — click multiple satellites; each gets its own orbit ring; tray chip ✕ removes; card ✕ closes info only
-- [x] Satellite info card — live lat/lon/altitude/velocity + orbital parameters + metadata (country, launch date, status)
+- [x] Satellite info card — live lat/lon/altitude/velocity + orbital parameters + metadata (country, launch date, launch site, status) from Space-Track
 - [x] Text search — type to find any satellite by name or NORAD ID; keyboard-navigable results
 - [x] Hover tooltip — satellite name + altitude; hovered/selected satellites highlight lime green
 - [x] Category filter pills — Starlink / GPS / Iridium / Debris / Other with instant Uint8Array mask
@@ -111,9 +114,11 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Look up any satellite by name or NORAD ID — live orbital snapshot + globe highlight
 - [x] Melbourne-accurate timestamps (computed server-side, never guessed by the AI)
 - [x] Mobile-friendly layout — 100dvh + safe-area insets so overlays clear browser chrome on iOS/Android
-- [x] Auto-deploying at [getsatlas.vercel.app](https://getsatlas.vercel.app)
+- [x] Pass prediction panel — geolocate or search any location; next 24h passes with time, duration, max elevation, direction
+- [x] Public API docs at satlas.app/docs — curl examples, all endpoints documented
+- [x] Custom domain satlas.app with HTTPS (ACM cert, ALB HTTPS listener, HTTP→HTTPS redirect)
 
-### MVP (complete)
+### V1 (complete)
 - [x] Project scaffolding, monorepo, CI/CD
 - [x] Live TLE catalog (~20,000 objects, InstancedMesh + web worker)
 - [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info, set_category_filter
@@ -121,19 +126,17 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Hover tooltip; category filter pills; text search
 - [x] Cloud layer, star field, dot sizing by type
 - [x] Mobile-responsive layout (100dvh + safe-area insets)
-- [x] AWS infra: Terraform code-complete (ECS Fargate, RDS, S3+CloudFront, ALB, ECR)
+- [x] AWS infra deployed (ECS Fargate, RDS, S3+CloudFront, ALB, ECR, Route 53, ACM)
+- [x] Pass predictor for any user location (exposed in UI)
+- [x] Public API with docs (satlas.app/docs)
+- [x] Custom domain + HTTPS on ALB (satlas.app / api.satlas.app)
+- [x] Satellite metadata from Space-Track (owner, launch date, launch site, decay status)
 
-### V1 — next up
-- [ ] AWS infra first apply (`terraform apply` — blocked on AWS card verification)
-- [ ] Pass predictor for any user location (exposed in UI)
-- [ ] Public API with docs
-- [ ] Rate limiting
-- [ ] Custom domain + HTTPS on ALB
-
-### V2 (weeks 9–14) — the differentiator
+### V2 — next up
+- [ ] Rate limiting on public API
 - [ ] Conjunction analysis service
 - [ ] Alert subscriptions (email/SMS for ISS pass, debris near asset, etc.)
-- [ ] Country borders overlay — click any country to see overhead satellites + upcoming passes (spec: `docs/superpowers/specs/2026-05-19-country-borders-feature.md`)
+- [ ] Country borders overlay — click any country to see overhead satellites + upcoming passes
 - [ ] Vision pipeline integration — Sentinel-2 imagery on demand
 - [ ] First CV use case: bushfire scar detection in Australian regions
 - [ ] Vector RAG over space documentation
@@ -166,6 +169,8 @@ Full debugging history is in [`CHANGELOG.md`](CHANGELOG.md). A few highlights:
 
 **Click-to-select false positives — fixed pixel threshold is wrong for 10k satellites** — A 20px hit zone sounds small, but with 10,000 satellites there is nearly always one within 20px of any click position. The correct approach: compute the actual pixel radius of the rendered dot using `dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor`, then only accept a hit if `screenDist <= dotRadiusPx + 1`. This matches the visual dot size exactly at any zoom level. Bonus: the prefill includes the NORAD ID so the backend does an exact catalog match instead of fuzzy name search.
 
+**NORAD ID leading-zero mismatch — wrong satellite returned for Cosmos 574** — TLE catalog pads NORAD IDs to 5 digits (`'06707'`); Space-Track satcat omits leading zeros (`'6707'`); the Haiku LLM normalises digit strings and strips the leading zero. Three compounding bugs: `satinfo.py` used string equality so `'6707' != '06707'` → miss, then fell through to name search where `'6707'` is a substring of `'STARLINK-36707'` → wrong satellite returned. Frontend satcat Map used raw Space-Track keys so `get('06707')` found nothing → all metadata dashes. Fix: integer comparison in `satinfo.py` (no leading-zero issue); pad keys to 5 chars in `parseSatcatJson`. Lesson: all NORAD ID comparisons must use integer equality.
+
 ---
 
 ## Local development
@@ -193,7 +198,7 @@ cd apps/web
 npm run dev                  # Vite dev server → http://localhost:5173
 ```
 
-The globe loads immediately. Satellite data fetches from CelesTrak directly in the browser — no backend needed to see the globe.
+The globe loads immediately. Satellite data fetches from CloudFront in the browser — no backend needed to see the globe.
 
 ### Run the AI chat locally
 
@@ -216,9 +221,12 @@ Then add `VITE_CHAT_URL=http://localhost:3000/api/chat` to `apps/web/.env.local`
 
 ```bash
 cd apps/web
-npx vitest run               # 54 unit tests
+npx vitest run               # 75 frontend unit tests
 npx tsc -b --noEmit          # TypeScript type check
 npx eslint .                 # lint
+
+cd apps/orbital
+pytest                       # 93 Python unit tests
 ```
 
 ---

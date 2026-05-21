@@ -4,6 +4,92 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 23] — NORAD ID leading-zero normalization (2026-05-21)
+
+### What shipped
+Fixed wrong satellite being returned for queries like "Cosmos 574" when the LLM stripped the leading zero from NORAD ID `06707` → `6707`. Fixed satellite metadata (owner/launch date) silently missing in the info card for low-NORAD-ID satellites.
+
+### Three compounding bugs from one root cause
+
+**Bug 1 — `satinfo.py` string equality fails on leading zeros.** The catalog stores `'06707'`; Haiku normalises digits and sends `'6707'`; `'6707' != '06707'` → digit lookup misses. No early return on digit query failure, so the code fell through to name-search with `'6707'` — a substring of `'STARLINK-36707'` → wrong satellite returned with plausible-looking data.
+
+**Bug 2 — `satcat.ts` Map keys use raw Space-Track format.** Space-Track omits leading zeros (`'6707'`); the TLE catalog pads to 5 digits (`'06707'`). The satcat Map was keyed by the raw Space-Track string; the SatInfoCard looked up by the TLE-derived string → `get('06707')` returned `undefined` → all metadata showed `—`.
+
+**Bug 3 — AI adding training knowledge despite successful tool call.** System prompt only prohibited training-knowledge overrides for position/altitude, not for tracking status. Claude would get a valid live tool response for Cosmos 574 and then add "this satellite may no longer be tracked" from training data. Extended the prohibition to cover tracking status and catalog presence.
+
+### Fix
+`satinfo.py`: convert both sides to `int()` before comparing. `if query_stripped.isdigit(): ... int(item['norad_id']) == int(query_stripped)`. Name-search fallback gated behind `else` so a numeric miss doesn't cascade into substring matching. `satcat.ts`: `r.norad_id.padStart(5, '0')` when building the Map — both key and `noradId` field normalised to 5-digit format. Cache bumped to v5.
+
+### Verification
+`curl https://api.satlas.app/satellite-info?query=6707` → `{"name":"COSMOS 574","norad_id":"06707",...}`. Three new unit tests: `query='6707'` finds COSMOS 574, `query='06707'` finds COSMOS 574, `query='6707'` does not match STARLINK-36707.
+
+---
+
+## [Session 22] — Custom domain + HTTPS + pass prediction fixes (2026-05-21)
+
+### What shipped
+`satlas.app` live with HTTPS. `api.satlas.app` → ALB with HTTPS listener; HTTP port 80 → 301 redirect. Pass prediction edge cases fixed. SatInfoCard metadata fixed. AI tracking-status contradiction fixed. Location disambiguation improved.
+
+### Domain setup — external registrar + Route 53 + ACM
+
+Route 53 domain registration is blocked on Free Tier AWS accounts. Fix: register at Namecheap, create `resource "aws_route53_zone"` in Terraform (not `data` — that's for Route 53-registered domains), paste the 4 NS records into Namecheap Custom DNS. ACM wildcard cert provisioned via DNS validation; budget 45 min from `terraform apply` to `ISSUED` when nameservers are changing. Apex A record → `216.198.79.1` (Vercel's current recommended IP, not the old `76.76.21.21`). www CNAME from Vercel dashboard (project-specific — don't guess `cname.vercel-dns.com`).
+
+### skyfield `find_events` silently drops boundary passes
+
+`find_events` omits the rise event when the satellite is already above the threshold at `t0`. The event state machine then saw a `set` event with no matching `start_utc` and silently dropped the pass. Same issue at the window end: no `set` event if the satellite is still above threshold at `t1`. Fix: on `set` event, synthesise `start_utc = t0.utc_iso()` if missing; after the loop, if `current` has `start_utc` (open pass), synthesise `end_utc = t1.utc_iso()`. Both edge cases sample alt/az at the boundary time if peak data is also missing.
+
+### SatInfoCard metadata always showing dashes — wrong Vercel env var name
+
+`VITE_CATALOG_URL` was not set in Vercel — mickey had `VITE_ORBITAL_URL` pointing at CloudFront, then renamed it to `ORBITAL_SERVICE_URL = https://api.satlas.app` when updating the orbital service URL. CloudFront URL was gone from Vercel entirely. Fix: hardcode CloudFront origin fallback in `satcat.ts` so the variable is optional. Cache bumped to v4. Rule: `VITE_CATALOG_URL` is not needed in Vercel; code has a hardcoded CloudFront fallback.
+
+### Location disambiguation — "City, Country" after suggestion select
+
+User searched "Melbourne"; accidentally selected Melbourne, FL instead of Melbourne, AU — passes dropped from 5 to 2 with no indication something was wrong. Fix: `handleSuggestionSelect` now displays `"${parts[0]}, ${country}"` using the last segment of `displayName` as country context. Users can immediately verify they picked the right city before the prediction runs.
+
+---
+
+## [Session 21] — API docs page + /docs route (2026-05-21)
+
+### What shipped
+`/docs` route with styled API reference — all three endpoints documented with params tables and curl examples. API link added to globe header. Scroll fixed (global `overflow: hidden` was blocking /docs).
+
+### Global `overflow: hidden` blocks scrollable routes
+
+Had `html, body, #root { overflow: hidden }` in `index.css` to lock the globe. Adding `/docs` made scrolling impossible. Fix: removed from global CSS, added `overflow-hidden` to App's root div only. Rule: never put `overflow: hidden` globally when the app has multiple route types.
+
+### API docs param names wrong — always read the handler
+
+Initial docs used `norad`, `lat`, `lon`, `hours` for `/api/pass`. Actual handler uses `norad_id`, `latitude`, `longitude`, `hours_ahead`. Caught by code quality review. Rule: when documenting an API, read the actual handler — never infer param names from memory or usage examples.
+
+### Hard-coded origin URL wrong on preview deployments
+
+First pass set `const BASE = 'https://getsatlas.vercel.app'` — curl examples on any preview URL would point at production. Fix: `const BASE = window.location.origin`. Rule: never hard-code the production origin in client-rendered content.
+
+---
+
+## [Sessions 19–20] — AWS infra live + PassPanel + satcat metadata (2026-05-20–21)
+
+### What shipped
+ECS Fargate deployed and serving `api.satlas.app`. Railway decommissioned. S3+CloudFront pipeline live (TLE catalog + satcat.json from Space-Track). RDS PostgreSQL provisioned. PassPanel UI — geolocate or search any location, see next 24h passes. Satellite metadata (owner, launch date, launch site, status) from Space-Track via satcat.json.
+
+### Docker `--platform linux/amd64` required for ECS Fargate
+
+ECS Fargate runs on x86_64. A Docker image built on an M-series Mac without `--platform linux/amd64` is ARM-only. ECS error: "image Manifest does not contain descriptor matching platform 'linux/amd64'". Rule: always pass `--platform linux/amd64` when building images destined for ECS.
+
+### CelesTrak blocks all Vercel IPs
+
+`fetchTle` returned null for every query from Vercel functions — not just `GROUP=active`, all CelesTrak endpoints. Fix: (1) `toolGetSatelliteInfo` calls ALB directly; (2) `fetchTle` downloads CloudFront catalog and searches in-process (2-min in-memory cache). Rule: never call CelesTrak from a server/cloud context — route through the ALB or CloudFront catalog.
+
+### satcat metadata CORS — switched to Space-Track JSON via S3+CloudFront
+
+CelesTrak's `/pub/satcat.csv` has no CORS headers — browser fetch silently fails. All satellite metadata always showed `—`. Fix: ECS `_s3_refresh()` now also calls Space-Track for satcat data and writes `satcat.json` to S3 alongside `catalog.tle`. CloudFront serves it with 2h TTL. Rule: never fetch CelesTrak static files in the browser for metadata — route through your own CDN pipeline.
+
+### PassPanel suggestion dropdown — `onMouseDown` fires before `onBlur`
+
+Dropdown disappears when input loses focus (`onBlur`) before a mouse click on a suggestion registers (`onClick` fires after `onBlur`). Fix: `onMouseDown` + `e.preventDefault()` on each list item — fires before blur, prevents focus loss. Rule: for suggestion dropdowns, always use `onMouseDown` + `e.preventDefault()` on list items.
+
+---
+
 ## [Pre-Session 18] — Platform renamed to Satlas (2026-05-18)
 
 ### What changed

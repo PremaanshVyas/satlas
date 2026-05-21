@@ -110,20 +110,24 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 22 complete (+ pass prediction hotfix) — domain registration + HTTPS on ALB (satlas.app live, api.satlas.app live). PassPanel pass count and scroll fixed.
+**Current phase:** Session 23 complete — NORAD ID leading-zero normalization fix (Cosmos 574 wrong-satellite bug). All hotfixes live. V1 milestone fully shipped.
 
-**Next milestone:** Session 23 — polish backlog: pulsing dot in SatInfoCard, compass rose in PassPanel, /docs discoverability + Manual Step C (update VITE_ORBITAL_SERVICE_URL on Vercel to https://api.satlas.app).
+**Next milestone:** Session 24 — polish backlog: pulsing dot in SatInfoCard, compass rose in PassPanel, /docs footer discoverability.
 
 **Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
 
-**Session 22 completed tasks:**
+**Session 22–23 completed tasks:**
 - [x] Domain `satlas.app` registered at Namecheap; Route 53 hosted zone created via Terraform
 - [x] ACM wildcard cert (`*.satlas.app`) provisioned and validated
 - [x] HTTPS listener added to ALB; HTTP port 80 redirects to HTTPS
 - [x] `api.satlas.app` A alias record → ALB; `satlas.app` A record → Vercel (216.198.79.1); `www.satlas.app` CNAME → Vercel
-- [x] CORS updated: `https://satlas.app` added to `_ALLOWED_ORIGINS`; 3 new CORS tests (90 total)
-- [x] ECS image rebuilt and redeployed with CORS change
-- [x] `https://api.satlas.app/health` → `{"status":"ok"}` confirmed; HTTP → HTTPS 301 redirect confirmed
+- [x] CORS updated: `https://satlas.app` added to `_ALLOWED_ORIGINS`
+- [x] Pass prediction boundary fix (skyfield `find_events` boundary edge cases)
+- [x] SatInfoCard metadata fixed (hardcoded CloudFront fallback, `VITE_CATALOG_URL` not needed in Vercel)
+- [x] AI no longer contradicts tool data on satellite tracking status
+- [x] Location search shows "City, Country" for disambiguation
+- [x] Pass list scroll fixed (`max-h-[50dvh] overflow-y-auto`)
+- [x] NORAD ID normalization: integer comparison in `satinfo.py`, padded keys in `satcat.ts` (cache v5)
 
 **Live endpoints:**
 - Frontend: `https://satlas.app` (also `https://getsatlas.vercel.app`)
@@ -235,7 +239,7 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
 | `docs/session-21-bootstrap.md` | Session 21 bootstrap (historical). |
 | `docs/session-22-bootstrap.md` | Session 22 bootstrap (historical). |
-| `docs/session-23-bootstrap.md` | Next session full context prompt — paste at start of Session 23. |
+| `docs/session-23-bootstrap.md` | Session 23 bootstrap — paste at start of Session 24 (contains S24 priorities). |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
