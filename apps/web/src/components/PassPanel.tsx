@@ -151,7 +151,10 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
     setSearchQuery('')
     setLat(result.lat)
     setLon(result.lon)
-    setLocationName(result.name)
+    // Show "City, Country" so users can distinguish e.g. Melbourne AU vs Melbourne FL
+    const parts = result.displayName.split(', ')
+    const country = parts[parts.length - 1]
+    setLocationName(country && country !== parts[0] ? `${parts[0]}, ${country}` : parts[0])
     setLocState('granted')
     await fetchPasses(result.lat, result.lon)
   }
@@ -306,7 +309,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       </div>
 
       {/* Results */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="overflow-y-auto max-h-[50dvh] min-h-[60px]">
         {loading && (
           <div className="px-3 py-4 text-xs text-gray-500 text-center">Computing passes…</div>
         )}

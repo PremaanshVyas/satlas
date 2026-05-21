@@ -44,9 +44,27 @@ def predict_passes(
             current['max_elevation_deg'] = round(float(alt.degrees), 1)
             current['direction'] = az_to_direction(float(az.degrees))
         elif event == 2:  # set below 10°
+            if 'start_utc' not in current:
+                # Satellite was already above 10° when the window opened
+                current['start_utc'] = t0.utc_iso()
+            if 'max_elevation_deg' not in current:
+                # Peak was before the window; sample altitude at window start
+                diff = sat - location
+                alt, az, _ = diff.at(t0).altaz()
+                current['max_elevation_deg'] = round(float(alt.degrees), 1)
+                current['direction'] = az_to_direction(float(az.degrees))
             current['end_utc'] = t.utc_iso()
-            if 'start_utc' in current:
-                passes.append(current)
-                current = {}
+            passes.append(current)
+            current = {}
+
+    # Satellite still above 10° at end of window — include the incomplete pass
+    if 'start_utc' in current:
+        if 'max_elevation_deg' not in current:
+            diff = sat - location
+            alt, az, _ = diff.at(t1).altaz()
+            current['max_elevation_deg'] = round(float(alt.degrees), 1)
+            current['direction'] = az_to_direction(float(az.degrees))
+        current['end_utc'] = t1.utc_iso()
+        passes.append(current)
 
     return passes
