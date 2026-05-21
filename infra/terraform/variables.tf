@@ -9,3 +9,8 @@ variable "account_id" {
 variable "app_name" {
   default = "satlas"
 }
+
+variable "domain_name" {
+  description = "Domain name for the ALB (e.g. satlas.app)"
+  default     = "satlas.app"
+}
