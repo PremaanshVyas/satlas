@@ -110,11 +110,16 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 23 complete — NORAD ID leading-zero normalization fix (Cosmos 574 wrong-satellite bug). All hotfixes live. V1 milestone fully shipped.
+**Current phase:** Session 24 complete — V1 polish backlog fully cleared. V1 milestone closed.
 
-**Next milestone:** Session 24 — polish backlog: pulsing dot in SatInfoCard, compass rose in PassPanel, /docs footer discoverability.
+**Next milestone:** Session 25 — V1 complete; discuss V2 direction (vision pipeline, orbit history, Go gateway).
 
 **Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
+
+**Session 24 completed tasks:**
+- [x] Pulsing green dot in SatInfoCard header (`animate-ping`, shown when `opsStatus` is `+` or `tracked`)
+- [x] Compass rose SVG in PassPanel — 16-point, blue needle, replaces plain direction text
+- [x] ApiDocs footer — ← Globe link, GitHub link, project tagline
 
 **Session 22–23 completed tasks:**
 - [x] Domain `satlas.app` registered at Namecheap; Route 53 hosted zone created via Terraform
@@ -239,7 +244,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
 | `docs/session-21-bootstrap.md` | Session 21 bootstrap (historical). |
 | `docs/session-22-bootstrap.md` | Session 22 bootstrap (historical). |
-| `docs/session-23-bootstrap.md` | Session 23 bootstrap — paste at start of Session 24 (contains S24 priorities). |
+| `docs/session-23-bootstrap.md` | Session 23 bootstrap (historical). |
+| `docs/session-24-bootstrap.md` | Session 24 bootstrap — paste at start of Session 25 (contains S25 direction). |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |

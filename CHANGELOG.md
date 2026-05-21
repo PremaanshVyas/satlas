@@ -4,6 +4,24 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 24] — V1 polish: pulsing dot, compass rose, docs footer (2026-05-21)
+
+### What shipped
+
+Three UI polish items completing the V1 backlog.
+
+**Pulsing green dot in SatInfoCard.** Active satellites (Space-Track `opsStatus` of `+` or `tracked`) now show a pulsing green indicator in the info card header, left of the NORAD ID. Uses Tailwind's `animate-ping` pattern — a larger translucent ring pulses outward from a solid green core. Same condition that was already colouring the "Status" text field green, so no new data dependency.
+
+**Compass rose in PassPanel.** Each pass row previously showed direction as plain monospace text (e.g. `NW`). Replaced with a 34px inline SVG compass rose: grey ring, four cardinal tick marks, `N` label, and a blue triangular needle rotating to the pass direction. Handles all 16 compass points (N through NNW in 22.5° increments). No external library — `CompassRose` component maps direction strings to rotation angles via a lookup table, then uses an SVG `rotate()` transform on the needle `<polygon>`. Direction text is kept as a small label below the dial.
+
+**ApiDocs footer.** The `/docs` page previously had no footer — it just ended at the last endpoint. Added a border-top footer with a ← Globe `<Link>`, a GitHub repo `<a>`, and the project tagline. Keeps the page self-contained for developers who land on it directly.
+
+### No architectural decisions
+
+All three changes were self-contained UI additions with no backend dependencies, no new data requirements, and no new npm packages. 75/75 tests passing, tsc clean.
+
+---
+
 ## [Session 23] — NORAD ID leading-zero normalization (2026-05-21)
 
 ### What shipped
