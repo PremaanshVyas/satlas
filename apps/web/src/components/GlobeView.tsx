@@ -186,7 +186,9 @@ export default function GlobeView({
           }`}
           style={{ top: `max(2.75rem, calc(${safeTop} + 2.25rem))` }}
         >
-          <span className="text-[18px] leading-none">☁</span>
+          <svg width="14" height="10" viewBox="0 0 24 16" fill="none" className="flex-shrink-0">
+            <path d="M19 12a5 5 0 0 0-9.9-1A3.5 3.5 0 1 0 4 14.5h15a3.5 3.5 0 0 0 0-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
           <span>{cloudsVisible ? 'On' : 'Off'}</span>
         </button>
 
