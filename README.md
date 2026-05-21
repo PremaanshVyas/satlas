@@ -1,6 +1,8 @@
-# Satlas
-
-> Real-time space situational awareness, with an AI agent at the front door.
+<div align="center">
+  <img src="apps/web/public/favicon.svg" alt="Satlas" width="96" height="96" />
+  <h1>Satlas</h1>
+  <p><em>Real-time space situational awareness, with an AI agent at the front door.</em></p>
+</div>
 
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
