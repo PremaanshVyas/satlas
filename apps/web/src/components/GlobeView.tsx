@@ -186,7 +186,7 @@ export default function GlobeView({
           }`}
           style={{ top: `max(2.75rem, calc(${safeTop} + 2.25rem))` }}
         >
-          <span className="text-[13px] leading-none">☁</span>
+          <span className="text-[18px] leading-none">☁</span>
           <span>{cloudsVisible ? 'On' : 'Off'}</span>
         </button>
 

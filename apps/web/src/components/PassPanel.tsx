@@ -55,8 +55,11 @@ function durationMin(start: string, end: string): string {
   return s > 0 ? `${m}m ${s}s` : `${m}m`
 }
 
-function formatTime(utc: string): string {
-  return new Date(utc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+function formatDateTime(utc: string): { date: string; time: string } {
+  const d = new Date(utc)
+  const date = d.toLocaleDateString([], { day: 'numeric', month: 'short' })
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return { date, time }
 }
 
 function tzAbbr(): string {
@@ -349,9 +352,12 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
               {passes.map((p, i) => (
                 <div key={i} className="px-3 py-2.5">
                   <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-mono text-[12px] font-medium text-secondary">{formatTime(p.start_utc)}</span>
-                      {tz && <span className="font-mono text-[10px] text-label">{tz}</span>}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#555555]">{formatDateTime(p.start_utc).date}</span>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="font-mono text-[12px] font-medium text-secondary">{formatDateTime(p.start_utc).time}</span>
+                        {tz && <span className="font-mono text-[10px] text-label">{tz}</span>}
+                      </div>
                     </div>
                     <span className="font-mono text-[10px] text-label">{durationMin(p.start_utc, p.end_utc)}</span>
                   </div>
