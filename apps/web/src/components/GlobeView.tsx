@@ -17,13 +17,6 @@ const CATEGORY_LABELS: Record<SatCategory, string> = {
   OTHER: 'Other',
 }
 
-const CATEGORY_COLORS: Record<SatCategory, string> = {
-  STARLINK:  'bg-violet-500/20 border-violet-500/50 text-violet-300 data-[active=true]:bg-violet-500/40 data-[active=true]:border-violet-400',
-  GPS:       'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 data-[active=true]:bg-emerald-500/40 data-[active=true]:border-emerald-400',
-  IRIDIUM:   'bg-sky-500/20 border-sky-500/50 text-sky-300 data-[active=true]:bg-sky-500/40 data-[active=true]:border-sky-400',
-  DEBRIS:    'bg-red-500/20 border-red-500/50 text-red-300 data-[active=true]:bg-red-500/40 data-[active=true]:border-red-400',
-  OTHER:     'bg-gray-500/20 border-gray-500/50 text-gray-300 data-[active=true]:bg-gray-500/40 data-[active=true]:border-gray-400',
-}
 
 interface GlobeViewProps {
   highlight: HighlightDirective | null
@@ -146,15 +139,15 @@ export default function GlobeView({
           />
           <Link
             to="/docs"
-            className="flex items-center bg-gray-900/90 backdrop-blur-sm border border-gray-700/80 rounded-lg px-3 py-2 shadow-lg text-sm text-gray-400 hover:text-gray-200 transition-colors whitespace-nowrap"
+            className="flex items-center bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors whitespace-nowrap"
           >
-            API
+            API Docs
           </Link>
         </div>
 
         {/* UTC clock — top-left */}
         <div
-          className="absolute left-3 font-mono text-xs text-gray-400 bg-black/50 px-2 py-1 rounded select-none"
+          className="absolute left-3 font-mono text-[9px] text-label select-none"
           style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
         >
           {utcClock}
@@ -164,7 +157,7 @@ export default function GlobeView({
         {!isLoading && (
           satelliteCount > 0 ? (
             <div
-              className="absolute right-3 font-mono text-xs text-blue-400 bg-black/50 px-2 py-1 rounded select-none"
+              className="absolute right-3 font-mono text-[9px] text-accent select-none"
               style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
             >
               <span className="hidden sm:inline">Tracking </span>
@@ -173,7 +166,7 @@ export default function GlobeView({
             </div>
           ) : (
             <div
-              className="absolute right-3 font-mono text-xs text-gray-500 bg-black/50 px-2 py-1 rounded select-none animate-pulse"
+              className="absolute right-3 font-mono text-[9px] text-label select-none animate-pulse"
               style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
             >
               <span className="sm:hidden">Loading…</span>
@@ -186,10 +179,10 @@ export default function GlobeView({
         <button
           onClick={toggleClouds}
           title={cloudsVisible ? 'Hide clouds' : 'Show clouds'}
-          className={`absolute right-3 z-20 flex items-center gap-1 px-2 py-1 rounded text-xs border transition-colors pointer-events-auto touch-manipulation ${
+          className={`absolute right-3 z-20 flex items-center gap-1 pointer-events-auto px-2.5 py-1 rounded-[2px] font-mono text-[8px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
             cloudsVisible
-              ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
-              : 'bg-gray-800/60 border-gray-700 text-gray-500'
+              ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
+              : 'border-[rgba(255,255,255,0.07)] text-label hover:text-secondary'
           }`}
           style={{ top: `max(2.5rem, calc(${safeTop} + 2rem))` }}
         >
@@ -207,7 +200,11 @@ export default function GlobeView({
               key={cat}
               data-active={activeCategories.has(cat)}
               onClick={() => toggleCategory(cat)}
-              className={`px-2.5 py-1.5 sm:py-1 rounded-full text-xs font-medium border transition-all select-none touch-manipulation ${CATEGORY_COLORS[cat]}`}
+              className={`px-2.5 py-1 rounded-[2px] font-mono text-[8px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
+                activeCategories.has(cat)
+                  ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
+                  : 'border-[rgba(255,255,255,0.07)] text-label hover:text-secondary hover:border-[rgba(255,255,255,0.12)]'
+              }`}
             >
               {CATEGORY_LABELS[cat]}
             </button>
