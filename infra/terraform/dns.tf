@@ -50,13 +50,22 @@ resource "aws_route53_record" "api" {
   }
 }
 
-# satlas.app → Vercel (standard Vercel apex A record)
+# satlas.app → Vercel apex A record
 resource "aws_route53_record" "apex" {
   zone_id = aws_route53_zone.main.zone_id
   name    = "satlas.app"
   type    = "A"
   ttl     = 300
-  records = ["76.76.21.21"]
+  records = ["216.198.79.1"]
+}
+
+# www.satlas.app → Vercel (307 redirects to apex)
+resource "aws_route53_record" "www" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "www.satlas.app"
+  type    = "CNAME"
+  ttl     = 300
+  records = ["899556b0778ed1b3.vercel-dns-017.com."]
 }
 
 # Output the NS records so the user can paste them into Namecheap
