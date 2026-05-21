@@ -24,6 +24,11 @@ dist/
 # Claude Code local config
 .claude/
 
+# AI session context — keep local only
+CLAUDE.md
+docs/session-*-bootstrap.md
+docs/superpowers/
+
 # Terraform
 .terraform/
 *.tfstate
