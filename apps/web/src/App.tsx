@@ -142,9 +142,9 @@ export default function App() {
           >
             <button
               onClick={() => setTrayOpen(o => !o)}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-gray-900/95 border border-gray-700/80 rounded-lg backdrop-blur-sm text-xs text-gray-300 touch-manipulation"
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] font-mono text-[9px] touch-manipulation"
             >
-              <span className="font-medium text-white">{selectedSats.length} Selected</span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-secondary">{selectedSats.length} Selected</span>
               <motion.svg
                 width="12" height="12" viewBox="0 0 12 12" fill="none"
                 animate={{ rotate: trayOpen ? 180 : 0 }}
@@ -163,7 +163,7 @@ export default function App() {
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.18, ease: 'easeInOut' }}
-                  className="mt-1 bg-gray-900/95 border border-gray-700/80 rounded-lg backdrop-blur-sm overflow-hidden"
+                  className="mt-1 bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] overflow-hidden"
                   style={{ overflow: 'hidden' }}
                 >
                   <div className="max-h-44 overflow-y-auto divide-y divide-gray-800/60">
@@ -171,19 +171,19 @@ export default function App() {
                       <div
                         key={sat.noradId}
                         className={`flex items-center gap-2 px-3 py-3 sm:py-2.5 transition-colors ${
-                          cardSat?.noradId === sat.noradId ? 'bg-blue-900/30' : 'active:bg-gray-800'
+                          cardSat?.noradId === sat.noradId ? 'bg-[rgba(0,212,255,0.06)]' : ''
                         }`}
                       >
                         <button
                           className="flex-1 min-w-0 text-left touch-manipulation"
                           onClick={() => handleTrayChipClick(sat)}
                         >
-                          <div className="text-xs text-gray-200 truncate leading-tight">{sat.name}</div>
-                          <div className="text-[10px] text-gray-600 mt-0.5">{sat.noradId}</div>
+                          <div className="font-mono text-[9px] text-secondary truncate leading-tight uppercase tracking-[0.03em]">{sat.name}</div>
+                          <div className="font-mono text-[8px] text-label mt-0.5">{sat.noradId}</div>
                         </button>
                         <button
                           onClick={() => handleRemoveFromTray(sat.noradId)}
-                          className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-300 active:text-white rounded touch-manipulation"
+                          className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-label hover:text-secondary rounded-[2px] touch-manipulation transition-colors"
                           aria-label={`Remove ${sat.name}`}
                         >×</button>
                       </div>
@@ -285,16 +285,16 @@ export default function App() {
           direct children here — no nested height propagation needed. */}
       {chatOpen && (
         <div
-          className="fixed right-0 w-full sm:w-80 border-l border-gray-800 shadow-2xl z-30 flex flex-col bg-gray-950 overflow-hidden"
+          className="fixed right-0 w-full sm:w-80 border-l border-[rgba(255,255,255,0.07)] shadow-2xl z-30 flex flex-col bg-[#080808] overflow-hidden"
           style={{ top: 0, bottom: 0 }}
         >
           {/* Header — flex-none, never shrinks */}
           <div
-            className="flex-none flex items-center gap-2 px-4 py-3 border-b border-gray-800"
+            className="flex-none flex items-center gap-2 px-4 py-3 border-b border-[rgba(255,255,255,0.04)]"
             style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
           >
-            <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-sm font-medium text-gray-200">AI Assistant</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-label">AI · Assistant</span>
           </div>
           {/* Message list + input bar rendered as direct flex children */}
           <AgentPanel
@@ -318,12 +318,12 @@ export default function App() {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
             onClick={() => setChatOpen(true)}
-            className="absolute right-4 z-30 w-12 h-12 rounded-full bg-blue-600 active:bg-blue-700 hover:bg-blue-500 text-white shadow-lg flex items-center justify-center touch-manipulation"
+            className="absolute right-4 z-30 w-12 h-12 rounded-full bg-[rgba(9,9,9,0.9)] border border-[rgba(0,212,255,0.25)] text-accent shadow-lg flex items-center justify-center touch-manipulation hover:border-[rgba(0,212,255,0.45)] transition-colors"
             style={{ bottom: 'max(4rem, calc(env(safe-area-inset-bottom, 0px) + 3.5rem))' }}
             aria-label="Open AI chat"
           >
             {messages.length > 0 ? (
-              <span className="text-xs font-bold">{messages.filter(m => m.role === 'assistant').length}</span>
+              <span className="font-mono text-[11px] font-medium text-accent">{messages.filter(m => m.role === 'assistant').length}</span>
             ) : (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -336,7 +336,7 @@ export default function App() {
       {/* Unread dot */}
       {!chatOpen && messages.length > 0 && (
         <div
-          className="absolute right-3 z-40 w-3 h-3 rounded-full bg-blue-400 border-2 border-gray-950"
+          className="absolute right-3 z-40 w-2.5 h-2.5 rounded-full bg-accent border border-[#080808]"
           style={{ bottom: 'max(5.25rem, calc(env(safe-area-inset-bottom, 0px) + 4.75rem))' }}
         />
       )}
