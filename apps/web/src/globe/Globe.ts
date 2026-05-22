@@ -5,6 +5,7 @@ import { EarthMesh } from './EarthMesh'
 import { AtmosphereMesh } from './AtmosphereMesh'
 import { CloudMesh } from './CloudMesh'
 import { StarField } from './StarField'
+import { SunMesh } from './SunMesh'
 import { SatelliteMesh } from './SatelliteMesh'
 import { SatelliteField, DEFAULT_COLOR as SAT_DEFAULT_COLOR } from './SatelliteField'
 import { getSunDirection } from '../lib/solar'
@@ -98,6 +99,7 @@ export class Globe {
   private atmosphere!: AtmosphereMesh
   private clouds!: CloudMesh
   private stars!: StarField
+  private sun!: SunMesh
   private iss!: SatelliteMesh
   private field: SatelliteField | null = null
   private worker: Worker | null = null
@@ -178,6 +180,9 @@ export class Globe {
 
     this.stars = new StarField()
     this.stars.addToScene(this.scene)
+
+    this.sun = new SunMesh()
+    this.sun.addToScene(this.scene)
 
     this.earth = new EarthMesh(this.renderer)
     this.scene.add(this.earth.mesh)
@@ -940,6 +945,7 @@ export class Globe {
 
     const sunDir = getSunDirection(now)
     this.earth.update(sunDir)
+    this.sun.update(sunDir)
     this.iss.update(now)
 
     if (this.worker && nowMs - this.lastFieldTickMs >= FIELD_TICK_MS) {
