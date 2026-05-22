@@ -57,6 +57,16 @@ async def startup_event() -> None:
     asyncio.create_task(refresh_loop())
 
 
+@app.get('/')
+async def root() -> dict:
+    return {
+        'service': 'Satlas Orbital API',
+        'docs': 'https://satlas.app/docs',
+        'health': 'https://api.satlas.app/health',
+        'endpoints': ['/health', '/predict-passes', '/satellite-info', '/satellites-overhead'],
+    }
+
+
 @app.get('/health')
 async def health() -> dict[str, str]:
     return {'status': 'ok'}

@@ -73,7 +73,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 |---|---|---|
 | Frontend | TypeScript, React, Three.js, Tailwind, Vite | Live at satlas.app |
 | Agent | Anthropic Claude API (Haiku + Sonnet) with tool use | Live |
-| Orbital compute | Python FastAPI + skyfield (ECS Fargate) + satellite.js (browser worker) | Live at api.satlas.app |
+| Orbital compute | Python FastAPI + skyfield (ECS Fargate) + satellite.js (browser worker) | Live — backend API at api.satlas.app |
 | Satellite catalog | S3 + CloudFront (TLE + satcat from Space-Track, refreshed by ECS) | Live |
 | CI/CD | GitHub Actions — lint + typecheck + vitest + pytest + Docker build + ECR push | Live |
 | Infra | Terraform: ECS Fargate, RDS PostgreSQL, S3+CloudFront, ALB, ACM, Route 53, ECR | Live |
