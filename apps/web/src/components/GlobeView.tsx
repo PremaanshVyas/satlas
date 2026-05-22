@@ -44,9 +44,9 @@ export default function GlobeView({
   onSelectReady,
 }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(
-    new Set(ALL_CATEGORIES),
-  )
+  // Debris off by default — too numerous to show on landing (12k+ objects)
+  const DEFAULT_CATEGORIES = new Set(ALL_CATEGORIES.filter(c => c !== 'DEBRIS'))
+  const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(DEFAULT_CATEGORIES)
   const [cloudsVisible, setCloudsVisible] = useState(true)
 
   const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite } = useGlobe(
@@ -63,6 +63,13 @@ export default function GlobeView({
   const onSelectReadyRef = useRef(onSelectReady)
   useEffect(() => { onSelectReadyRef.current = onSelectReady })
   useEffect(() => { onSelectReadyRef.current?.(selectCatalogSatellite) }, [selectCatalogSatellite])
+
+  // Apply debris-off default to Globe engine on mount
+  useEffect(() => {
+    setActiveCategories(DEFAULT_CATEGORIES)
+    onCategoriesChange?.([...DEFAULT_CATEGORIES])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Agent directive: update filter pills AND apply category colours
   useEffect(() => {
@@ -175,21 +182,40 @@ export default function GlobeView({
           )
         )}
 
-        {/* Cloud toggle — top-right, below satellite count */}
+        {/* Cloud toggle */}
         <button
           onClick={toggleClouds}
           title={cloudsVisible ? 'Hide clouds' : 'Show clouds'}
-          className={`absolute right-3 z-20 flex items-center gap-1.5 pointer-events-auto px-3 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
-            cloudsVisible
-              ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
-              : 'border-[rgba(255,255,255,0.07)] text-label hover:text-secondary'
-          }`}
+          className="absolute right-3 z-20 flex items-center gap-2 pointer-events-auto px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
           style={{ top: `max(2.75rem, calc(${safeTop} + 2.25rem))` }}
         >
-          <svg width="14" height="10" viewBox="0 0 24 16" fill="none" className="flex-shrink-0">
+          <svg width="13" height="9" viewBox="0 0 24 16" fill="none" className="flex-shrink-0">
             <path d="M19 12a5 5 0 0 0-9.9-1A3.5 3.5 0 1 0 4 14.5h15a3.5 3.5 0 0 0 0-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <span>{cloudsVisible ? 'On' : 'Off'}</span>
+          <span>Clouds</span>
+          <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+          </div>
+        </button>
+
+        {/* Debris toggle */}
+        <button
+          onClick={() => toggleCategory('DEBRIS')}
+          title={activeCategories.has('DEBRIS') ? 'Hide debris' : 'Show debris'}
+          className="absolute right-3 z-20 flex items-center gap-2 pointer-events-auto px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
+          style={{ top: `max(4.75rem, calc(${safeTop} + 4.25rem))` }}
+        >
+          <svg width="13" height="9" viewBox="0 0 14 10" fill="currentColor" className="flex-shrink-0">
+            <circle cx="2" cy="2" r="1.3" opacity="0.6"/>
+            <circle cx="7" cy="5" r="1.3" opacity="0.6"/>
+            <circle cx="12" cy="2" r="1.3" opacity="0.6"/>
+            <circle cx="10" cy="8.5" r="1.3" opacity="0.6"/>
+            <circle cx="4" cy="8.5" r="1.3" opacity="0.6"/>
+          </svg>
+          <span>Debris</span>
+          <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${activeCategories.has('DEBRIS') ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${activeCategories.has('DEBRIS') ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+          </div>
         </button>
 
         {/* Category filter pills — bottom-center with glass background */}
