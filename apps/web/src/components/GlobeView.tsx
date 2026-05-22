@@ -104,7 +104,6 @@ export default function GlobeView({
     setActiveCategoriesState(prev => {
       const next = new Set(prev)
       if (next.has(cat)) {
-        if (next.size === 1) return prev
         next.delete(cat)
       } else {
         next.add(cat)
@@ -194,7 +193,7 @@ export default function GlobeView({
           </svg>
           <span>Clouds</span>
           <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
-            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
           </div>
         </button>
 
@@ -214,7 +213,7 @@ export default function GlobeView({
           </svg>
           <span>Debris</span>
           <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${activeCategories.has('DEBRIS') ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
-            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${activeCategories.has('DEBRIS') ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${activeCategories.has('DEBRIS') ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
           </div>
         </button>
 
