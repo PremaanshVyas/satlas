@@ -4,7 +4,7 @@ import type { TLERecord } from './celestrak'
 
 const CATALOG_API_URL = '/api/catalog'
 const ISS_URL         = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
-const CACHE_KEY       = 'satlas-catalog-v4'
+const CACHE_KEY       = 'satlas-catalog-v5'
 
 function makeLocalStorageMock(initial: Record<string, string> = {}) {
   const store: Record<string, string> = { ...initial }
@@ -99,7 +99,7 @@ describe('fetchSatelliteCatalog', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  test('fetches TLE when no cache — races /api/catalog and CelesTrak simultaneously', async () => {
+  test('fetches TLE when no cache — tries /api/catalog first, CelesTrak as fallback', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       text: () => Promise.resolve(makeTleText(110)),
@@ -108,7 +108,6 @@ describe('fetchSatelliteCatalog', () => {
     const result = await fetchSatelliteCatalog()
 
     expect(result.length).toBe(110)
-    // Both sources are raced — the API route must be among the calls
     expect(fetch).toHaveBeenCalledWith(CATALOG_API_URL, expect.objectContaining({ signal: expect.anything() }))
   })
 

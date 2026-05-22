@@ -9,10 +9,9 @@ const LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
 const QUERY_URL =
   'https://www.space-track.org/basicspacedata/query/class/gp' +
   '/DECAY_DATE/null-val' +
-  '/EPOCH/%3Enow-60' +
+  '/EPOCH/%3Enow-90' +
   '/orderby/NORAD_CAT_ID' +
-  '/format/3le' +
-  '/limit/20000'
+  '/format/3le'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = process.env.SPACE_TRACK_USER

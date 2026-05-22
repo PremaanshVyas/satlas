@@ -6,7 +6,7 @@ export interface TLERecord {
 }
 
 // v4: fresh key so browsers discard any stale pre-session-14 cache.
-const CACHE_KEY = 'satlas-catalog-v4'
+const CACHE_KEY = 'satlas-catalog-v5'
 // Serve cached data immediately (stale-while-revalidate) for up to 24h.
 // Background refresh fires on every call regardless. Between 24h and 72h the data
 // is served instantly AND refreshed in the background. Past 72h we must wait for
@@ -31,7 +31,7 @@ const FETCH_TIMEOUT_MS = 10_000
 
 // Previous cache key versions — may hold stale 10k-era data. Cleaned up on every
 // successful save so they never resurface as a fallback.
-const LEGACY_KEYS = ['aussie-sky-catalog-v4', 'aussie-sky-catalog-v3', 'aussie-sky-catalog-v2', 'aussie-sky-catalog-v1']
+const LEGACY_KEYS = ['satlas-catalog-v4', 'aussie-sky-catalog-v4', 'aussie-sky-catalog-v3', 'aussie-sky-catalog-v2', 'aussie-sky-catalog-v1']
 
 export function parseTleText(text: string): TLERecord[] {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
@@ -97,11 +97,15 @@ async function fetchFromCelesTrak(): Promise<TLERecord[]> {
   return records
 }
 
-// Race both sources simultaneously — whichever responds first wins.
-// Promise.any() resolves with the first fulfilled result and ignores individual rejections.
-// Effective max wait = FETCH_TIMEOUT_MS (not per-source × N).
+// Try primary source first. CelesTrak is only a fallback — its GROUP=active has ~10k
+// operational satellites, far fewer than the full Space-Track catalog (~25k+). Racing
+// them would let CelesTrak win and silently serve a much smaller catalog.
 async function fetchFresh(): Promise<TLERecord[]> {
-  return await Promise.any([fetchFromApi(), fetchFromCelesTrak()])
+  try {
+    return await fetchFromApi()
+  } catch {
+    return await fetchFromCelesTrak()
+  }
 }
 
 export async function fetchSatelliteCatalog(): Promise<TLERecord[]> {

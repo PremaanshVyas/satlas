@@ -13,7 +13,7 @@ CELESTRAK_HEADERS = {'User-Agent': 'satlas/1.0 (portfolio project; https://satla
 SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
 SPACETRACK_CATALOG_URL = (
     'https://www.space-track.org/basicspacedata/query/class/gp'
-    '/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID/format/3le'
+    '/DECAY_DATE/null-val/EPOCH/%3Enow-90/orderby/NORAD_CAT_ID/format/3le'
 )
 SPACETRACK_SATCAT_URL = (
     'https://www.space-track.org/basicspacedata/query/class/satcat'
