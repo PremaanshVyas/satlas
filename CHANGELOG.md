@@ -25,6 +25,14 @@ Result: 31,467 tracked objects — Debris (12,255), Starlink (10,363), Other (8,
 
 **`satellites.py` (ECS).** Matched the Space-Track query to 90-day epoch and added `DECAY_DATE/null-val` filter. Applies to the backend orbital tools (pass prediction, overhead lookup) on next ECS redeploy.
 
+**Debris off by default.** Debris is the largest category (12k+ objects) and visually overwhelming on landing. Changed the initial `activeCategories` state to exclude `DEBRIS`. Users can re-enable it via the new Debris toggle. A mount effect syncs this default into the Globe engine and the category counts callback so everything is coherent from the first render.
+
+**Cloud + Debris toggles redesigned.** The cloud toggle was a bare emoji button; the debris toggle didn't exist. Both are now consistent labeled controls: SVG icon + text label + a sliding pill (`w-7 h-4` container, `w-3 h-3` thumb, 2px symmetric gaps). The "can't turn off the last category" guard was removed — all category pills can now be toggled off simultaneously.
+
+**ISS owner override.** Space-Track stores Zarya (NORAD 25544) under owner code `CIS` (Russia), which resolves to "Russia" — technically the builder of the first module, but misleading for the ISS as a whole. Added a `NORAD_OWNER_OVERRIDES` map in `satcat.ts` keyed by unpadded NORAD ID. ISS now shows "ISS Partnership (NASA · Roscosmos · ESA · JAXA · CSA)". Cache bumped to `satlas-satcat-v6`.
+
+**Owner field wrapping fix.** The owner row in SatInfoCard was constrained to half the card width by the 2-column grid layout and cut off by `truncate`. Fixed with `col-span-2` and removing `truncate` — owner text now spans the full card width and wraps freely. Handles the ISS partnership string and any future long owner names.
+
 ---
 
 ## [Session 25] — Frontend redesign: Nothing/Terminal aesthetic (2026-05-21)
