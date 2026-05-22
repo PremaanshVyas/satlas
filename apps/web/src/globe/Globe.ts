@@ -628,13 +628,23 @@ export class Globe {
     const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst)
     const lat = geo.latitude
     const lon = geo.longitude
+    const satRadius = geo.height / R_EARTH_KM + 1
+    const flyDistance = Math.max(CAMERA_DISTANCE, satRadius * 1.5)
     this.flyFromPos = this.camera.position.clone()
     this.flyToPos = new THREE.Vector3(
-      CAMERA_DISTANCE * Math.cos(lat) * Math.cos(lon),
-      CAMERA_DISTANCE * Math.sin(lat),
-      -CAMERA_DISTANCE * Math.cos(lat) * Math.sin(lon),
+      flyDistance * Math.cos(lat) * Math.cos(lon),
+      flyDistance * Math.sin(lat),
+      -flyDistance * Math.cos(lat) * Math.sin(lon),
     )
     this.flyStartTime = performance.now()
+  }
+
+  private _satFlyDistance(satrec: satellite.SatRec): number {
+    const posVel = satellite.propagate(satrec, new Date())
+    if (!posVel.position || typeof posVel.position !== 'object') return CAMERA_DISTANCE
+    const gmst = satellite.gstime(new Date())
+    const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst)
+    return Math.max(CAMERA_DISTANCE, (geo.height / R_EARTH_KM + 1) * 1.5)
   }
 
   selectCatalogSatellite(noradId: string): void {
@@ -875,17 +885,29 @@ export class Globe {
   highlightSatellite(noradId: string, latDeg?: number, lonDeg?: number): void {
     let targetPos: THREE.Vector3 | null = null
 
+    // Compute altitude-aware fly distance
+    let flyDistance = CAMERA_DISTANCE
+    if (noradId === ISS_NORAD) {
+      flyDistance = this._satFlyDistance(this.issSatrec)
+    } else {
+      const idx = this.satNoradIds.indexOf(noradId)
+      if (idx >= 0) {
+        const tle = this.satTles[idx]
+        if (tle) flyDistance = this._satFlyDistance(satellite.twoline2satrec(tle.tle1, tle.tle2))
+      }
+    }
+
     if (latDeg !== undefined && lonDeg !== undefined) {
       const lat = latDeg * (Math.PI / 180)
       const lon = lonDeg * (Math.PI / 180)
       targetPos = new THREE.Vector3(
-         CAMERA_DISTANCE * Math.cos(lat) * Math.cos(lon),
-         CAMERA_DISTANCE * Math.sin(lat),
-        -CAMERA_DISTANCE * Math.cos(lat) * Math.sin(lon),
+         flyDistance * Math.cos(lat) * Math.cos(lon),
+         flyDistance * Math.sin(lat),
+        -flyDistance * Math.cos(lat) * Math.sin(lon),
       )
     } else if (noradId === ISS_NORAD) {
       const issPos = this.iss.getCurrentPosition()
-      if (issPos) targetPos = issPos.clone().normalize().multiplyScalar(CAMERA_DISTANCE)
+      if (issPos) targetPos = issPos.clone().normalize().multiplyScalar(flyDistance)
     }
 
     if (!targetPos) return
