@@ -70,9 +70,9 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
       <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)]">
         <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#555555] mb-2">Catalog</div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-          <div>
+          <div className="col-span-2">
             <div className="font-mono text-[10px] text-label mb-0.5">Owner</div>
-            <div className="font-mono text-[12px] font-light text-secondary truncate">{meta?.owner || '—'}</div>
+            <div className="font-mono text-[12px] font-light text-secondary leading-snug">{meta?.owner || '—'}</div>
           </div>
           <div>
             <div className="font-mono text-[10px] text-label mb-0.5">Launched</div>
