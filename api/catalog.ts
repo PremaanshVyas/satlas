@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 export const config = { maxDuration: 30 }
 
 const LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
-// Active objects with recent TLEs: not decayed, epoch within last 60 days, up to 20k records
+// Non-decayed objects with TLEs updated in the last 90 days, no limit — full catalog (~30k+).
 // format/3le returns name + TLE1 + TLE2 (3-line format). format/tle returns 2LE (no name),
 // which breaks parseTleText() — it would treat TLE line 2 of sat N as the name of sat N+1.
 const QUERY_URL =

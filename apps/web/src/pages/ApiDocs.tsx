@@ -23,7 +23,7 @@ const ENDPOINTS: Endpoint[] = [
     method: 'GET',
     path: '/api/catalog',
     description:
-      'Full TLE (Two-Line Element) satellite catalog in 3-line text format. Approximately 20,000 active objects. Refreshed every 2 hours from Space-Track.org. Data is subject to Space-Track.org redistribution terms.',
+      'Full TLE (Two-Line Element) satellite catalog in 3-line text format. Approximately 30,000+ objects including active satellites, rocket bodies, and debris. Refreshed every 2 hours from Space-Track.org. Data is subject to Space-Track.org redistribution terms.',
     curl: `curl ${BASE}/api/catalog`,
     response: [
       '0 ISS (ZARYA)',
@@ -31,7 +31,7 @@ const ENDPOINTS: Endpoint[] = [
       '2 25544  51.6397 132.4788 0003527  84.9201  23.3094 15.50036716513899',
       '0 STARLINK-1234',
       '1 48274U 21...',
-      '...(~20,000 objects total)',
+      '...(~31,000+ objects total)',
     ].join('\n'),
   },
   {

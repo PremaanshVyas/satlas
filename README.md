@@ -7,7 +7,7 @@
 A live, open platform that lets anyone explore what's happening in Earth orbit — every tracked satellite, rocket body, and piece of debris, visualised in 3D and queryable in plain English.
 
 **Live demo:** [satlas.app](https://satlas.app) (also [getsatlas.vercel.app](https://getsatlas.vercel.app))  
-Open the site — ~20,000 tracked objects orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker. A real-time cloud layer drapes the globe; a star field from NASA's Gaia DR2 catalog fills the background.  
+Open the site — 30,000+ tracked objects orbit Earth in real time across their actual altitudes (LEO, MEO, GEO shells visually distinct), fetched from the US Space Force catalog and propagated in a web worker. A real-time cloud layer drapes the globe; a star field from NASA's Gaia DR2 catalog fills the background.  
 Ask: _"When does the ISS pass over Melbourne tonight?"_ — it does real orbital mechanics to answer.  
 Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D globe camera to the ISS, pulsing it three times.  
 Ask: _"Show all Starlink satellites"_ — it highlights every Starlink dot in violet while dimming everything else.  
@@ -97,7 +97,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 ### What's working now
 - [x] 3D Earth with real-time cloud layer (clouds.matteason.co.uk, updates ~3h, AdditiveBlending)
 - [x] NASA Gaia DR2 star field skybox — denser and higher quality than procedural stars
-- [x] ~20,000 tracked objects at actual orbital altitudes (LEO/MEO/GEO shells visually distinct)
+- [x] 30,000+ tracked objects at actual orbital altitudes (LEO/MEO/GEO shells visually distinct)
 - [x] ISS rendered separately with yellow dot; catalog satellites colour-coded by type
 - [x] Dot sizing by type: GEO satellites 1.5× base size, debris 0.6× and dimmer
 - [x] Satellite trails — last 10 minutes of ECEF path on selected satellite, lime→transparent fade
@@ -122,7 +122,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 
 ### V1 (complete)
 - [x] Project scaffolding, monorepo, CI/CD
-- [x] Live TLE catalog (~20,000 objects, InstancedMesh + web worker)
+- [x] Live TLE catalog (30,000+ objects, InstancedMesh + web worker)
 - [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info, set_category_filter
 - [x] Click satellite → details; multi-satellite selection tray; orbital arc + trail
 - [x] Hover tooltip; category filter pills; text search

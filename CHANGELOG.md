@@ -4,6 +4,29 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 27] — UX polish: globe zoom, search fly-to, catalog expansion (2026-05-22)
+
+### What shipped
+
+UX polish pass and catalog expansion, taking the tracked-object count from ~20k to ~31k.
+
+**Globe zoom.** Initial camera distance bumped from 2.5 → 3.5 (Three.js units, Earth radius = 1). The globe no longer fills the viewport on load — there's breathing room, making the satellite density immediately legible.
+
+**Search fly-to.** Selecting a satellite from the search bar or selection tray now flies the camera to the satellite's current position, matching the behaviour already present for AI-agent highlights. Previously, search selection showed the info card but left the camera stationary.
+
+**Altitude-aware camera fly.** Both the search path (`selectCatalogSatellite`) and the AI highlight path (`highlightSatellite`) previously flew the camera to a fixed distance regardless of orbital altitude. GEO satellites (~35,786 km) ended up with the camera closer to Earth than the satellite itself — you'd arrive at the right lat/lon but couldn't see the dot without zooming out. Fix: propagate the satellite's current position, compute `satRadius = altKm / R_EARTH_KM + 1`, set `flyDistance = max(CAMERA_DISTANCE, satRadius × 1.5)`. LEO sats land at the default distance; MEO/GEO sats land at a distance that frames the satellite correctly.
+
+**Catalog expansion — 20k → 31k+ objects.** Three compounding limits were keeping the catalog small:
+1. `api/catalog.ts` had a hard `limit/20000` in the Space-Track query — cut off before the full catalog.
+2. The epoch filter was 60 days; widened to 90 days to capture satellites with less frequent TLE updates (some deep-space objects, high-altitude sats).
+3. `celestrak.ts` raced `/api/catalog` against CelesTrak `GROUP=active` simultaneously — CelesTrak's ~10k "operational" list could win the race and silently populate a much smaller globe. Changed to sequential: try `/api/catalog` first (edge-cached, <100ms when warm), fall back to CelesTrak only on failure.
+
+Result: 31,467 tracked objects — Debris (12,255), Starlink (10,363), Other (8,549), Iridium (220), GPS (80).
+
+**`satellites.py` (ECS).** Matched the Space-Track query to 90-day epoch and added `DECAY_DATE/null-val` filter. Applies to the backend orbital tools (pass prediction, overhead lookup) on next ECS redeploy.
+
+---
+
 ## [Session 25] — Frontend redesign: Nothing/Terminal aesthetic (2026-05-21)
 
 ### What shipped
