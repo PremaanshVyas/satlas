@@ -620,15 +620,35 @@ export class Globe {
     return results
   }
 
+  private _flyToCurrentPosition(satrec: satellite.SatRec): void {
+    const now = new Date()
+    const posVel = satellite.propagate(satrec, now)
+    if (!posVel.position || typeof posVel.position !== 'object') return
+    const gmst = satellite.gstime(now)
+    const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst)
+    const lat = geo.latitude
+    const lon = geo.longitude
+    this.flyFromPos = this.camera.position.clone()
+    this.flyToPos = new THREE.Vector3(
+      CAMERA_DISTANCE * Math.cos(lat) * Math.cos(lon),
+      CAMERA_DISTANCE * Math.sin(lat),
+      -CAMERA_DISTANCE * Math.cos(lat) * Math.sin(lon),
+    )
+    this.flyStartTime = performance.now()
+  }
+
   selectCatalogSatellite(noradId: string): void {
     if (noradId === ISS_NORAD) {
       this._addIssToSelection()
+      this._flyToCurrentPosition(this.issSatrec)
       this.onSatelliteClick?.(this.issName, ISS_NORAD)
       return
     }
     const idx = this.satNoradIds.indexOf(noradId)
     if (idx < 0) return
     this._addCatalogSatToSelection(idx, noradId)
+    const tle = this.satTles[idx]
+    if (tle) this._flyToCurrentPosition(satellite.twoline2satrec(tle.tle1, tle.tle2))
     this.onSatelliteClick?.(this.satNames[idx] ?? noradId, noradId)
   }
 
