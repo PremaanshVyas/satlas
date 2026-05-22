@@ -8,7 +8,7 @@ const _cfBase = (import.meta.env.VITE_CATALOG_URL as string | undefined)?.replac
   ?? 'https://dgsll6twimcwl.cloudfront.net'
 const SATCAT_URL = `${_cfBase}/satcat.json`
 
-const SATCAT_CACHE_KEY = 'satlas-satcat-v5'
+const SATCAT_CACHE_KEY = 'satlas-satcat-v6'
 const SATCAT_CACHE_TTL_MS = 24 * 60 * 60 * 1000  // 24 h
 
 export interface SatcatEntry {
@@ -103,6 +103,12 @@ const SITE_MAP: Record<string, string> = {
   HGSTR: 'Hammaguira, Algeria',
 }
 
+// NORAD ID overrides for satellites where Space-Track's country code is misleading.
+// Keyed by unpadded NORAD ID string.
+const NORAD_OWNER_OVERRIDES: Record<string, string> = {
+  '25544': 'ISS Partnership (NASA · Roscosmos · ESA · JAXA · CSA)',
+}
+
 function parseSatcatJson(rows: SatcatRow[]): Map<string, SatcatEntry> {
   const map = new Map<string, SatcatEntry>()
   for (const r of rows) {
@@ -110,12 +116,13 @@ function parseSatcatJson(rows: SatcatRow[]): Map<string, SatcatEntry> {
     // Space-Track omits leading zeros (e.g. '6707'); TLE catalog pads to 5 digits ('06707').
     // Pad here so Map lookups using the TLE-derived NORAD ID always hit.
     const paddedId = r.norad_id.padStart(5, '0')
+    const owner = NORAD_OWNER_OVERRIDES[r.norad_id] ?? OWNER_MAP[r.owner] ?? r.owner
     map.set(paddedId, {
       noradId: paddedId,
       intlDes: r.intl_des,
       objectType: r.type,
       opsStatus: r.decay ? 'decayed' : 'tracked',
-      owner: OWNER_MAP[r.owner] ?? r.owner,
+      owner,
       launchDate: r.launch,
       launchSite: SITE_MAP[r.site] ?? (r.site || ''),
     })
