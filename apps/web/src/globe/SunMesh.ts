@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-const SUN_DISTANCE = 80
+const SUN_DISTANCE = 50
 
 function makeSunTexture(): THREE.CanvasTexture {
   const size = 512
