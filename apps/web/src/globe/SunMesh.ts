@@ -1,27 +1,68 @@
 import * as THREE from 'three'
 
-// Sun sits at 80 scene units — far enough to look like a distant star,
-// close enough to stay out of Three.js far-plane culling issues.
 const SUN_DISTANCE = 80
 
 function makeSunTexture(): THREE.CanvasTexture {
-  const size = 256
+  const size = 512
   const canvas = document.createElement('canvas')
   canvas.width = size
   canvas.height = size
   const ctx = canvas.getContext('2d')!
   const cx = size / 2
 
-  // Radial gradient: white-hot core → golden glow → faint corona → transparent
-  const g = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx)
-  g.addColorStop(0.00, 'rgba(255, 255, 245, 1.00)')  // white-hot core
-  g.addColorStop(0.06, 'rgba(255, 248, 180, 0.95)')  // bright inner glow
-  g.addColorStop(0.18, 'rgba(255, 210,  70, 0.65)')  // golden halo
-  g.addColorStop(0.38, 'rgba(255, 160,  20, 0.25)')  // orange mid-corona
-  g.addColorStop(0.65, 'rgba(255, 110,   0, 0.06)')  // faint outer corona
-  g.addColorStop(1.00, 'rgba(255,  80,   0, 0.00)')  // fully transparent edge
+  // 1. Soft ambient halo — large, very faint, fills the sprite
+  const halo = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx * 0.6)
+  halo.addColorStop(0.00, 'rgba(255, 255, 255, 0.45)')
+  halo.addColorStop(0.25, 'rgba(235, 245, 255, 0.10)')
+  halo.addColorStop(0.60, 'rgba(200, 220, 255, 0.02)')
+  halo.addColorStop(1.00, 'rgba(200, 220, 255, 0.00)')
+  ctx.fillStyle = halo
+  ctx.fillRect(0, 0, size, size)
 
-  ctx.fillStyle = g
+  // 2. Eight diffraction spikes — additive so they brighten at the intersection
+  ctx.globalCompositeOperation = 'lighter'
+  const spikeLen = cx * 0.92   // extends nearly to canvas edge
+  const halfW = 6               // half-width at the center, tapers to 0 at tips
+
+  for (let i = 0; i < 8; i++) {
+    ctx.save()
+    ctx.translate(cx, cx)
+    ctx.rotate((i * Math.PI) / 4)
+
+    // Exponential-approximating falloff: bright only close to centre
+    const g = ctx.createLinearGradient(-spikeLen, 0, spikeLen, 0)
+    g.addColorStop(0.00, 'rgba(255, 255, 255, 0.00)')
+    g.addColorStop(0.20, 'rgba(255, 255, 255, 0.00)')
+    g.addColorStop(0.36, 'rgba(255, 255, 255, 0.06)')
+    g.addColorStop(0.44, 'rgba(255, 255, 255, 0.40)')
+    g.addColorStop(0.48, 'rgba(255, 255, 255, 0.80)')
+    g.addColorStop(0.50, 'rgba(255, 255, 255, 1.00)')
+    g.addColorStop(0.52, 'rgba(255, 255, 255, 0.80)')
+    g.addColorStop(0.56, 'rgba(255, 255, 255, 0.40)')
+    g.addColorStop(0.64, 'rgba(255, 255, 255, 0.06)')
+    g.addColorStop(0.80, 'rgba(255, 255, 255, 0.00)')
+    g.addColorStop(1.00, 'rgba(255, 255, 255, 0.00)')
+
+    // Diamond shape: widest at centre, tapers linearly to each tip
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.moveTo(-spikeLen, 0)
+    ctx.lineTo(0,  halfW)
+    ctx.lineTo( spikeLen, 0)
+    ctx.lineTo(0, -halfW)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+
+  // 3. Bright core — solid white-hot centre drawn over the spikes
+  ctx.globalCompositeOperation = 'source-over'
+  const core = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx * 0.16)
+  core.addColorStop(0.00, 'rgba(255, 255, 255, 1.00)')
+  core.addColorStop(0.35, 'rgba(255, 255, 255, 0.95)')
+  core.addColorStop(0.70, 'rgba(230, 240, 255, 0.50)')
+  core.addColorStop(1.00, 'rgba(200, 220, 255, 0.00)')
+  ctx.fillStyle = core
   ctx.fillRect(0, 0, size, size)
 
   return new THREE.CanvasTexture(canvas)
@@ -40,8 +81,8 @@ export class SunMesh {
       transparent: true,
     })
     this.sprite = new THREE.Sprite(mat)
-    // 6 world units wide at distance 80 → ~2.2° apparent diameter (cinematic, not physically accurate)
-    this.sprite.scale.setScalar(6)
+    // 10 world units wide at distance 80 → ~3.6° apparent diameter (cinematic)
+    this.sprite.scale.setScalar(10)
   }
 
   update(sunDirection: THREE.Vector3): void {
