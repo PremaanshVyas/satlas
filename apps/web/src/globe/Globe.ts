@@ -196,6 +196,7 @@ export class Globe {
   // Hover
   private hoveredIdx = -1
   private hoverThrottleMs = 0
+  private hoveredCountryName: string | null = null
 
   // Satellite catalog metadata (country, launch date, etc.) keyed by NORAD ID.
   private satcat: Map<string, SatcatEntry> = new Map()
@@ -342,6 +343,7 @@ export class Globe {
       for (const label of this.countryLabelObjects) label.visible = false
       // Hide label overlay DOM so frozen CSS2D elements don't linger ("screen burn")
       if (this.labelRenderer) this.labelRenderer.domElement.style.display = 'none'
+      this.hoveredCountryName = null
       return
     }
 
@@ -1112,6 +1114,7 @@ export class Globe {
     }
 
     if (bestIdx >= 0) {
+      this.hoveredCountryName = null
       const name = this.satNames[bestIdx]
       const x = buf[bestIdx * 3], y = buf[bestIdx * 3 + 1], z = buf[bestIdx * 3 + 2]
       const r = Math.sqrt(x * x + y * y + z * z)
@@ -1128,7 +1131,35 @@ export class Globe {
         const prev = this.hoveredIdx
         this.hoveredIdx = -1
         if (prev >= 0) this.refreshInstanceColor(prev)
-        this.onSatelliteHover(null, null, e.clientX, e.clientY)
+      }
+      // Country hover in border mode — raycast earth surface → geoContains
+      if (this.bordersEnabled && this.countryFeatures.length > 0) {
+        const ndcX = (mouseX / rect.width) * 2 - 1
+        const ndcY = -(mouseY / rect.height) * 2 + 1
+        this._raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera)
+        const hits = this._raycaster.intersectObject(this.earth.mesh)
+        if (hits.length > 0) {
+          const p = hits[0].point
+          const latDeg = Math.asin(Math.max(-1, Math.min(1, p.y))) * (180 / Math.PI)
+          const lonDeg = Math.atan2(-p.z, p.x) * (180 / Math.PI)
+          const feature = this.countryFeatures.find(
+            f => geoContains(f as unknown as GeoFeature, [lonDeg, latDeg])
+          )
+          const name = feature ? String(feature.properties?.NAME ?? '') : ''
+          if (name) {
+            if (name !== this.hoveredCountryName) {
+              this.hoveredCountryName = name
+              this.onSatelliteHover?.(name, null, e.clientX, e.clientY)
+            }
+            return
+          }
+        }
+        if (this.hoveredCountryName !== null) {
+          this.hoveredCountryName = null
+          this.onSatelliteHover?.(null, null, e.clientX, e.clientY)
+        }
+      } else {
+        this.onSatelliteHover?.(null, null, e.clientX, e.clientY)
       }
     }
   }

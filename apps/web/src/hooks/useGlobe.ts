@@ -11,7 +11,7 @@ export type { SatcatEntry }
 
 export interface HoverInfo {
   name: string
-  altKm: number
+  altKm: number | null
   screenX: number
   screenY: number
 }
@@ -66,7 +66,7 @@ export function useGlobe(
     }
     globe.onSatelliteClick = (name, noradId) => callbacksRef.current.onSatelliteClick?.(name, noradId)
     globe.onSatelliteHover = (name, altKm, screenX, screenY) => {
-      if (name !== null && altKm !== null) setHoverInfo({ name, altKm, screenX, screenY })
+      if (name !== null) setHoverInfo({ name, altKm, screenX, screenY })
       else setHoverInfo(null)
     }
     globe.onLivePosition = (pos) => callbacksRef.current.onLivePosition?.(pos)

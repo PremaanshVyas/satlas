@@ -282,7 +282,9 @@ export default function GlobeView({
             }}
           >
             <div className="font-mono text-[12px] text-secondary">{hoverInfo.name}</div>
-            <div className="font-mono text-[10px] text-label">{hoverInfo.altKm.toLocaleString()} km</div>
+            {hoverInfo.altKm !== null && (
+              <div className="font-mono text-[10px] text-label">{hoverInfo.altKm.toLocaleString()} km</div>
+            )}
           </div>
         )}
 
