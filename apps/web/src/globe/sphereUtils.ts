@@ -1,6 +1,8 @@
 // Shared spherical geometry helpers used by CountryFillMesh and CountryHighlightMesh.
-// All subdivision operates on geodesic (great-circle) arcs so flat WebGL triangles
-// never dip below the Earth surface (r=1.0) and fail the depth test.
+// Subdivision inserts flat lon/lat midpoints (not great-circle SLERP) so that fill
+// follows the actual polygon boundary in geographic space. Each subdivided vertex is
+// then projected onto the sphere at radius r via toVec3, keeping all triangle edges
+// above the Earth surface (r=1.0) and passing the WebGL depth test.
 
 const DEG = Math.PI / 180
 
@@ -14,30 +16,16 @@ export function toVec3(lon: number, lat: number, r: number): [number, number, nu
   return [x * r, y * r, z * r]
 }
 
-export function unitToLL(v: [number, number, number]): [number, number] {
-  return [
-    Math.atan2(-v[2], v[0]) / DEG,
-    Math.asin(Math.max(-1, Math.min(1, v[1]))) / DEG,
-  ]
-}
-
 export function arcDeg(lon0: number, lat0: number, lon1: number, lat1: number): number {
   const a = toUnit(lon0, lat0), b = toUnit(lon1, lat1)
   const d = Math.max(-1, Math.min(1, a[0]*b[0] + a[1]*b[1] + a[2]*b[2]))
   return Math.acos(d) / DEG
 }
 
-// SLERP midpoint (t=0.5) of two lon/lat points; result lies on the unit sphere.
-export function slerpMid(lon0: number, lat0: number, lon1: number, lat1: number): [number, number] {
-  const a = toUnit(lon0, lat0), b = toUnit(lon1, lat1)
-  const dot = Math.max(-1, Math.min(1, a[0]*b[0] + a[1]*b[1] + a[2]*b[2]))
-  const theta = Math.acos(dot)
-  if (theta < 1e-10) return [(lon0 + lon1) * 0.5, (lat0 + lat1) * 0.5]
-  const f = Math.sin(0.5 * theta) / Math.sin(theta)
-  return unitToLL([(a[0]+b[0])*f, (a[1]+b[1])*f, (a[2]+b[2])*f])
-}
-
-// Insert SLERP-interpolated points on every edge that exceeds maxDeg of arc.
+// Insert flat-interpolated points on every edge that exceeds maxDeg of arc.
+// Flat (linear lon/lat) interpolation keeps subdivided boundary edges on the actual
+// polygon path; SLERP (great-circle) would bulge outward at high latitudes (e.g.
+// Russia's 80°N coast would extend into the Arctic Ocean).
 // Skips antimeridian-crossing edges (|Δlon| > 180).
 export function subdivideRing(ring: number[][], maxDeg: number): number[][] {
   const out: number[][] = []
@@ -48,16 +36,10 @@ export function subdivideRing(ring: number[][], maxDeg: number): number[][] {
     if (Math.abs(lon1 - lon0) > 180) continue
     const arc = arcDeg(lon0, lat0, lon1, lat1)
     if (arc <= maxDeg) continue
-    const a = toUnit(lon0, lat0), b = toUnit(lon1, lat1)
-    const dot = Math.max(-1, Math.min(1, a[0]*b[0] + a[1]*b[1] + a[2]*b[2]))
-    const theta = Math.acos(dot)
-    const sinT = Math.sin(theta)
     const n = Math.ceil(arc / maxDeg)
     for (let j = 1; j < n; j++) {
       const t = j / n
-      const wa = Math.sin((1 - t) * theta) / sinT
-      const wb = Math.sin(t * theta) / sinT
-      out.push(unitToLL([a[0]*wa + b[0]*wb, a[1]*wa + b[1]*wb, a[2]*wa + b[2]*wb]))
+      out.push([lon0 + (lon1 - lon0) * t, lat0 + (lat1 - lat0) * t])
     }
   }
   out.push(ring[ring.length - 1])
@@ -67,6 +49,8 @@ export function subdivideRing(ring: number[][], maxDeg: number): number[][] {
 // Split any earcut triangle whose longest edge exceeds maxDeg.
 // Mutates `flat` (appending midpoint vertices). Uses an edge cache so adjacent
 // triangles sharing a split edge get the same midpoint vertex (no mesh cracks).
+// Midpoints use flat lon/lat interpolation for the same boundary-accuracy reason
+// as subdivideRing.
 export function refineTris(flat: number[], tris: number[], maxDeg: number): number[] {
   const edgeCache = new Map<string, number>()
   const queue: number[] = [...tris]
@@ -94,7 +78,8 @@ export function refineTris(flat: number[], tris: number[], maxDeg: number): numb
     const key = ea < eb ? `${ea},${eb}` : `${eb},${ea}`
     let iMid = edgeCache.get(key)
     if (iMid === undefined) {
-      const [mLon, mLat] = slerpMid(flat[2*ea], flat[2*ea+1], flat[2*eb], flat[2*eb+1])
+      const mLon = (flat[2*ea] + flat[2*eb]) * 0.5
+      const mLat = (flat[2*ea+1] + flat[2*eb+1]) * 0.5
       iMid = flat.length / 2
       flat.push(mLon, mLat)
       edgeCache.set(key, iMid)
