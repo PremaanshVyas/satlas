@@ -5,6 +5,8 @@ import GlobeView from './components/GlobeView'
 import AgentPanel from './components/AgentPanel'
 import SatInfoCard from './components/SatInfoCard'
 import PassPanel from './components/PassPanel'
+import CountryPanel from './components/CountryPanel'
+import type { OverheadSat } from './components/GlobeView'
 import { useChat } from './hooks/useChat'
 import { ALL_CATEGORIES } from './globe/Globe'
 import type { OrbitalParams, LivePosition, SatcatEntry } from './components/GlobeView'
@@ -30,6 +32,13 @@ export default function App() {
 
   const [passOpen, setPassOpen] = useState(false)
   const [passSat, setPassSat] = useState<SelectedSat | null>(null)
+
+  interface SelectedCountry {
+    name: string
+    continent: string
+    overheadSats: OverheadSat[]
+  }
+  const [selectedCountry, setSelectedCountry] = useState<SelectedCountry | null>(null)
 
   // Mobile detection — drives Vaul vs desktop card
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640)
@@ -126,6 +135,7 @@ export default function App() {
         onCategoryCounts={setCategoryCounts}
         onRemoveReady={(fn) => { removeFromSelectionRef.current = fn }}
         onSelectReady={(fn) => { selectSatRef.current = fn }}
+        onCountryClick={(name, continent, overheadSats) => setSelectedCountry({ name, continent, overheadSats })}
       />
 
       {/* Selection tray — animates up from bottom-left */}
@@ -196,29 +206,70 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Desktop info card — fades in from above; hidden on mobile (Vaul handles it) */}
-      <AnimatePresence>
-        {cardSat && !isMobile && (
-          <motion.div
-            key={`card-${cardSat.noradId}`}
-            initial={{ opacity: 0, y: -10, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.16, ease: 'easeOut' }}
-            className="absolute top-10 left-3 mt-2 w-64 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl z-20 overflow-hidden"
-          >
-            <SatInfoCard
-              sat={cardSat}
-              meta={selectedMeta}
-              position={livePosition}
-              orbital={selectedOrbital}
-              onDismiss={handleDismissCard}
-              onAskAI={handleAskAI}
-              onPredictPasses={handlePredictPasses}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Desktop left column — SatInfoCard / PassPanel stacked above CountryPanel */}
+      {!isMobile && (
+        <div className="absolute top-10 left-3 mt-2 w-64 z-20 flex flex-col gap-2">
+          <AnimatePresence>
+            {cardSat && (
+              <motion.div
+                key={`card-${cardSat.noradId}`}
+                initial={{ opacity: 0, y: -10, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+                className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden"
+              >
+                <SatInfoCard
+                  sat={cardSat}
+                  meta={selectedMeta}
+                  position={livePosition}
+                  orbital={selectedOrbital}
+                  onDismiss={handleDismissCard}
+                  onAskAI={handleAskAI}
+                  onPredictPasses={handlePredictPasses}
+                />
+              </motion.div>
+            )}
+            {passOpen && passSat && (
+              <motion.div
+                key={`pass-${passSat.noradId}`}
+                initial={{ opacity: 0, y: -10, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+                className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden"
+                style={{ maxHeight: 'calc(50dvh - 2rem)' }}
+              >
+                <PassPanel sat={passSat} onClose={() => setPassOpen(false)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {selectedCountry && (
+              <motion.div
+                key="country-panel"
+                initial={{ opacity: 0, y: -10, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+                className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden"
+              >
+                <CountryPanel
+                  country={selectedCountry}
+                  overheadSats={selectedCountry.overheadSats}
+                  onDismiss={() => setSelectedCountry(null)}
+                  onAskAI={() => {
+                    setPrefill(`What satellites are above ${selectedCountry.name} right now?`)
+                    setChatOpen(true)
+                  }}
+                  onSelectSatellite={(noradId) => selectSatRef.current?.(noradId)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Mobile info card — Vaul bottom sheet */}
       <Drawer.Root
@@ -244,23 +295,6 @@ export default function App() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      {/* Desktop pass panel — same position as info card (replaces it) */}
-      <AnimatePresence>
-        {passOpen && passSat && !isMobile && (
-          <motion.div
-            key={`pass-${passSat.noradId}`}
-            initial={{ opacity: 0, y: -10, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.16, ease: 'easeOut' }}
-            className="absolute top-10 left-3 mt-2 w-64 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl z-20 overflow-hidden"
-            style={{ maxHeight: 'calc(100dvh - 6rem)' }}
-          >
-            <PassPanel sat={passSat} onClose={() => setPassOpen(false)} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Mobile pass panel — Vaul bottom sheet */}
       <Drawer.Root
         open={isMobile && passOpen && !!passSat}
@@ -274,6 +308,33 @@ export default function App() {
               <div className="h-full overflow-hidden" style={{ maxHeight: 'calc(80dvh - 1.5rem)' }}>
                 <PassPanel sat={passSat} onClose={() => setPassOpen(false)} />
               </div>
+            )}
+            <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+
+      {/* Mobile country panel — Vaul bottom sheet */}
+      <Drawer.Root
+        open={isMobile && !!selectedCountry}
+        onOpenChange={(open) => { if (!open) setSelectedCountry(null) }}
+      >
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" />
+          <Drawer.Content className="fixed bottom-0 inset-x-0 z-50 rounded-t-2xl bg-[rgba(9,9,9,0.98)] border-t border-[rgba(255,255,255,0.07)] shadow-2xl outline-none">
+            <div className="mx-auto w-10 h-1 rounded-full bg-[rgba(255,255,255,0.08)] mt-3 mb-1" />
+            {selectedCountry && (
+              <CountryPanel
+                country={selectedCountry}
+                overheadSats={selectedCountry.overheadSats}
+                onDismiss={() => setSelectedCountry(null)}
+                onAskAI={() => {
+                  setSelectedCountry(null)
+                  setPrefill(`What satellites are above ${selectedCountry.name} right now?`)
+                  setChatOpen(true)
+                }}
+                onSelectSatellite={(noradId) => selectSatRef.current?.(noradId)}
+              />
             )}
             <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
           </Drawer.Content>
