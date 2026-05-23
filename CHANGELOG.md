@@ -4,6 +4,38 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 28] — Country borders + country selection panel (2026-05-24)
+
+### What shipped
+
+Vector country borders on the 3D globe, country click selection, and a CountryPanel showing satellites currently overhead.
+
+**Borders toggle (off by default).** A new labeled toggle button on the right side of the globe UI (below the Debris toggle) lazily fetches Natural Earth 50m GeoJSON (~2.9MB) on first enable. The GeoJSON is cached in memory thereafter. Toggle reverts to off state if the fetch fails.
+
+**Vector borders as a single draw call.** `CountryBorderMesh` converts all country polygon rings from GeoJSON to 3D sphere coordinates at r=1.002 (just above the Earth surface at r=1) and builds one `THREE.LineSegments` geometry (~50k vertices). Edges crossing the antimeridian (`|Δlon| > 180°`) are skipped to prevent lines cutting through the globe interior. Material: white, 15% opacity, no depth write.
+
+**Country click hit-testing.** When borders are enabled and a click doesn't hit a satellite, a `THREE.Raycaster` intersects the Earth mesh. The intersection point is back-projected to lat/lon (`lat = asin(p.y)`, `lon = atan2(-p.z, p.x)`), then `d3-geo`'s `geoContains` scans ~200 features to find the matching country (~1ms). Ocean clicks (no match) do nothing. The satellite click always takes priority — the country branch is a true `else if`.
+
+**Selected country highlight.** `CountryHighlightMesh` triangulates the selected country's outer rings using `earcut` and builds a fill `THREE.Mesh` at r=1.001 (cyan, 22% opacity, DoubleSide) plus a `LineSegments` border at r=1.003 (cyan, full opacity). The z-layering: fill (1.001) < world borders (1.002) < highlight border (1.003) — no z-fighting, the active border is always visually on top. Handles MultiPolygon countries (one fill+border pair per polygon). `clear()` disposes geometry and material before switching selections.
+
+**`computeOverhead` — client-side overhead computation.** A pure exported function that scans the existing `Float32Array` position buffer (already held in Globe.ts for 31k+ satellites). For each satellite it computes `sinElev = (dot(P, O) - 1) / |P − O|` where O is the unit observer vector at the clicked country's centroid. This is exact: it correctly accounts for the satellite being at altitude, not on the Earth surface. Returns up to 25 results sorted descending by elevation, respecting the active category mask (debris filtered out when toggle is off). No API call — the data is already in memory from the worker.
+
+**CountryPanel component.** Shows country name, continent, total overhead count, and a scrollable satellite list split at 15° elevation: satellites above 15° appear cyan (`text-accent`), below 15° appear dim (`text-secondary`). Each satellite row is a clickable button that opens its SatInfoCard. "Ask AI about this country" pre-fills the chat with `What satellites are above [Country] right now?`.
+
+**Desktop layout: left column stacking.** SatInfoCard, PassPanel, and CountryPanel now live in a shared `flex flex-col gap-2` wrapper (`absolute top-10 left-3 w-64 z-20`). They stack vertically and all three can be open simultaneously. Previously SatInfoCard and PassPanel were independent absolute elements; both are now flex children. PassPanel max-height reduced to `calc(50dvh - 2rem)` when sharing the column.
+
+**Mobile: Vaul bottom sheet**, same pattern as SatInfoCard.
+
+### Technical decisions
+
+**GeoJSON properties typed as `Record<string, unknown> | null`.** The GeoJSON spec allows `properties: null` for features without metadata. Natural Earth's 50m dataset doesn't have null properties in practice, but the type contract is correct and prevents downstream callers from getting false type safety.
+
+**Race condition guard on `setBordersVisible`.** The async fetch can be triggered multiple times if the user rapidly toggles the border button before the GeoJSON loads. A `_bordersLoading` boolean guard prevents a second fetch from starting while the first is in flight, avoiding a duplicate `CountryBorderMesh` being created and added to the scene (GPU memory leak + doubled border lines).
+
+**`onCanvasClick` early-exit broadened.** The method had `if (!this.onSatelliteClick) return` which silently swallowed country clicks when `onSatelliteClick` was null. Changed to `if (!this.onSatelliteClick && !this.onCountryClick) return` so country-only consumers work correctly.
+
+---
+
 ## [Session 27] — UX polish: globe zoom, search fly-to, catalog expansion (2026-05-22)
 
 ### What shipped
