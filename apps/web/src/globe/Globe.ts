@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { EarthMesh } from './EarthMesh'
 import { AtmosphereMesh } from './AtmosphereMesh'
+import { CloudMesh } from './CloudMesh'
 import { StarField } from './StarField'
 import { SunMesh } from './SunMesh'
 import { SatelliteMesh } from './SatelliteMesh'
@@ -147,6 +148,7 @@ export class Globe {
   private controls!: OrbitControls
   private earth!: EarthMesh
   private atmosphere!: AtmosphereMesh
+  private clouds!: CloudMesh
   private stars!: StarField
   private sun!: SunMesh
   private iss!: SatelliteMesh
@@ -205,8 +207,10 @@ export class Globe {
   private liveTickInterval: ReturnType<typeof setInterval> | null = null
   private liveSelectedSatrec: satellite.SatRec | null = null
 
-  // Country map layer (always on in dark map style)
+  // Country map layer (loaded lazily when border mode is first enabled)
+  private bordersEnabled = false
   private _countryDataLoading = false
+  private _userCloudsVisible = true
   private countryFillMesh: CountryFillMesh | null = null
   private countryBorderMesh: CountryBorderMesh | null = null
   private countryHighlightMesh: CountryHighlightMesh | null = null
@@ -248,8 +252,11 @@ export class Globe {
     this.sun = new SunMesh()
     this.sun.addToScene(this.scene)
 
-    this.earth = new EarthMesh()
+    this.earth = new EarthMesh(this.renderer)
     this.scene.add(this.earth.mesh)
+
+    this.clouds = new CloudMesh()
+    this.scene.add(this.clouds.mesh)
 
     this.atmosphere = new AtmosphereMesh()
     this.scene.add(this.atmosphere.mesh)
@@ -276,7 +283,6 @@ export class Globe {
 
     this.tick()
     requestAnimationFrame(() => { if (this.mounted) onReady?.() })
-    void this.initCountryData()
     void this.refreshIssTle()
     this.issTleInterval = setInterval(() => void this.refreshIssTle(), 2 * 60 * 1000)
     void this.initCatalog()
@@ -315,8 +321,41 @@ export class Globe {
     }
   }
 
-  private async initCountryData(): Promise<void> {
-    if (this._countryDataLoading || this.countryFeatures.length > 0) return
+  setCloudVisibility(visible: boolean): void {
+    this._userCloudsVisible = visible
+    // In border/map mode clouds are always hidden; respect user preference otherwise
+    if (!this.bordersEnabled) this.clouds.mesh.visible = visible
+  }
+
+  async setBordersVisible(visible: boolean): Promise<void> {
+    this.bordersEnabled = visible
+
+    if (!visible) {
+      // Restore photorealistic style
+      this.earth.setMapMode(false)
+      this.clouds.mesh.visible = this._userCloudsVisible
+      if (this.countryFillMesh) this.scene.remove(this.countryFillMesh.mesh)
+      if (this.graticuleMesh) this.scene.remove(this.graticuleMesh.mesh)
+      if (this.countryBorderMesh) this.scene.remove(this.countryBorderMesh.mesh)
+      this.countryHighlightMesh?.clear()
+      for (const label of this.countryLabelObjects) label.visible = false
+      return
+    }
+
+    // Switch to dark map style
+    this.earth.setMapMode(true)
+    this.clouds.mesh.visible = false
+
+    // Already loaded — just re-add to scene
+    if (this.countryFeatures.length > 0 && this.countryBorderMesh) {
+      if (this.countryFillMesh) this.scene.add(this.countryFillMesh.mesh)
+      if (this.graticuleMesh) this.scene.add(this.graticuleMesh.mesh)
+      this.scene.add(this.countryBorderMesh.mesh)
+      return
+    }
+
+    // First enable — fetch GeoJSON and build all layers
+    if (this._countryDataLoading) return
     this._countryDataLoading = true
     try {
       const res = await fetch('/data/countries-50m.json')
@@ -339,7 +378,11 @@ export class Globe {
 
       this._initCountryLabels(geojson)
     } catch (err) {
-      console.warn('[Globe] Country data load failed:', err)
+      console.warn('[Globe] Country GeoJSON load failed:', err)
+      this.bordersEnabled = false
+      this.earth.setMapMode(false)
+      this.clouds.mesh.visible = this._userCloudsVisible
+      throw err
     } finally {
       this._countryDataLoading = false
     }
@@ -943,7 +986,7 @@ export class Globe {
         this._addCatalogSatToSelection(bestIdx, noradId)
         this.onSatelliteClick?.(name, noradId)
       }
-    } else if (this.countryFeatures.length > 0 && this.onCountryClick) {
+    } else if (this.bordersEnabled && this.countryFeatures.length > 0 && this.onCountryClick) {
       const ndcX = (clickX / rect.width) * 2 - 1
       const ndcY = -(clickY / rect.height) * 2 + 1
       this._raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera)
@@ -1136,6 +1179,7 @@ export class Globe {
     const nowMs = now.getTime()
 
     const sunDir = getSunDirection(now)
+    this.earth.update(sunDir)
     this.sun.update(sunDir)
     this.iss.update(now)
 
@@ -1158,7 +1202,7 @@ export class Globe {
 
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
-    if (this.labelRenderer) {
+    if (this.labelRenderer && this.bordersEnabled) {
       this._updateLabelVisibility()
       this.labelRenderer.render(this.scene, this.camera)
     }
@@ -1198,6 +1242,7 @@ export class Globe {
     }
     this.controls.dispose()
     this.earth.dispose()
+    this.clouds.dispose()
     this.atmosphere.dispose()
     this.stars.removeFromScene(this.scene)
     this.stars.dispose()

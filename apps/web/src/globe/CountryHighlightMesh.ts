@@ -44,7 +44,7 @@ export class CountryHighlightMesh {
         const fillMat = new THREE.MeshBasicMaterial({
           color: 0x00d4ff,
           transparent: true,
-          opacity: 0.22,
+          opacity: 0.45,
           depthWrite: false,
           side: THREE.DoubleSide,
         })
