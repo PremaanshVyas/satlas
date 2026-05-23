@@ -39,7 +39,7 @@ export function useGlobe(
   setCloudVisibility: (visible: boolean) => void
   searchCatalog: (query: string) => SearchResult[]
   selectCatalogSatellite: (noradId: string) => void
-  setBordersVisible: (visible: boolean) => void
+  setBordersVisible: (visible: boolean) => Promise<void>
 } {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
@@ -123,8 +123,8 @@ export function useGlobe(
     globeRef.current?.selectCatalogSatellite(noradId)
   }, [])
 
-  const setBordersVisible = useCallback((visible: boolean): void => {
-    void globeRef.current?.setBordersVisible(visible)
+  const setBordersVisible = useCallback((visible: boolean): Promise<void> => {
+    return globeRef.current?.setBordersVisible(visible) ?? Promise.resolve()
   }, [])
 
   return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible }

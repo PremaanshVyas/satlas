@@ -1058,6 +1058,7 @@ export class Globe {
     } catch (err) {
       console.warn('[Globe] Country GeoJSON load failed:', err)
       this.bordersEnabled = false
+      throw err
     } finally {
       this._bordersLoading = false
     }

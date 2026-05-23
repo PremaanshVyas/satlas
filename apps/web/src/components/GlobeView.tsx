@@ -124,10 +124,14 @@ export default function GlobeView({
     setCloudVisibility(next)
   }
 
-  function toggleBorders() {
+  async function toggleBorders() {
     const next = !bordersVisible
     setBordersVisibleState(next)
-    setBordersVisible(next)
+    try {
+      await setBordersVisible(next)
+    } catch {
+      if (next) setBordersVisibleState(false)
+    }
   }
 
   const tooltipOffset = 14
