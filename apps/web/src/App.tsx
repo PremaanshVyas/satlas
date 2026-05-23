@@ -16,6 +16,12 @@ interface SelectedSat {
   noradId: string
 }
 
+interface SelectedCountry {
+  name: string
+  continent: string
+  overheadSats: OverheadSat[]
+}
+
 export default function App() {
   const { messages, isLoading, sendMessage, highlight, setFilter } = useChat()
   const [chatOpen, setChatOpen] = useState(false)
@@ -33,11 +39,6 @@ export default function App() {
   const [passOpen, setPassOpen] = useState(false)
   const [passSat, setPassSat] = useState<SelectedSat | null>(null)
 
-  interface SelectedCountry {
-    name: string
-    continent: string
-    overheadSats: OverheadSat[]
-  }
   const [selectedCountry, setSelectedCountry] = useState<SelectedCountry | null>(null)
 
   // Mobile detection — drives Vaul vs desktop card
