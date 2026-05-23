@@ -1,9 +1,9 @@
 import * as THREE from 'three'
 import * as satellite from 'satellite.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { EarthMesh } from './EarthMesh'
 import { AtmosphereMesh } from './AtmosphereMesh'
-import { CloudMesh } from './CloudMesh'
 import { StarField } from './StarField'
 import { SunMesh } from './SunMesh'
 import { SatelliteMesh } from './SatelliteMesh'
@@ -18,7 +18,9 @@ import type { SearchResult } from './searchUtils'
 import { geoContains } from 'd3-geo'
 import type { Feature as GeoFeature } from 'geojson'
 import { CountryBorderMesh } from './CountryBorderMesh'
+import { CountryFillMesh } from './CountryFillMesh'
 import { CountryHighlightMesh } from './CountryHighlightMesh'
+import { GraticuleMesh } from './GraticuleMesh'
 import type { GeoJSONFeature, GeoJSONCollection } from './CountryBorderMesh'
 
 export interface OverheadSat {
@@ -145,7 +147,6 @@ export class Globe {
   private controls!: OrbitControls
   private earth!: EarthMesh
   private atmosphere!: AtmosphereMesh
-  private clouds!: CloudMesh
   private stars!: StarField
   private sun!: SunMesh
   private iss!: SatelliteMesh
@@ -204,13 +205,19 @@ export class Globe {
   private liveTickInterval: ReturnType<typeof setInterval> | null = null
   private liveSelectedSatrec: satellite.SatRec | null = null
 
-  // Country borders
-  private bordersEnabled = false
-  private _bordersLoading = false
+  // Country map layer (always on in dark map style)
+  private _countryDataLoading = false
+  private countryFillMesh: CountryFillMesh | null = null
   private countryBorderMesh: CountryBorderMesh | null = null
   private countryHighlightMesh: CountryHighlightMesh | null = null
+  private graticuleMesh: GraticuleMesh | null = null
   private countryFeatures: GeoJSONFeature[] = []
   private _raycaster = new THREE.Raycaster()
+
+  // Country name labels (CSS2D overlay)
+  private labelRenderer: CSS2DRenderer | null = null
+  private countryLabelObjects: CSS2DObject[] = []
+  private countryLabelPositions: THREE.Vector3[] = []
 
   onCatalogRefresh: ((count: number) => void) | null = null
   onSatelliteClick: ((name: string, noradId: string) => void) | null = null
@@ -241,11 +248,8 @@ export class Globe {
     this.sun = new SunMesh()
     this.sun.addToScene(this.scene)
 
-    this.earth = new EarthMesh(this.renderer)
+    this.earth = new EarthMesh()
     this.scene.add(this.earth.mesh)
-
-    this.clouds = new CloudMesh()
-    this.scene.add(this.clouds.mesh)
 
     this.atmosphere = new AtmosphereMesh()
     this.scene.add(this.atmosphere.mesh)
@@ -260,8 +264,19 @@ export class Globe {
     this.controls.maxDistance = 15
     this.controls.autoRotate = false
 
+    // CSS2D label overlay — positioned over the canvas inside its container div
+    const container = canvas.parentElement
+    if (container) {
+      this.labelRenderer = new CSS2DRenderer()
+      this.labelRenderer.setSize(w, h)
+      this.labelRenderer.domElement.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:hidden'
+      container.appendChild(this.labelRenderer.domElement)
+      this._injectLabelStyles()
+    }
+
     this.tick()
     requestAnimationFrame(() => { if (this.mounted) onReady?.() })
+    void this.initCountryData()
     void this.refreshIssTle()
     this.issTleInterval = setInterval(() => void this.refreshIssTle(), 2 * 60 * 1000)
     void this.initCatalog()
@@ -297,6 +312,97 @@ export class Globe {
       }
     } catch {
       // silent — ISS keeps its current TLE
+    }
+  }
+
+  private async initCountryData(): Promise<void> {
+    if (this._countryDataLoading || this.countryFeatures.length > 0) return
+    this._countryDataLoading = true
+    try {
+      const res = await fetch('/data/countries-50m.json')
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      const geojson: GeoJSONCollection = await res.json() as GeoJSONCollection
+      if (!this.mounted) return
+
+      this.countryFeatures = geojson.features
+
+      this.countryFillMesh = new CountryFillMesh(geojson)
+      this.scene.add(this.countryFillMesh.mesh)
+
+      this.graticuleMesh = new GraticuleMesh()
+      this.scene.add(this.graticuleMesh.mesh)
+
+      this.countryBorderMesh = new CountryBorderMesh(geojson)
+      this.scene.add(this.countryBorderMesh.mesh)
+
+      this.countryHighlightMesh = new CountryHighlightMesh(this.scene)
+
+      this._initCountryLabels(geojson)
+    } catch (err) {
+      console.warn('[Globe] Country data load failed:', err)
+    } finally {
+      this._countryDataLoading = false
+    }
+  }
+
+  private _injectLabelStyles(): void {
+    if (document.getElementById('globe-label-styles')) return
+    const style = document.createElement('style')
+    style.id = 'globe-label-styles'
+    style.textContent = [
+      '.globe-country-label{',
+      "font-family:'JetBrains Mono',monospace;",
+      'font-size:10px;font-weight:600;',
+      'color:rgba(148,163,184,0.7);',
+      'letter-spacing:0.1em;',
+      'text-shadow:0 1px 4px rgba(0,0,0,0.95);',
+      'pointer-events:none;user-select:none;white-space:nowrap}',
+    ].join('')
+    document.head.appendChild(style)
+  }
+
+  private _initCountryLabels(geojson: GeoJSONCollection): void {
+    const DEG = Math.PI / 180
+    for (const feature of geojson.features) {
+      if (!feature.properties) continue
+      const name = feature.properties.NAME as string | undefined
+      const lon = feature.properties.LABEL_X as number | undefined
+      const lat = feature.properties.LABEL_Y as number | undefined
+      if (!name || lon === undefined || lat === undefined) continue
+
+      const φ = lat * DEG, λ = lon * DEG
+      const pos = new THREE.Vector3(
+        Math.cos(φ) * Math.cos(λ),
+        Math.sin(φ),
+        -Math.cos(φ) * Math.sin(λ),
+      )
+
+      const div = document.createElement('div')
+      div.textContent = name.toUpperCase()
+      div.className = 'globe-country-label'
+
+      const label = new CSS2DObject(div)
+      label.position.copy(pos)
+      label.visible = false
+      this.scene.add(label)
+      this.countryLabelObjects.push(label)
+      this.countryLabelPositions.push(pos.clone())
+    }
+  }
+
+  private _updateLabelVisibility(): void {
+    const camDist = this.camera.position.length()
+    // Show names only when zoomed close enough to see individual countries
+    const showLabels = camDist < 5.5
+    const camDir = this.camera.position.clone().normalize()
+
+    for (let i = 0; i < this.countryLabelObjects.length; i++) {
+      if (!showLabels) {
+        this.countryLabelObjects[i].visible = false
+        continue
+      }
+      // Only render labels on the hemisphere facing the camera
+      this.countryLabelObjects[i].visible = this.countryLabelPositions[i].dot(camDir) > 0.15
     }
   }
 
@@ -837,7 +943,7 @@ export class Globe {
         this._addCatalogSatToSelection(bestIdx, noradId)
         this.onSatelliteClick?.(name, noradId)
       }
-    } else if (this.bordersEnabled && this.countryFeatures.length > 0 && this.onCountryClick) {
+    } else if (this.countryFeatures.length > 0 && this.onCountryClick) {
       const ndcX = (clickX / rect.width) * 2 - 1
       const ndcY = -(clickY / rect.height) * 2 + 1
       this._raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera)
@@ -1011,10 +1117,6 @@ export class Globe {
     return counts
   }
 
-  setCloudVisibility(visible: boolean): void {
-    this.clouds.mesh.visible = visible
-  }
-
   getOverheadSatellites(latDeg: number, lonDeg: number, minElevDeg = 10): OverheadSat[] {
     if (!this.lastPositionBuffer) return []
     return computeOverhead(
@@ -1028,49 +1130,12 @@ export class Globe {
     )
   }
 
-  async setBordersVisible(visible: boolean): Promise<void> {
-    this.bordersEnabled = visible
-
-    if (!visible) {
-      if (this.countryBorderMesh) this.scene.remove(this.countryBorderMesh.mesh)
-      this.countryHighlightMesh?.clear()
-      return
-    }
-
-    // Already loaded — just show
-    if (this.countryFeatures.length > 0 && this.countryBorderMesh) {
-      this.scene.add(this.countryBorderMesh.mesh)
-      return
-    }
-
-    // First time — fetch GeoJSON
-    if (this._bordersLoading) return
-    this._bordersLoading = true
-    try {
-      const res = await fetch('/data/countries-50m.json')
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      const geojson: GeoJSONCollection = await res.json() as GeoJSONCollection
-      if (!this.mounted) return
-      this.countryFeatures = geojson.features
-      this.countryBorderMesh = new CountryBorderMesh(geojson)
-      this.countryHighlightMesh = new CountryHighlightMesh(this.scene)
-      this.scene.add(this.countryBorderMesh.mesh)
-    } catch (err) {
-      console.warn('[Globe] Country GeoJSON load failed:', err)
-      this.bordersEnabled = false
-      throw err
-    } finally {
-      this._bordersLoading = false
-    }
-  }
-
   private tick(): void {
     this.rafId = requestAnimationFrame(() => this.tick())
     const now = new Date()
     const nowMs = now.getTime()
 
     const sunDir = getSunDirection(now)
-    this.earth.update(sunDir)
     this.sun.update(sunDir)
     this.iss.update(now)
 
@@ -1093,12 +1158,17 @@ export class Globe {
 
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
+    if (this.labelRenderer) {
+      this._updateLabelVisibility()
+      this.labelRenderer.render(this.scene, this.camera)
+    }
   }
 
   resize(width: number, height: number): void {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height, false)
+    this.labelRenderer?.setSize(width, height)
   }
 
   unmount(): void {
@@ -1115,11 +1185,19 @@ export class Globe {
     this.clearAllSelections()
     this.worker?.terminate()
     this.worker = null
+    this.countryFillMesh?.dispose()
+    this.graticuleMesh?.dispose()
     this.countryBorderMesh?.dispose()
     this.countryHighlightMesh?.clear()
+    for (const label of this.countryLabelObjects) this.scene.remove(label)
+    this.countryLabelObjects = []
+    this.countryLabelPositions = []
+    if (this.labelRenderer) {
+      this.labelRenderer.domElement.remove()
+      this.labelRenderer = null
+    }
     this.controls.dispose()
     this.earth.dispose()
-    this.clouds.dispose()
     this.atmosphere.dispose()
     this.stars.removeFromScene(this.scene)
     this.stars.dispose()

@@ -51,9 +51,9 @@ export class CountryBorderMesh {
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
     const mat = new THREE.LineBasicMaterial({
-      color: 0xffffff,
+      color: 0xaabfd4,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.45,
       depthWrite: false,
     })
     this.mesh = new THREE.LineSegments(geo, mat)
