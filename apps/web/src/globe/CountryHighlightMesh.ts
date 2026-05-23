@@ -2,8 +2,9 @@ import * as THREE from 'three'
 import earcut from 'earcut'
 import type { GeoJSONFeature } from './CountryBorderMesh'
 
-const FILL_R = 1.001
-const BORDER_R = 1.003
+// Must be above CountryFillMesh (1.001), GraticuleMesh (1.0015), CountryBorderMesh (1.002)
+const FILL_R = 1.0022
+const BORDER_R = 1.004
 const DEG = Math.PI / 180
 
 function toVec3(lon: number, lat: number, r: number): [number, number, number] {

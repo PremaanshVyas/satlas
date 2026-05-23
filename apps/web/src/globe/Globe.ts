@@ -222,6 +222,7 @@ export class Globe {
   private labelRenderer: CSS2DRenderer | null = null
   private countryLabelObjects: CSS2DObject[] = []
   private countryLabelPositions: THREE.Vector3[] = []
+  private countryLabelSizes: number[] = []
 
   onCatalogRefresh: ((count: number) => void) | null = null
   onSatelliteClick: ((name: string, noradId: string) => void) | null = null
@@ -339,12 +340,15 @@ export class Globe {
       if (this.countryBorderMesh) this.scene.remove(this.countryBorderMesh.mesh)
       this.countryHighlightMesh?.clear()
       for (const label of this.countryLabelObjects) label.visible = false
+      // Hide label overlay DOM so frozen CSS2D elements don't linger ("screen burn")
+      if (this.labelRenderer) this.labelRenderer.domElement.style.display = 'none'
       return
     }
 
     // Switch to dark map style
     this.earth.setMapMode(true)
     this.clouds.mesh.visible = false
+    if (this.labelRenderer) this.labelRenderer.domElement.style.display = ''
 
     // Already loaded — just re-add to scene
     if (this.countryFeatures.length > 0 && this.countryBorderMesh) {
@@ -420,6 +424,25 @@ export class Globe {
         -Math.cos(φ) * Math.sin(λ),
       )
 
+      // Compute bounding-box size proxy for zoom-scaled label visibility
+      let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity
+      const polys: number[][][][] = feature.geometry.type === 'Polygon'
+        ? [(feature.geometry.coordinates as number[][][])]
+        : (feature.geometry.coordinates as number[][][][])
+      for (const poly of polys) {
+        for (const ring of poly) {
+          for (const [lo, la] of ring) {
+            if (lo < minLon) minLon = lo
+            if (lo > maxLon) maxLon = lo
+            if (la < minLat) minLat = la
+            if (la > maxLat) maxLat = la
+          }
+        }
+      }
+      const dLon = maxLon < minLon ? 0 : maxLon - minLon
+      const dLat = maxLat < minLat ? 0 : maxLat - minLat
+      const sizeProxy = Math.sqrt(dLon * dLat)
+
       const div = document.createElement('div')
       div.textContent = name.toUpperCase()
       div.className = 'globe-country-label'
@@ -430,22 +453,21 @@ export class Globe {
       this.scene.add(label)
       this.countryLabelObjects.push(label)
       this.countryLabelPositions.push(pos.clone())
+      this.countryLabelSizes.push(sizeProxy)
     }
   }
 
   private _updateLabelVisibility(): void {
     const camDist = this.camera.position.length()
-    // Show names only when zoomed close enough to see individual countries
-    const showLabels = camDist < 5.5
     const camDir = this.camera.position.clone().normalize()
 
     for (let i = 0; i < this.countryLabelObjects.length; i++) {
-      if (!showLabels) {
-        this.countryLabelObjects[i].visible = false
-        continue
-      }
-      // Only render labels on the hemisphere facing the camera
-      this.countryLabelObjects[i].visible = this.countryLabelPositions[i].dot(camDir) > 0.15
+      const sizeProxy = this.countryLabelSizes[i] ?? 0
+      // Larger countries (Russia ~100) get a higher threshold so they appear when further out;
+      // tiny countries (Singapore ~0.4) only show when very zoomed in.
+      const showThreshold = Math.max(1.5, Math.min(2.5, 1.4 + sizeProxy * 0.01))
+      const onFront = this.countryLabelPositions[i].dot(camDir) > 0.15
+      this.countryLabelObjects[i].visible = onFront && camDist < showThreshold
     }
   }
 
@@ -1236,6 +1258,7 @@ export class Globe {
     for (const label of this.countryLabelObjects) this.scene.remove(label)
     this.countryLabelObjects = []
     this.countryLabelPositions = []
+    this.countryLabelSizes = []
     if (this.labelRenderer) {
       this.labelRenderer.domElement.remove()
       this.labelRenderer = null
