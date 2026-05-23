@@ -59,6 +59,6 @@ describe('CountryHighlightMesh', () => {
     const scene = new THREE.Scene()
     const m = new CountryHighlightMesh(scene)
     expect(() => m.update(MULTI_FEATURE)).not.toThrow()
-    expect(scene.children.length).toBeGreaterThan(0)
+    expect(scene.children).toHaveLength(4) // 2 polygons × (fill + border)
   })
 })

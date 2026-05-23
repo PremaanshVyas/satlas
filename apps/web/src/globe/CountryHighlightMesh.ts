@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import earcut from 'earcut'
+import type { GeoJSONFeature } from './CountryBorderMesh'
 
 const FILL_R = 1.001
 const BORDER_R = 1.003
@@ -10,10 +11,6 @@ function toVec3(lon: number, lat: number, r: number): [number, number, number] {
   return [r * Math.cos(φ) * Math.cos(λ), r * Math.sin(φ), -r * Math.cos(φ) * Math.sin(λ)]
 }
 
-interface Feature {
-  geometry: { type: string; coordinates: unknown }
-}
-
 export class CountryHighlightMesh {
   private scene: THREE.Scene
   private meshes: THREE.Object3D[] = []
@@ -22,7 +19,7 @@ export class CountryHighlightMesh {
     this.scene = scene
   }
 
-  update(feature: Feature): void {
+  update(feature: GeoJSONFeature): void {
     this.clear()
 
     const geom = feature.geometry
