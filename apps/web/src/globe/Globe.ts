@@ -206,6 +206,7 @@ export class Globe {
 
   // Country borders
   private bordersEnabled = false
+  private _bordersLoading = false
   private countryBorderMesh: CountryBorderMesh | null = null
   private countryHighlightMesh: CountryHighlightMesh | null = null
   private countryFeatures: GeoJSONFeature[] = []
@@ -750,7 +751,7 @@ export class Globe {
   }
 
   private onCanvasClick = (e: MouseEvent): void => {
-    if (!this.onSatelliteClick) return
+    if (!this.onSatelliteClick && !this.onCountryClick) return
     // Ignore if the pointer travelled more than 5px — that was a drag, not a click.
     const dx = e.clientX - this._mouseDownX
     const dy = e.clientY - this._mouseDownY
@@ -1043,6 +1044,8 @@ export class Globe {
     }
 
     // First time — fetch GeoJSON
+    if (this._bordersLoading) return
+    this._bordersLoading = true
     try {
       const res = await fetch('/data/countries-50m.json')
       if (!res.ok) throw new Error(`status ${res.status}`)
@@ -1055,6 +1058,8 @@ export class Globe {
     } catch (err) {
       console.warn('[Globe] Country GeoJSON load failed:', err)
       this.bordersEnabled = false
+    } finally {
+      this._bordersLoading = false
     }
   }
 
