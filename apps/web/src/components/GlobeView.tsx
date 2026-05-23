@@ -31,6 +31,7 @@ interface GlobeViewProps {
   onRemoveReady?: (remove: (noradId: string) => void) => void
   onSelectReady?: (select: (noradId: string) => void) => void
   onCountryClick?: (name: string, continent: string, overheadSats: OverheadSat[]) => void
+  onClearHighlightReady?: (fn: () => void) => void
 }
 
 export default function GlobeView({
@@ -45,6 +46,7 @@ export default function GlobeView({
   onRemoveReady,
   onSelectReady,
   onCountryClick,
+  onClearHighlightReady,
 }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // Debris off by default — too numerous to show on landing (12k+ objects)
@@ -53,7 +55,7 @@ export default function GlobeView({
   const [cloudsVisible, setCloudsVisible] = useState(true)
   const [bordersVisible, setBordersVisibleState] = useState(false)
 
-  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible } = useGlobe(
+  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight } = useGlobe(
     containerRef,
     highlight,
     { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove, onCategoryCounts, onCountryClick },
@@ -67,6 +69,10 @@ export default function GlobeView({
   const onSelectReadyRef = useRef(onSelectReady)
   useEffect(() => { onSelectReadyRef.current = onSelectReady })
   useEffect(() => { onSelectReadyRef.current?.(selectCatalogSatellite) }, [selectCatalogSatellite])
+
+  const onClearHighlightReadyRef = useRef(onClearHighlightReady)
+  useEffect(() => { onClearHighlightReadyRef.current = onClearHighlightReady })
+  useEffect(() => { onClearHighlightReadyRef.current?.(clearCountryHighlight) }, [clearCountryHighlight])
 
   // Apply debris-off default to Globe engine on mount
   useEffect(() => {

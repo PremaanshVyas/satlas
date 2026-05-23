@@ -1213,6 +1213,10 @@ export class Globe {
     return counts
   }
 
+  clearCountryHighlight(): void {
+    this.countryHighlightMesh?.clear()
+  }
+
   getOverheadSatellites(latDeg: number, lonDeg: number, minElevDeg = 10): OverheadSat[] {
     if (!this.lastPositionBuffer) return []
     return computeOverhead(

@@ -54,6 +54,12 @@ export default function App() {
 
   const removeFromSelectionRef = useRef<((noradId: string) => void) | null>(null)
   const selectSatRef = useRef<((noradId: string) => void) | null>(null)
+  const clearCountryHighlightRef = useRef<(() => void) | null>(null)
+
+  function dismissCountry() {
+    setSelectedCountry(null)
+    clearCountryHighlightRef.current?.()
+  }
 
   const handleSendMessage = useCallback((content: string) => {
     sendMessage(content, shownCategories, categoryCounts)
@@ -136,6 +142,7 @@ export default function App() {
         onCategoryCounts={setCategoryCounts}
         onRemoveReady={(fn) => { removeFromSelectionRef.current = fn }}
         onSelectReady={(fn) => { selectSatRef.current = fn }}
+        onClearHighlightReady={(fn) => { clearCountryHighlightRef.current = fn }}
         onCountryClick={(name, continent, overheadSats) => setSelectedCountry({ name, continent, overheadSats })}
       />
 
@@ -259,7 +266,7 @@ export default function App() {
                 <CountryPanel
                   country={selectedCountry}
                   overheadSats={selectedCountry.overheadSats}
-                  onDismiss={() => setSelectedCountry(null)}
+                  onDismiss={dismissCountry}
                   onAskAI={() => {
                     setPrefill(`What satellites are above ${selectedCountry.name} right now?`)
                     setChatOpen(true)
@@ -318,7 +325,7 @@ export default function App() {
       {/* Mobile country panel — Vaul bottom sheet */}
       <Drawer.Root
         open={isMobile && !!selectedCountry}
-        onOpenChange={(open) => { if (!open) setSelectedCountry(null) }}
+        onOpenChange={(open) => { if (!open) dismissCountry() }}
       >
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" />
@@ -328,9 +335,9 @@ export default function App() {
               <CountryPanel
                 country={selectedCountry}
                 overheadSats={selectedCountry.overheadSats}
-                onDismiss={() => setSelectedCountry(null)}
+                onDismiss={dismissCountry}
                 onAskAI={() => {
-                  setSelectedCountry(null)
+                  dismissCountry()
                   setPrefill(`What satellites are above ${selectedCountry.name} right now?`)
                   setChatOpen(true)
                 }}
