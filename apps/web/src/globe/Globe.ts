@@ -780,7 +780,7 @@ export class Globe {
         const dotRadiusPx = (0.008 / depth) * fovFactor
         if (screenDist <= dotRadiusPx + 2) {
           this._addIssToSelection()
-          this.onSatelliteClick(this.issName, ISS_NORAD)
+          this.onSatelliteClick?.(this.issName, ISS_NORAD)
           return
         }
       }
@@ -795,7 +795,7 @@ export class Globe {
       const noradId = this.satNoradIds[this.hoveredIdx]
       if (name && noradId) {
         this._addCatalogSatToSelection(this.hoveredIdx, noradId)
-        this.onSatelliteClick(name, noradId)
+        this.onSatelliteClick?.(name, noradId)
         return
       }
     }
@@ -835,7 +835,7 @@ export class Globe {
       const noradId = this.satNoradIds[bestIdx]
       if (name && noradId) {
         this._addCatalogSatToSelection(bestIdx, noradId)
-        this.onSatelliteClick(name, noradId)
+        this.onSatelliteClick?.(name, noradId)
       }
     } else if (this.bordersEnabled && this.countryFeatures.length > 0 && this.onCountryClick) {
       const ndcX = (clickX / rect.width) * 2 - 1
