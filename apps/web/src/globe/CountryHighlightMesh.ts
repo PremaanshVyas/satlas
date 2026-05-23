@@ -47,11 +47,20 @@ export class CountryHighlightMesh {
         const fillGeo = new THREE.BufferGeometry()
         fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fillVerts, 3))
         fillGeo.setIndex(refined)
+        // Stencil prevents additive stacking when a country has multiple sub-polygons
+        // (e.g. Russia's Arctic islands overlapping the mainland in screen space).
+        // Three.js clears stencil to 0 before each frame. First fill pixel at any
+        // screen position writes stencil=1; subsequent fill fragments at that pixel
+        // fail NotEqual and are discarded → each pixel rendered exactly once.
         const fillMat = new THREE.MeshBasicMaterial({
           color: 0x00d4ff,
           transparent: true,
           opacity: 0.25,
           depthWrite: false,
+          stencilWrite: true,
+          stencilRef: 1,
+          stencilFunc: THREE.NotEqualStencilFunc,
+          stencilZPass: THREE.ReplaceStencilOp,
           side: THREE.FrontSide,
         })
         const fill = new THREE.Mesh(fillGeo, fillMat)
