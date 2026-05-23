@@ -33,6 +33,12 @@ Result: 31,467 tracked objects — Debris (12,255), Starlink (10,363), Other (8,
 
 **Owner field wrapping fix.** The owner row in SatInfoCard was constrained to half the card width by the 2-column grid layout and cut off by `truncate`. Fixed with `col-span-2` and removing `truncate` — owner text now spans the full card width and wraps freely. Handles the ISS partnership string and any future long owner names.
 
+**Sun added to globe.** `SunMesh.ts` already existed but was never wired into `Globe.ts`. Three lines added: import, private field, scene init, and a `this.sun.update(sunDir)` call in the tick loop alongside the existing `this.earth.update(sunDir)`.
+
+**Earth day/night terminator bug fixed.** The vertex shader computed `vNormal = normalize(normalMatrix * normal)` — `normalMatrix` is the transpose-inverse of the *model-view* matrix, so `vNormal` was in camera space. But `sunDirection` in the fragment shader is in world space. The dot product between them changed as the camera rotated, making the lit face orbit with the camera rather than tracking the sun. Fix: `normalize(mat3(modelMatrix) * normal)` gives world-space normals. The terminator now correctly matches the real sun position for the current UTC time.
+
+**Sun redesigned as a diffraction spike star burst.** The original `SunMesh` used three nested `SphereGeometry` meshes with additive blending — solid sphere edges visible from any angle, looked like Minecraft. Replaced with a `THREE.Sprite` (always faces camera) carrying a programmatically generated 512×512 canvas texture: (1) soft ambient halo via radial gradient, (2) eight diamond-shaped diffraction spikes drawn with `globalCompositeOperation = 'lighter'` so they accumulate brightness at the central intersection, (3) a tight bright-white core radial gradient drawn on top. Pure white/blue-white palette. Distance reduced from 80 → 50 scene units to position it closer and more prominently relative to Earth.
+
 ---
 
 ## [Session 25] — Frontend redesign: Nothing/Terminal aesthetic (2026-05-21)
