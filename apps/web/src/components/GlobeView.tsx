@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useGlobe } from '../hooks/useGlobe'
-import type { OrbitalParams, LivePosition, SatcatEntry } from '../hooks/useGlobe'
+import type { OrbitalParams, LivePosition, SatcatEntry, OverheadSat } from '../hooks/useGlobe'
+export type { OverheadSat }
 import type { HighlightDirective, SetFilterDirective } from '../types/chat'
 import type { SatCategory } from '../globe/Globe'
 import { ALL_CATEGORIES } from '../globe/Globe'
@@ -29,6 +30,7 @@ interface GlobeViewProps {
   onCategoryCounts?: (counts: Record<string, number>) => void
   onRemoveReady?: (remove: (noradId: string) => void) => void
   onSelectReady?: (select: (noradId: string) => void) => void
+  onCountryClick?: (name: string, continent: string, overheadSats: OverheadSat[]) => void
 }
 
 export default function GlobeView({
@@ -42,17 +44,19 @@ export default function GlobeView({
   onCategoryCounts,
   onRemoveReady,
   onSelectReady,
+  onCountryClick,
 }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // Debris off by default — too numerous to show on landing (12k+ objects)
   const DEFAULT_CATEGORIES = new Set(ALL_CATEGORIES.filter(c => c !== 'DEBRIS'))
   const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(DEFAULT_CATEGORIES)
   const [cloudsVisible, setCloudsVisible] = useState(true)
+  const [bordersVisible, setBordersVisibleState] = useState(false)
 
-  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite } = useGlobe(
+  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible } = useGlobe(
     containerRef,
     highlight,
-    { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove, onCategoryCounts },
+    { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove, onCategoryCounts, onCountryClick },
   )
 
   // Expose removeFromSelection + selectCatalogSatellite to App.tsx via callback refs
@@ -118,6 +122,12 @@ export default function GlobeView({
     const next = !cloudsVisible
     setCloudsVisible(next)
     setCloudVisibility(next)
+  }
+
+  function toggleBorders() {
+    const next = !bordersVisible
+    setBordersVisibleState(next)
+    setBordersVisible(next)
   }
 
   const tooltipOffset = 14
@@ -214,6 +224,23 @@ export default function GlobeView({
           <span>Debris</span>
           <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${activeCategories.has('DEBRIS') ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
             <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${activeCategories.has('DEBRIS') ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+          </div>
+        </button>
+
+        {/* Borders toggle */}
+        <button
+          onClick={toggleBorders}
+          title={bordersVisible ? 'Hide borders' : 'Show borders'}
+          className="absolute right-3 z-20 flex items-center gap-2 pointer-events-auto px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
+          style={{ top: `max(6.75rem, calc(${safeTop} + 6.25rem))` }}
+        >
+          <svg width="13" height="9" viewBox="0 0 14 10" fill="none" stroke="currentColor" strokeWidth="1.4" className="flex-shrink-0">
+            <rect x="0.7" y="0.7" width="12.6" height="8.6" rx="0.8"/>
+            <path d="M4.7 0.7v8.6M9.3 0.7v8.6"/>
+          </svg>
+          <span>Borders</span>
+          <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${bordersVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${bordersVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
           </div>
         </button>
 
