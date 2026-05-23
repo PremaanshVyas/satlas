@@ -37,7 +37,7 @@ export function computeOverhead(
   const oy = Math.sin(lat)
   const oz = -Math.cos(lat) * Math.sin(lon)
   const minSin = Math.sin(minElevDeg * Math.PI / 180)
-  const count = buf.length / 3
+  const count = Math.floor(buf.length / 3)
   const result: OverheadSat[] = []
 
   for (let i = 0; i < count; i++) {
@@ -51,7 +51,7 @@ export function computeOverhead(
     result.push({
       name: names[i] ?? '',
       noradId: noradIds[i] ?? '',
-      elevDeg: Math.round(Math.asin(Math.min(1, sinElev)) * (180 / Math.PI)),
+      elevDeg: Math.round(Math.asin(Math.max(-1, Math.min(1, sinElev))) * (180 / Math.PI)),
     })
   }
 
