@@ -15,6 +15,11 @@ import { fetchSatcat } from '../lib/satcat'
 import type { SatcatEntry } from '../lib/satcat'
 import { matchSatelliteQuery } from './searchUtils'
 import type { SearchResult } from './searchUtils'
+import { geoContains } from 'd3-geo'
+import type { Feature as GeoFeature } from 'geojson'
+import { CountryBorderMesh } from './CountryBorderMesh'
+import { CountryHighlightMesh } from './CountryHighlightMesh'
+import type { GeoJSONFeature, GeoJSONCollection } from './CountryBorderMesh'
 
 export interface OverheadSat {
   name: string
@@ -199,6 +204,13 @@ export class Globe {
   private liveTickInterval: ReturnType<typeof setInterval> | null = null
   private liveSelectedSatrec: satellite.SatRec | null = null
 
+  // Country borders
+  private bordersEnabled = false
+  private countryBorderMesh: CountryBorderMesh | null = null
+  private countryHighlightMesh: CountryHighlightMesh | null = null
+  private countryFeatures: GeoJSONFeature[] = []
+  private _raycaster = new THREE.Raycaster()
+
   onCatalogRefresh: ((count: number) => void) | null = null
   onSatelliteClick: ((name: string, noradId: string) => void) | null = null
   onSatelliteHover: ((name: string | null, altKm: number | null, screenX: number, screenY: number) => void) | null = null
@@ -206,6 +218,7 @@ export class Globe {
   onSatelliteSelectInfo: ((orbital: OrbitalParams, meta: SatcatEntry | null) => void) | null = null
   // Fires when a satellite is individually removed from selection (tray ✕).
   onSatelliteRemove: ((noradId: string) => void) | null = null
+  onCountryClick: ((name: string, continent: string, centLat: number, centLon: number) => void) | null = null
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
     this.mounted = true
@@ -823,8 +836,28 @@ export class Globe {
         this._addCatalogSatToSelection(bestIdx, noradId)
         this.onSatelliteClick(name, noradId)
       }
+    } else if (this.bordersEnabled && this.countryFeatures.length > 0 && this.onCountryClick) {
+      const ndcX = (clickX / rect.width) * 2 - 1
+      const ndcY = -(clickY / rect.height) * 2 + 1
+      this._raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera)
+      const hits = this._raycaster.intersectObject(this.earth.mesh)
+      if (hits.length > 0) {
+        const p = hits[0].point
+        const latDeg = Math.asin(Math.max(-1, Math.min(1, p.y))) * (180 / Math.PI)
+        const lonDeg = Math.atan2(-p.z, p.x) * (180 / Math.PI)
+        const feature = this.countryFeatures.find(
+          f => geoContains(f as unknown as GeoFeature, [lonDeg, latDeg])
+        )
+        if (feature) {
+          const name = String(feature.properties?.NAME ?? 'Unknown')
+          const continent = String(feature.properties?.CONTINENT ?? '')
+          const centLat = Number(feature.properties?.LABEL_Y ?? latDeg)
+          const centLon = Number(feature.properties?.LABEL_X ?? lonDeg)
+          this.countryHighlightMesh?.update(feature)
+          this.onCountryClick(name, continent, centLat, centLon)
+        }
+      }
     }
-    // Empty space click: do nothing — user must use tray ✕ to deselect.
   }
 
   // ── Hover handler ────────────────────────────────────────────────────────────
@@ -994,6 +1027,37 @@ export class Globe {
     )
   }
 
+  async setBordersVisible(visible: boolean): Promise<void> {
+    this.bordersEnabled = visible
+
+    if (!visible) {
+      if (this.countryBorderMesh) this.scene.remove(this.countryBorderMesh.mesh)
+      this.countryHighlightMesh?.clear()
+      return
+    }
+
+    // Already loaded — just show
+    if (this.countryFeatures.length > 0 && this.countryBorderMesh) {
+      this.scene.add(this.countryBorderMesh.mesh)
+      return
+    }
+
+    // First time — fetch GeoJSON
+    try {
+      const res = await fetch('/data/countries-50m.json')
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      const geojson: GeoJSONCollection = await res.json() as GeoJSONCollection
+      if (!this.mounted) return
+      this.countryFeatures = geojson.features
+      this.countryBorderMesh = new CountryBorderMesh(geojson)
+      this.countryHighlightMesh = new CountryHighlightMesh(this.scene)
+      this.scene.add(this.countryBorderMesh.mesh)
+    } catch (err) {
+      console.warn('[Globe] Country GeoJSON load failed:', err)
+      this.bordersEnabled = false
+    }
+  }
+
   private tick(): void {
     this.rafId = requestAnimationFrame(() => this.tick())
     const now = new Date()
@@ -1045,6 +1109,8 @@ export class Globe {
     this.clearAllSelections()
     this.worker?.terminate()
     this.worker = null
+    this.countryBorderMesh?.dispose()
+    this.countryHighlightMesh?.clear()
     this.controls.dispose()
     this.earth.dispose()
     this.clouds.dispose()
