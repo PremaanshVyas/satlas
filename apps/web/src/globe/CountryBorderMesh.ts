@@ -6,7 +6,7 @@ export interface GeoJSONFeature {
     type: 'Polygon' | 'MultiPolygon'
     coordinates: number[][][] | number[][][][]
   }
-  properties: Record<string, unknown>
+  properties: Record<string, unknown> | null
 }
 
 export interface GeoJSONCollection {
