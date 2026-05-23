@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import type { RefObject } from 'react'
 import { Globe } from '../globe/Globe'
-import type { SatCategory, OrbitalParams, LivePosition } from '../globe/Globe'
+import type { SatCategory, OrbitalParams, LivePosition, OverheadSat } from '../globe/Globe'
 import type { HighlightDirective } from '../types/chat'
 import type { SatcatEntry } from '../lib/satcat'
 import type { SearchResult } from '../globe/searchUtils'
 
-export type { OrbitalParams, LivePosition }
+export type { OrbitalParams, LivePosition, OverheadSat }
 export type { SatcatEntry }
 
 export interface HoverInfo {
@@ -22,6 +22,7 @@ interface UseGlobeCallbacks {
   onLivePosition?: (pos: LivePosition | null) => void
   onSatelliteRemove?: (noradId: string) => void
   onCategoryCounts?: (counts: Record<string, number>) => void
+  onCountryClick?: (name: string, continent: string, overheadSats: OverheadSat[]) => void
 }
 
 export function useGlobe(
@@ -38,6 +39,7 @@ export function useGlobe(
   setCloudVisibility: (visible: boolean) => void
   searchCatalog: (query: string) => SearchResult[]
   selectCatalogSatellite: (noradId: string) => void
+  setBordersVisible: (visible: boolean) => void
 } {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
@@ -70,6 +72,10 @@ export function useGlobe(
     globe.onLivePosition = (pos) => callbacksRef.current.onLivePosition?.(pos)
     globe.onSatelliteSelectInfo = (orbital, meta) => callbacksRef.current.onSatelliteSelectInfo?.(orbital, meta)
     globe.onSatelliteRemove = (noradId) => callbacksRef.current.onSatelliteRemove?.(noradId)
+    globe.onCountryClick = (name, continent, centLat, centLon) => {
+      const overhead = globe.getOverheadSatellites(centLat, centLon)
+      callbacksRef.current.onCountryClick?.(name, continent, overhead)
+    }
     globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {
@@ -117,5 +123,9 @@ export function useGlobe(
     globeRef.current?.selectCatalogSatellite(noradId)
   }, [])
 
-  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite }
+  const setBordersVisible = useCallback((visible: boolean): void => {
+    void globeRef.current?.setBordersVisible(visible)
+  }, [])
+
+  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible }
 }
