@@ -16,6 +16,49 @@ import type { SatcatEntry } from '../lib/satcat'
 import { matchSatelliteQuery } from './searchUtils'
 import type { SearchResult } from './searchUtils'
 
+export interface OverheadSat {
+  name: string
+  noradId: string
+  elevDeg: number
+}
+
+export function computeOverhead(
+  buf: Float32Array,
+  names: string[],
+  noradIds: string[],
+  mask: Uint8Array | null,
+  latDeg: number,
+  lonDeg: number,
+  minElevDeg = 10,
+): OverheadSat[] {
+  const lat = latDeg * (Math.PI / 180)
+  const lon = lonDeg * (Math.PI / 180)
+  const ox = Math.cos(lat) * Math.cos(lon)
+  const oy = Math.sin(lat)
+  const oz = -Math.cos(lat) * Math.sin(lon)
+  const minSin = Math.sin(minElevDeg * Math.PI / 180)
+  const count = buf.length / 3
+  const result: OverheadSat[] = []
+
+  for (let i = 0; i < count; i++) {
+    if (mask && !mask[i]) continue
+    const x = buf[i * 3], y = buf[i * 3 + 1], z = buf[i * 3 + 2]
+    const dx = x - ox, dy = y - oy, dz = z - oz
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+    if (dist < 0.001) continue
+    const sinElev = (x * ox + y * oy + z * oz - 1) / dist
+    if (sinElev < minSin) continue
+    result.push({
+      name: names[i] ?? '',
+      noradId: noradIds[i] ?? '',
+      elevDeg: Math.round(Math.asin(Math.min(1, sinElev)) * (180 / Math.PI)),
+    })
+  }
+
+  result.sort((a, b) => b.elevDeg - a.elevDeg)
+  return result.slice(0, 25)
+}
+
 // Orbital parameters computed from TLE data (satrec fields).
 export interface OrbitalParams {
   inclination: number  // degrees
@@ -936,6 +979,19 @@ export class Globe {
 
   setCloudVisibility(visible: boolean): void {
     this.clouds.mesh.visible = visible
+  }
+
+  getOverheadSatellites(latDeg: number, lonDeg: number, minElevDeg = 10): OverheadSat[] {
+    if (!this.lastPositionBuffer) return []
+    return computeOverhead(
+      this.lastPositionBuffer,
+      this.satNames,
+      this.satNoradIds,
+      this.activeCategoryMask,
+      latDeg,
+      lonDeg,
+      minElevDeg,
+    )
   }
 
   private tick(): void {
