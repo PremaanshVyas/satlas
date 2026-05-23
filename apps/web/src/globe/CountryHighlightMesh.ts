@@ -1,8 +1,10 @@
 import * as THREE from 'three'
 import type { GeoJSONFeature } from './CountryBorderMesh'
 
-// Must be above CountryFillMesh (1.001), GraticuleMesh (1.0015), CountryBorderMesh (1.002)
-const FILL_R = 1.0022
+// Well above all other layers — only border lines, no fill
+// Fill is deferred: polygon triangulation for large spherical polygons requires
+// edge subdivision (<5° per segment) before earcut to prevent flat triangles
+// dipping below the sphere surface (r=1.0) and failing depth test.
 const BORDER_R = 1.004
 const DEG = Math.PI / 180
 
@@ -28,44 +30,7 @@ export class CountryHighlightMesh {
       : (geom.coordinates as number[][][][])
 
     for (const polygon of polygons) {
-      const outer = polygon[0]
-      // GeoJSON rings close back on themselves; n = unique vertices
-      const n = outer.length - 1
-      if (n < 3) continue
-
-      // ── Fill: centroid fan triangulation ──────────────────────────────────
-      // Earcut on flat (lon,lat) creates large triangles whose flat interiors
-      // dip below the sphere surface and fail depth test. Fan triangulation
-      // from the centroid keeps all triangles small and surface-hugging.
-      let sx = 0, sy = 0, sz = 0
-      for (let i = 0; i < n; i++) {
-        const [x, y, z] = toVec3(outer[i][0], outer[i][1], 1)
-        sx += x; sy += y; sz += z
-      }
-      const m = Math.sqrt(sx * sx + sy * sy + sz * sz)
-      const [cx, cy, cz] = [sx / m * FILL_R, sy / m * FILL_R, sz / m * FILL_R]
-
-      const fillPos: number[] = []
-      for (let i = 0; i < n; i++) {
-        const [x0, y0, z0] = toVec3(outer[i][0], outer[i][1], FILL_R)
-        const [x1, y1, z1] = toVec3(outer[(i + 1) % n][0], outer[(i + 1) % n][1], FILL_R)
-        fillPos.push(cx, cy, cz, x0, y0, z0, x1, y1, z1)
-      }
-
-      const fillGeo = new THREE.BufferGeometry()
-      fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fillPos, 3))
-      const fillMat = new THREE.MeshBasicMaterial({
-        color: 0x00d4ff,
-        transparent: true,
-        opacity: 0.35,
-        depthWrite: false,
-        side: THREE.FrontSide,
-      })
-      const fill = new THREE.Mesh(fillGeo, fillMat)
-      this.scene.add(fill)
-      this.meshes.push(fill)
-
-      // ── Border lines for all rings (outer + holes) ────────────────────────
+      // Border lines for all rings (outer + holes)
       const borderPos: number[] = []
       for (const ring of polygon) {
         for (let i = 0; i < ring.length - 1; i++) {
