@@ -11,9 +11,6 @@ export class EarthMesh {
     this.mesh = new THREE.Mesh(geometry, this.material)
   }
 
-  // Kept for call-site compatibility; no-op in flat map style
-  update(_sunDirection: THREE.Vector3): void {}
-
   dispose(): void {
     this.mesh.geometry.dispose()
     this.material.dispose()
