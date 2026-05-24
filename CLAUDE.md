@@ -112,7 +112,7 @@ satlas/
 
 **Current phase:** Session 31 — V1 polish + API overhaul. Globe map mode fully working.
 
-**Next milestone:** V2 direction decision after API polish lands. Options in `docs/session-30-bootstrap.md`.
+**Next milestone:** V2 direction decision. Options in `docs/session-31-bootstrap.md`.
 
 **Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
 
@@ -319,7 +319,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-30-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-31-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -349,7 +349,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/session-24-bootstrap.md` | Session 24 bootstrap (historical). |
 | `docs/session-25-bootstrap.md` | Session 25 bootstrap (historical). |
 | `docs/session-29-bootstrap.md` | Session 29 bootstrap (historical) — spherical triangulation blocker analysis. |
-| `docs/session-30-bootstrap.md` | Session 30 bootstrap — paste at start of Session 31. V2 direction options + polish backlog. |
+| `docs/session-30-bootstrap.md` | Session 30 bootstrap (historical). |
+| `docs/session-31-bootstrap.md` | Session 31 bootstrap — paste at start of Session 32. V2 direction options + current stack state. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |

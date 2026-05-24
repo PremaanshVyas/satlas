@@ -4,6 +4,36 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 31] — V1 polish + public API overhaul (2026-05-25)
+
+### What shipped
+
+V1 polish pass fixing three UX bugs, plus a major expansion of the public API from 3 to 6 endpoints and a full redesign of the API docs page.
+
+**PassPanel scroll structural fix.** The last visible pass row was being clipped when scrolled to the bottom. Root cause: the results scroll container used `max-h-[50dvh]` while its outer wrapper clipped at `maxHeight: calc(50dvh - 2rem)` + `overflow-hidden` — the scroll container's bottom 2rem was always in the hidden zone. Fix: added `flex flex-col` to the outer `motion.div` wrapper (both desktop and mobile Vaul), changed PassPanel's outer div to `flex-1` and the results div to `flex-1 overflow-y-auto`. The scroll area is now bounded by the flex chain instead of an independent `max-height` that silently exceeded the outer clip. This supersedes the Session 22 hotfix which set `max-h-[50dvh]` directly on the results div.
+
+**Country overhead filter bug.** When all category toggles were turned off, clicking a country showed "Loading catalog…" with no satellites listed. Root cause: `getOverheadSatellites` always passed `activeCategoryMask` to `computeOverhead`. With all categories off the mask was all-zeros, so every satellite was filtered out and the function returned `[]`. Fix: pass `null` (no mask) when `activeCategories.size === 0`. "All off" now means "show everything"; when some categories are on, filtering applies as before. Also replaced the misleading "Loading catalog…" empty-state text in CountryPanel with "No satellites overhead (>10°)".
+
+**Public API — three new endpoints.**
+
+*`GET /api/satellite-info?query=`* — live position + orbital parameters for any satellite. Searches by NORAD ID or name substring. Proxies to the ECS orbital service; response cached 10 seconds with stale-while-revalidate.
+
+*`GET /api/satellites?q=&category=&limit=`* — satellite catalog search without downloading the full 30 MB TLE file. Filters by name substring (case-insensitive) or exact NORAD ID, with optional category filter (STARLINK | GPS | IRIDIUM | DEBRIS | OTHER). Uses an in-process 2-min TLE cache backed by CloudFront. Includes `total` (pre-limit match count) so callers know how many results exist.
+
+*`GET /api/overhead?latitude=&longitude=&min_elevation=&category=&limit=`* — "what's above me right now?" Propagates the full 31k+ catalog to the current instant using satellite.js, with GMST computed once outside the loop (same optimisation as the AI agent's `toolFindSatellitesOverhead`). Returns elevation angle, azimuth, and 16-point compass direction for each satellite. Category filter and min_elevation optional. 15-second cache.
+
+**API docs page redesign.** `/docs` went from a plain endpoint list to a proper reference document: sticky left sidebar navigation, stat banner (31k objects, 6 endpoints, no auth, SGP4/skyfield), response schema tables for every endpoint (typed field-by-field descriptions), copy button on every code block, Errors section with all HTTP status codes, and a Data Sources section explaining Space-Track, SGP4, Vercel Edge, ECS Fargate, and Claude. The pass endpoint response fields were also corrected (`start_utc`/`end_utc`/`max_elevation_deg` — the previous docs had the wrong field names).
+
+### Technical decisions
+
+**`/api/overhead` in Node.js, not proxied to the Python orbital service.** The orbital service's `/satellites-overhead` endpoint uses skyfield to propagate all satellites one by one — 31k Python iterations plus skyfield overhead is 8–15 seconds, too slow for a public API. The Node.js implementation with satellite.js and a single GMST snapshot runs in 3–6 seconds cold and under 1 second warm. The pattern is already proven in `chat.ts`'s `toolFindSatellitesOverhead`.
+
+**`/api/satellites` searches TLE names, not the satcat.** The satcat.json (Space-Track metadata) has NORAD IDs and owner/launch data but not satellite names. Names come from the TLE catalog. The search function parses name lines from the 3LE text and applies the same `classify()` function used by `Globe.ts` so categories are consistent between the frontend and the API.
+
+**Integer NORAD ID comparison for `/api/satellites`.** TLE catalog stores NORAD IDs zero-padded to 5 digits (`'06707'`). A query of `q=6707` without leading zeros would fail string equality. Fix: if the query is all digits, compare `parseInt(query) === parseInt(r.noradId)`. This is the same fix applied in Session 23 to the satcat metadata lookup.
+
+---
+
 ## [Session 30] — Country highlight fill + border-outside-boundary fix (2026-05-24)
 
 ### What shipped
