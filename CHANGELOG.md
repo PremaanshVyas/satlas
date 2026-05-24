@@ -4,6 +4,30 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 33] — V1 polish: render quality + performance (2026-05-25)
+
+### What shipped
+
+**Satellite dots are now perfect circles.** The previous geometry was `SphereGeometry(0.005, 6, 6)` — a 6-segment sphere that renders as a hexagonal blob at globe scale. Replaced with a `PlaneGeometry(1, 1)` (2 triangles per instance) and a custom billboard ShaderMaterial. The vertex shader extracts position and uniform scale from the `instanceMatrix` per-instance attribute, then offsets the quad vertices in camera space so each dot always faces the viewer. The fragment shader discards pixels beyond the circle's radius. Visual size, hit-test radius, per-instance color, hover, and selection highlights are all unchanged. Triangle count dropped from 72 to 2 per satellite — about 36× less geometry for 31k instances.
+
+**Pixel-perfect anti-aliasing at any zoom.** The initial billboard shader used `smoothstep(0.6, 1.0, dist)` for the circle edge — a fixed soft zone spanning 40% of the dot's radius. Zoomed in, this is many pixels wide and looks blurry. Fixed with `fwidth(dist)`: the screen-space derivative of the distance value is exactly one pixel at any zoom level, so the smoothstep window is always sub-pixel wide. Crisp when zoomed in; still visually smooth at distance.
+
+**Dot colour restored to accent cyan.** `DEFAULT_COLOR` was `0x60a5fa` (Tailwind blue-400). Changed to `0x00d4ff` to match the accent cyan used throughout the UI.
+
+**Satellite position update rate doubled.** `FIELD_TICK_MS` 100ms → 50ms — the propagation worker runs at 20Hz instead of 10Hz. Most noticeable on fast-moving LEO satellites when zoomed in.
+
+**Camera damping tightened.** `OrbitControls.dampingFactor` 0.05 → 0.07 — the globe stops a little more crisply after a drag.
+
+**README corrections.** Country borders (shipped S28–30) was still listed as a V2 TODO. Frontend test count was listed as 75 (now 104). Both fixed. "What's working now" section updated with borders/CountryPanel/search fly-to/debris-off-by-default. `/api/tles` alias documented in the API docs page.
+
+### Technical decisions
+
+**Billboard quad vs higher-res sphere.** `SphereGeometry(0.005, 16, 16)` would also look circular but adds 512 triangles per instance (16M total for 31k objects). The billboard quad is 2 triangles per instance and renders an exact circle via the discard in the fragment shader. There's no tessellation-quality tradeoff — a circle shader is always a perfect circle.
+
+**`fwidth` over a fixed smoothstep range.** The key insight is that `fwidth(dist)` varies with zoom: it's large when the dot is small on screen (many dist units per pixel) and tiny when zoomed in (less than one dist unit per pixel). A hardcoded range like `(0.6, 1.0)` looks fine when the dot is 4px wide but obviously blurry when it's 40px wide.
+
+---
+
 ## [Session 32] — Public launch polish (2026-05-25)
 
 ### What shipped
