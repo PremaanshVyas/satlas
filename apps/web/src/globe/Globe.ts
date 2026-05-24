@@ -1219,11 +1219,13 @@ export class Globe {
 
   getOverheadSatellites(latDeg: number, lonDeg: number, minElevDeg = 10): OverheadSat[] {
     if (!this.lastPositionBuffer) return []
+    // all categories off → treat as "no filter" so the overhead list always shows something
+    const mask = this.activeCategories.size === 0 ? null : this.activeCategoryMask
     return computeOverhead(
       this.lastPositionBuffer,
       this.satNames,
       this.satNoradIds,
-      this.activeCategoryMask,
+      mask,
       latDeg,
       lonDeg,
       minElevDeg,

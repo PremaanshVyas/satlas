@@ -60,8 +60,8 @@ describe('CountryPanel', () => {
     expect(onSelectSatellite).toHaveBeenCalledWith('25544')
   })
 
-  test('shows loading state when overheadSats is empty', () => {
+  test('shows empty state when overheadSats is empty', () => {
     render(<CountryPanel {...PROPS} overheadSats={[]} />)
-    expect(screen.getByText(/loading catalog/i)).toBeInTheDocument()
+    expect(screen.getByText(/no satellites overhead/i)).toBeInTheDocument()
   })
 })

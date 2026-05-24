@@ -38,7 +38,7 @@ export default function CountryPanel({
       </div>
 
       {overheadSats.length === 0 ? (
-        <div className="text-[10px] text-label">Loading catalog…</div>
+        <div className="text-[10px] text-label">No satellites overhead (&gt;10°).</div>
       ) : (
         <>
           <div className="text-[9px] text-[#555555] uppercase tracking-[0.1em] mb-2">Overhead Now</div>
