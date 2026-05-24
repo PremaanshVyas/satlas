@@ -2,7 +2,7 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fetchSatelliteCatalog, fetchIssTle, parseTleText } from './celestrak'
 import type { TLERecord } from './celestrak'
 
-const CATALOG_API_URL = '/api/catalog'
+const CATALOG_API_URL = '/api/tles'
 const ISS_URL         = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
 const CACHE_KEY       = 'satlas-catalog-v5'
 
@@ -99,7 +99,7 @@ describe('fetchSatelliteCatalog', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  test('fetches TLE when no cache — tries /api/catalog first, CelesTrak as fallback', async () => {
+  test('fetches TLE when no cache — tries /api/tles first, CelesTrak as fallback', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       text: () => Promise.resolve(makeTleText(110)),

@@ -110,11 +110,20 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 31 — V1 polish + API overhaul. Globe map mode fully working.
+**Current phase:** Session 32 — public launch polish. Reddit post live; fixing real-user bugs found in the wild.
 
 **Next milestone:** V2 direction decision. Options in `docs/session-31-bootstrap.md`.
 
 **Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
+
+**Session 32 completed tasks:**
+- [x] API docs — GitHub/star CTA buttons added to Overview section; text sizes bumped (table headers 7px→9px, nav items 10px→12px, footer links 9px→12px)
+- [x] Vercel domain misconfiguration fixed — `satlas.app` was redirecting to `www` (307); corrected in dashboard: `satlas.app` → Production, `www.satlas.app` → 301 → `satlas.app`
+- [x] `Globe.onCatalogError` callback — fires when `fetchSatelliteCatalog` throws; `useGlobe` exposes `catalogError` state
+- [x] GlobeView error state — "Catalog unavailable — click to retry" (`window.location.reload`) replaces infinite "Loading catalog…" spinner
+- [x] Search overflow indicator — `matchSatelliteQuery` now counts all matches in a single pass and returns `{ results, total }`; SearchBar shows "+N more — refine your search" when total > 8
+- [x] Catalog fetch timeout 10s → 25s — Vercel cold start + Space-Track login + 5MB fetch can take 12–15s; 10s was too tight
+- [x] `/api/tles` alias — re-exports `/api/catalog` handler; frontend now fetches `/api/tles` to avoid uBlock Origin false-positive (`/api/catalog` matches ad-tracker filter rules, causing NS_BINDING_ABORTED at 0ms for affected users); `/api/catalog` stays live for public API consumers
 
 **Session 31 completed tasks:**
 - [x] Vercel Analytics (`@vercel/analytics`) added to `apps/web` — page views, visitors, referrers live on Vercel dashboard
@@ -300,6 +309,16 @@ Sessions 1–17 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-24 — Session 30: `sphereUtils.ts` shared between CountryHighlightMesh and CountryFillMesh — single source of subdivision truth.** CountryFillMesh originally had the same flat-triangle depth problem (background country fills showed voids for large countries). Extracting `subdivideRing`, `refineTris`, `toVec3`, and `arcDeg` into `sphereUtils.ts` meant one fix in one place covers both the highlight fill and the background fill. Previously each mesh had its own partial version of these helpers. Rule: geometry helpers that operate on the same data model (lon/lat → sphere coordinates) belong in a shared module — duplicated helpers diverge silently as fixes are applied to only one copy.
 
+- **2026-05-25 — Session 32: `/api/catalog` matches uBlock Origin ad-tracker filter rules — use `/api/tles` for the frontend fetch.** Firefox users with uBlock enabled saw `NS_BINDING_ABORTED` at 0ms on the `/api/catalog` fetch — the request was killed before it hit the network. Root cause: the word "catalog" appears in uBlock's filter lists targeting product-catalog trackers. Fix: `api/tles.ts` re-exports the catalog handler under a neutral URL; `celestrak.ts` fetches `/api/tles` by default. `/api/catalog` stays live for backward compatibility with existing public API consumers. Rule: any internal fetch endpoint whose path contains words common in ad/tracker URLs (catalog, track, pixel, event, collect) should use a neutral alias for browser-side fetches.
+
+- **2026-05-25 — Session 32: Catalog fetch timeout 10s → 25s.** A Vercel cold start for `/api/catalog` requires: Space-Track login (~2–3s) + TLE fetch (~5MB, 3–8s) = up to 12–15s. The 10s `AbortSignal.timeout` was too tight — first-time visitors (no localStorage cache) on slow connections reliably hit it. 25s matches the Vercel `maxDuration: 30` serverless limit. Warm requests are served from Vercel Edge cache in <100ms so the longer timeout has no UX cost for repeat visitors.
+
+- **2026-05-25 — Session 32: `onCatalogError` callback prevents infinite "Loading catalog…" spinner.** When both catalog sources fail (`/api/catalog` and CelesTrak GROUP=active), `fetchSatelliteCatalog` throws and `initCatalog` catches it silently — `onCatalogRefresh` is never called, so `isLoading` stays false and `satelliteCount` stays 0, showing "Loading catalog…" forever. Fix: added `onCatalogError: (() => void) | null` to Globe, wired through `useGlobe` as `catalogError: boolean`. GlobeView shows "Catalog unavailable — click to retry" with `window.location.reload`. Rule: any async data source that can fail must surface the failure to the UI — silent error swallowing produces misleading loading states.
+
+- **2026-05-25 — Session 32: `matchSatelliteQuery` counts all matches in a single pass.** The original implementation broke early at `maxResults` — it had no way to tell callers how many total matches existed. Instead of a second pass (another 31k iterations), we continue the loop after the results array is full, incrementing `total` without pushing to `results`. This gives an exact count at zero extra cost. Return type changed from `SearchResult[]` to `{ results: SearchResult[], total: number }`. Rule: when a search function has a result limit, count all matches in the same loop pass — don't run a separate count query.
+
+- **2026-05-25 — Session 32: `vercel.json` redirect conflicted with Vercel dashboard domain config — dashboard wins.** Added a `redirects` rule in `vercel.json` to redirect `www.satlas.app → satlas.app`. This created a redirect loop: the Vercel dashboard already had `satlas.app → www.satlas.app` (misconfigured from original setup), and the `vercel.json` rule sent `www → satlas.app`. Safari showed "can't open page". Fix: reverted `vercel.json` immediately; fixed the Vercel dashboard to set `satlas.app → Production` and `www.satlas.app → 301 → satlas.app`. Rule: never add redirect rules to `vercel.json` for domains also managed in the Vercel dashboard — dashboard rules and `vercel.json` rules interact unpredictably and can create loops.
+
 ---
 
 ## Out of scope (so we don't drift)
@@ -319,7 +338,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-31-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-32-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -350,7 +369,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/session-25-bootstrap.md` | Session 25 bootstrap (historical). |
 | `docs/session-29-bootstrap.md` | Session 29 bootstrap (historical) — spherical triangulation blocker analysis. |
 | `docs/session-30-bootstrap.md` | Session 30 bootstrap (historical). |
-| `docs/session-31-bootstrap.md` | Session 31 bootstrap — paste at start of Session 32. V2 direction options + current stack state. |
+| `docs/session-31-bootstrap.md` | Session 31 bootstrap (historical). |
+| `docs/session-32-bootstrap.md` | Session 32 bootstrap — paste at start of Session 33. V2 direction options still open. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |

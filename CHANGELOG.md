@@ -4,6 +4,32 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 32] — Public launch polish (2026-05-25)
+
+### What shipped
+
+Real-user bugs found after the Reddit post went live (186 upvotes, r/amateurradio + r/imadethis).
+
+**Catalog error state + retry button.** When both catalog sources fail, the globe previously showed "Loading catalog…" forever — `onCatalogRefresh` was never called on failure so the UI had no way to distinguish "loading" from "failed". Added `Globe.onCatalogError` callback → `useGlobe.catalogError` state → GlobeView shows "Catalog unavailable — click to retry" that triggers `window.location.reload`. The globe still runs ISS-only while the error is shown.
+
+**`/api/tles` alias — fixes uBlock Origin false-positive.** A Firefox user with uBlock enabled got `NS_BINDING_ABORTED` at 0ms on the `/api/catalog` fetch — killed before it reached the network. Diagnosis: the word "catalog" matches uBlock filter lists targeting product-catalog ad trackers. Fix: `api/tles.ts` re-exports the catalog handler under a neutral URL; the frontend now fetches `/api/tles` by default. `/api/catalog` stays live for existing public API consumers with no breaking change.
+
+**Catalog fetch timeout 10s → 25s.** A Vercel cold start for `/api/catalog` (Space-Track login + 5MB TLE stream) can take 12–15s. First-time visitors with no localStorage cache were hitting the 10s `AbortSignal.timeout` on slow connections, falling through to CelesTrak, and if CelesTrak was also rate-limited getting the error state above. 25s matches the `maxDuration: 30` serverless limit; warm requests from Vercel Edge cache are unaffected.
+
+**Search overflow indicator.** The search dropdown was limited to 8 results with no indication of how many total matches existed. A Reddit commenter suggested showing a count of hidden results. `matchSatelliteQuery` now counts all matches in a single pass (continuing after `maxResults` without pushing to the results array) and returns `{ results, total }`. SearchBar shows "+N more — refine your search" when total > 8.
+
+**API docs text sizes + GitHub CTA.** Table headers, nav items, section labels, and footer links bumped from 7–10px to 9–12px. Added "View on GitHub" and "★ Star" buttons to the Overview section.
+
+**Vercel domain misconfiguration fixed (dashboard-only).** `satlas.app` was configured as "307 Redirect → www.satlas.app" while `www.satlas.app` served Production — backwards. Corrected in the Vercel dashboard: `satlas.app → Production`, `www.satlas.app → 301 → satlas.app`.
+
+### Technical decisions
+
+**`/api/catalog` path triggers uBlock false-positive; alias is the right fix over renaming.** Renaming `/api/catalog` to `/api/tles` entirely would break the public API documented at `satlas.app/docs`. The alias approach (re-export in `api/tles.ts`) costs one file and changes one constant in `celestrak.ts` — the external API is unchanged.
+
+**`vercel.json` redirects must not duplicate Vercel dashboard domain config.** Adding a `redirects` rule to `vercel.json` while the dashboard also had a domain redirect created a loop (satlas.app → www → satlas.app). Reverted immediately. Rule recorded in CLAUDE.md ADR log.
+
+---
+
 ## [Session 31] — V1 polish + public API overhaul (2026-05-25)
 
 ### What shipped

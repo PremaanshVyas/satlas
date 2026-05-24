@@ -13,10 +13,10 @@ const CACHE_KEY = 'satlas-catalog-v5'
 // a fresh fetch — but we'll still serve stale rather than show a blank globe.
 const MAX_CACHE_AGE_MS = 72 * 60 * 60 * 1000 // 72h — prefer fresh, but stale beats blank
 
-// Primary: /api/catalog — Vercel serverless function that authenticates to Space-Track and
-// returns TLEs with edge-cache headers. Vercel CDN serves it globally in <100ms after the
-// first warm-up call. Works from any IP. Falls back to CelesTrak direct if unavailable.
-const CATALOG_API_URL = import.meta.env.VITE_CATALOG_URL || '/api/catalog'
+// Primary: /api/tles — same handler as /api/catalog but avoids uBlock Origin false-positive.
+// "/api/catalog" matches ad-tracker filter rules (product catalog trackers), causing
+// NS_BINDING_ABORTED at 0ms for uBlock users. /api/catalog stays live for public API consumers.
+const CATALOG_API_URL = import.meta.env.VITE_CATALOG_URL || '/api/tles'
 
 // CelesTrak direct — browser user IPs are never blocked for GROUP=active.
 // (Cloud/datacenter IPs get 403 — that's why we go through /api/catalog first.)
@@ -25,9 +25,9 @@ const ACTIVE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FOR
 // CelesTrak CATNR endpoint for ISS — works from any IP including cloud/Vercel.
 const ISS_CATNR_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
 
-// 10s hard cap per fetch attempt. Sources are raced in parallel, so the effective max
-// wait is 10s (not per-source × number of sources).
-const FETCH_TIMEOUT_MS = 10_000
+// 25s for /api/catalog (Vercel cold start + Space-Track login + 5MB fetch can take 12-15s).
+// CelesTrak fallback shares the same limit — it's also a large download on slow connections.
+const FETCH_TIMEOUT_MS = 25_000
 
 // Previous cache key versions — may hold stale 10k-era data. Cleaned up on every
 // successful save so they never resurface as a fallback.
