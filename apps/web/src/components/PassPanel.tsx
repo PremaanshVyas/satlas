@@ -335,7 +335,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       </div>
 
       {/* Results */}
-      <div className="overflow-y-auto max-h-[50dvh] min-h-[60px]">
+      <div className="overflow-y-auto max-h-[50dvh] min-h-[60px] pb-2">
         {loading && (
           <div className="px-3 py-4 font-mono text-[11px] text-label text-center">Computing passes…</div>
         )}
