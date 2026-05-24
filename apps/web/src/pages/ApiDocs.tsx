@@ -85,10 +85,10 @@ function ParamsTable({ params }: { params: Param[] }) {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-[rgba(255,255,255,0.06)]">
-            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Parameter</th>
-            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Type</th>
-            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Required</th>
-            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Description</th>
+            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[9px] uppercase tracking-[0.12em] text-label font-normal">Parameter</th>
+            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[9px] uppercase tracking-[0.12em] text-label font-normal">Type</th>
+            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[9px] uppercase tracking-[0.12em] text-label font-normal">Required</th>
+            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[9px] uppercase tracking-[0.12em] text-label font-normal">Description</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[rgba(255,255,255,0.04)]">
@@ -116,9 +116,9 @@ function SchemaTable({ fields }: { fields: Field[] }) {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-[rgba(255,255,255,0.06)]">
-            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Field</th>
-            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Type</th>
-            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[7px] uppercase tracking-[0.16em] text-label font-normal">Description</th>
+            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[9px] uppercase tracking-[0.12em] text-label font-normal">Field</th>
+            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[9px] uppercase tracking-[0.12em] text-label font-normal">Type</th>
+            <th className="text-left pt-2.5 pb-2 px-4 font-mono text-[9px] uppercase tracking-[0.12em] text-label font-normal">Description</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[rgba(255,255,255,0.04)]">
@@ -137,7 +137,7 @@ function SchemaTable({ fields }: { fields: Field[] }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="font-mono text-[7px] uppercase tracking-[0.18em] text-label mb-2.5">
+    <h3 className="font-mono text-[9px] uppercase tracking-[0.16em] text-label mb-2.5">
       {children}
     </h3>
   )
@@ -155,7 +155,7 @@ export default function ApiDocs() {
           <div className="w-1.5 h-1.5 rounded-full bg-accent" />
           <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-secondary">Satlas API</span>
         </div>
-        <Link to="/" className="font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors">
+        <Link to="/" className="font-mono text-[11px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors">
           ← Back to globe
         </Link>
       </header>
@@ -165,26 +165,26 @@ export default function ApiDocs() {
 
         {/* Left nav — sticky, desktop only */}
         <nav className="hidden md:flex flex-col gap-0.5 w-44 flex-shrink-0 sticky top-[57px] self-start h-[calc(100vh-57px)] overflow-y-auto py-10 pr-6">
-          <p className="font-mono text-[7px] uppercase tracking-[0.16em] text-[#333] mb-3">Contents</p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#444] mb-3">Contents</p>
           {NAV_ITEMS.map(item => (
             <a
               key={item.id}
               href={`#${item.id}`}
-              className="font-mono text-[10px] text-label hover:text-secondary transition-colors py-0.5 truncate"
+              className="font-mono text-[12px] text-label hover:text-secondary transition-colors py-0.5 truncate"
             >
               {item.label}
             </a>
           ))}
-          <div className="mt-auto pt-8 flex flex-col gap-2">
+          <div className="mt-auto pt-8 flex flex-col gap-2.5">
             <a
               href="https://github.com/PremaanshVyas/satlas"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors"
+              className="font-mono text-[11px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors"
             >
               GitHub ↗
             </a>
-            <Link to="/" className="font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors">
+            <Link to="/" className="font-mono text-[11px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors">
               Globe ↗
             </Link>
           </div>
@@ -201,6 +201,30 @@ export default function ApiDocs() {
               Track 31,000+ objects in real time, predict passes over any location on Earth, and query the
               same AI agent that powers the Satlas globe.
             </p>
+
+            {/* GitHub CTA */}
+            <div className="flex items-center gap-3 mb-8">
+              <a
+                href="https://github.com/PremaanshVyas/satlas"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 border border-[rgba(255,255,255,0.12)] rounded-[3px] font-mono text-[11px] uppercase tracking-[0.1em] text-secondary hover:text-white hover:border-[rgba(255,255,255,0.25)] transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="flex-shrink-0">
+                  <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                View on GitHub
+              </a>
+              <a
+                href="https://github.com/PremaanshVyas/satlas"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 border border-[rgba(0,212,255,0.3)] rounded-[3px] font-mono text-[11px] uppercase tracking-[0.1em] text-accent hover:border-[rgba(0,212,255,0.55)] hover:bg-[rgba(0,212,255,0.04)] transition-colors"
+              >
+                <span className="text-[13px] leading-none">★</span>
+                Star
+              </a>
+            </div>
 
             <div className="grid sm:grid-cols-2 gap-3 mb-8">
               {[
@@ -661,19 +685,29 @@ export default function ApiDocs() {
 
       {/* Footer */}
       <footer className="border-t border-[rgba(255,255,255,0.07)] px-6 py-6">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-5">
-            <Link to="/" className="font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors">← Globe</Link>
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link to="/" className="font-mono text-[12px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors">← Globe</Link>
             <a
               href="https://github.com/PremaanshVyas/satlas"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-[9px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors"
+              className="flex items-center gap-1.5 font-mono text-[12px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors"
             >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
               GitHub
             </a>
+            <a
+              href="https://github.com/PremaanshVyas/satlas"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 font-mono text-[12px] uppercase tracking-[0.1em] text-accent hover:text-white transition-colors"
+            >
+              <span className="text-[13px] leading-none">★</span>
+              Star
+            </a>
           </div>
-          <span className="font-mono text-[9px] text-[#1a1a1a] uppercase tracking-[0.06em]">Satlas · open-source space situational awareness</span>
+          <span className="font-mono text-[10px] text-[#252525] uppercase tracking-[0.06em]">Satlas · open-source space situational awareness</span>
         </div>
       </footer>
 
