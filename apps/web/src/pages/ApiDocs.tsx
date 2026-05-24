@@ -299,6 +299,12 @@ export default function ApiDocs() {
                 Data redistribution subject to Space-Track.org terms.
               </p>
             </div>
+            <div className="mt-3 p-3 border border-[rgba(255,255,255,0.06)] rounded-[3px] bg-[rgba(255,255,255,0.01)]">
+              <p className="font-mono text-[9px] text-label leading-relaxed">
+                <code className="text-secondary">/api/tles</code> is an alias for this endpoint — identical response,
+                provided for clients that need a URL not matched by ad-tracker filter lists.
+              </p>
+            </div>
           </section>
 
           <div className="border-t border-[rgba(255,255,255,0.05)]" />

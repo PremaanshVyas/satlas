@@ -13,8 +13,8 @@ Ask: _"Show me where the ISS is right now"_ — it answers **and** flies the 3D 
 Ask: _"Show all Starlink satellites"_ — it highlights every Starlink dot in violet while dimming everything else.  
 Ask: _"How many GPS satellites are tracked?"_ — reads the live count from the globe, no tool call needed.  
 Ask: _"What satellites are overhead right now from Sydney?"_ — it queries the catalog and tells you.  
-Hover any dot for name + altitude. Click to select (multiple selections supported) — see the info card with live lat/lon/altitude/velocity, orbital parameters, and satellite metadata (owner, launch date, launch site). Hit "Ask AI" to query it. Click a satellite's trail to see where it's been.  
-Category filter pills toggle entire groups on/off. Cloud layer toggle in the top-right corner.  
+Hover any dot for name + altitude. Click to select (multiple selections supported) — see the info card with live lat/lon/altitude/velocity, orbital parameters, and satellite metadata (owner, launch date, launch site). Hit "Ask AI" to query it.  
+Category filter pills toggle entire groups on/off. Cloud layer and Debris toggles in the top-right. Enable the Borders toggle to switch to map mode — country fills, graticule, and country name labels appear; click any country to see which satellites are overhead right now.  
 Open the Pass Prediction panel from any satellite info card — enter or geolocate your position; see every visible pass in the next 24 hours with times, max elevation, and approach direction.  
 The agent remembers conversation context — follow-up questions work.  
 **API docs** at [satlas.app/docs](https://satlas.app/docs) — curl-ready examples for every endpoint.  
@@ -105,8 +105,11 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Satellite info card — live lat/lon/altitude/velocity + orbital parameters + metadata (country, launch date, launch site, status) from Space-Track
 - [x] Text search — type to find any satellite by name or NORAD ID; keyboard-navigable results
 - [x] Hover tooltip — satellite name + altitude; hovered/selected satellites highlight lime green
-- [x] Category filter pills — Starlink / GPS / Iridium / Debris / Other with instant Uint8Array mask
-- [x] Cloud layer toggle — show/hide real-time cloud layer from the globe overlay
+- [x] Category filter pills — Starlink / GPS / Iridium / Debris / Other with instant Uint8Array mask; debris off by default
+- [x] Cloud layer + Debris toggles — show/hide independently from the globe overlay
+- [x] Borders / map mode — dark navy fill, country borders, lat/lon graticule, country name labels; lazy GeoJSON fetch
+- [x] Country click → CountryPanel — shows all satellites overhead (>10° elevation) at that moment, tiered by elevation
+- [x] Search fly-to — selecting a satellite from search flies the camera directly to it
 - [x] AI agent answers questions with real orbital mechanics (skyfield pass prediction, satellite lookup)
 - [x] Agent-driven globe interaction — "show me the ISS" flies the camera and pulses it
 - [x] Agent-controlled category filter — "show only Starlink" applies filter + colours; pill state stays in sync
@@ -117,7 +120,7 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Melbourne-accurate timestamps (computed server-side, never guessed by the AI)
 - [x] Mobile-friendly layout — 100dvh + safe-area insets so overlays clear browser chrome on iOS/Android
 - [x] Pass prediction panel — geolocate or search any location; next 24h passes with time, duration, max elevation, direction
-- [x] Public API docs at satlas.app/docs — curl examples, all endpoints documented
+- [x] Public API with docs at satlas.app/docs — 6 endpoints, curl-ready examples
 - [x] Custom domain satlas.app with HTTPS (ACM cert, ALB HTTPS listener, HTTP→HTTPS redirect)
 
 ### V1 (complete)
@@ -125,12 +128,13 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Live TLE catalog (30,000+ objects, InstancedMesh + web worker)
 - [x] Agent tools: predict_iss_passes, highlight_on_globe, find_satellites_overhead, get_satellite_info, set_category_filter
 - [x] Click satellite → details; multi-satellite selection tray; orbital arc + trail
-- [x] Hover tooltip; category filter pills; text search
+- [x] Hover tooltip; category filter pills; text search with fly-to camera
 - [x] Cloud layer, star field, dot sizing by type
+- [x] Borders / map mode — country fills, borders, graticule, labels; click country → overhead satellites panel
 - [x] Mobile-responsive layout (100dvh + safe-area insets)
 - [x] AWS infra deployed (ECS Fargate, RDS, S3+CloudFront, ALB, ECR, Route 53, ACM)
 - [x] Pass predictor for any user location (exposed in UI)
-- [x] Public API with docs (satlas.app/docs)
+- [x] Public API with docs (satlas.app/docs) — 6 endpoints
 - [x] Custom domain + HTTPS on ALB (satlas.app / api.satlas.app)
 - [x] Satellite metadata from Space-Track (owner, launch date, launch site, decay status)
 
@@ -138,7 +142,6 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [ ] Rate limiting on public API
 - [ ] Conjunction analysis service
 - [ ] Alert subscriptions (email/SMS for ISS pass, debris near asset, etc.)
-- [ ] Country borders overlay — click any country to see overhead satellites + upcoming passes
 - [ ] Vision pipeline integration — Sentinel-2 imagery on demand
 - [ ] First CV use case: bushfire scar detection in Australian regions
 - [ ] Vector RAG over space documentation
@@ -223,7 +226,7 @@ Then add `VITE_CHAT_URL=http://localhost:3000/api/chat` to `apps/web/.env.local`
 
 ```bash
 cd apps/web
-npx vitest run               # 75 frontend unit tests
+npx vitest run               # 104 frontend unit tests
 npx tsc -b --noEmit          # TypeScript type check
 npx eslint .                 # lint
 
