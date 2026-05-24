@@ -245,7 +245,7 @@ export default function App() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -8, scale: 0.97 }}
                 transition={{ duration: 0.16, ease: 'easeOut' }}
-                className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden"
+                className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden flex flex-col"
                 style={{ maxHeight: 'calc(50dvh - 2rem)' }}
               >
                 <PassPanel sat={passSat} onClose={() => setPassOpen(false)} />
@@ -313,7 +313,7 @@ export default function App() {
           <Drawer.Content className="fixed bottom-0 inset-x-0 z-50 rounded-t-2xl bg-[rgba(9,9,9,0.98)] border-t border-[rgba(255,255,255,0.07)] shadow-2xl outline-none" style={{ maxHeight: '80dvh' }}>
             <div className="mx-auto w-10 h-1 rounded-full bg-[rgba(255,255,255,0.08)] mt-3 mb-1" />
             {passSat && (
-              <div className="h-full overflow-hidden" style={{ maxHeight: 'calc(80dvh - 1.5rem)' }}>
+              <div className="overflow-hidden flex flex-col" style={{ maxHeight: 'calc(80dvh - 1.5rem)' }}>
                 <PassPanel sat={passSat} onClose={() => setPassOpen(false)} />
               </div>
             )}

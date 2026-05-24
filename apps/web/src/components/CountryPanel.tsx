@@ -42,7 +42,7 @@ export default function CountryPanel({
       ) : (
         <>
           <div className="text-[9px] text-[#555555] uppercase tracking-[0.1em] mb-2">Overhead Now</div>
-          <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto pb-1">
+          <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto pb-3">
             {primary.map(sat => (
               <button
                 key={sat.noradId}

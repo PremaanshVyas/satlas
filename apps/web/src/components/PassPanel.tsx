@@ -222,7 +222,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col flex-1 overflow-hidden">
       {/* Header */}
       <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2.5 border-b border-[rgba(255,255,255,0.04)] flex-shrink-0">
         <div className="min-w-0">
@@ -335,7 +335,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       </div>
 
       {/* Results */}
-      <div className="overflow-y-auto max-h-[50dvh] min-h-[60px] pb-2">
+      <div className="flex-1 min-h-[60px] overflow-y-auto pb-3">
         {loading && (
           <div className="px-3 py-4 font-mono text-[11px] text-label text-center">Computing passes…</div>
         )}
