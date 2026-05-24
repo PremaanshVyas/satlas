@@ -3,6 +3,7 @@
   "outputDirectory": "apps/web/dist",
   "framework": null,
   "rewrites": [
+    { "source": "/api/tles", "destination": "/api/catalog" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
