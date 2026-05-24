@@ -110,17 +110,21 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 31 — V2 direction decision. Globe map mode fully working. Small polish done.
+**Current phase:** Session 31 — V1 polish + API overhaul. Globe map mode fully working.
 
-**Next milestone:** Pick V2 direction and scope first milestone. Options in `docs/session-30-bootstrap.md`.
+**Next milestone:** V2 direction decision after API polish lands. Options in `docs/session-30-bootstrap.md`.
 
 **Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
 
-**Session 31 completed tasks (so far):**
+**Session 31 completed tasks:**
 - [x] Vercel Analytics (`@vercel/analytics`) added to `apps/web` — page views, visitors, referrers live on Vercel dashboard
 - [x] Vercel Speed Insights (`@vercel/speed-insights`) added — Core Web Vitals (LCP, FID, CLS) tracking
-- [x] PassPanel scroll clipping fixed: `pb-2` on results container — last pass row no longer cut off
-- [x] CountryPanel overhead list scroll clipping fixed: `pb-1` on sat list container
+- [x] PassPanel scroll clipping — structural fix: `flex flex-col` on outer wrapper + `flex-1 overflow-y-auto` on results; eliminates `max-h-[50dvh]` vs `calc(50dvh - 2rem)` clip mismatch
+- [x] CountryPanel overhead list scroll clipping — `pb-3` + structural fix applied
+- [x] Country overhead filter: all categories off → `null` mask in `getOverheadSatellites` → shows all types; some on → filtered to active categories only
+- [x] CountryPanel empty state: "No satellites overhead (>10°)" replaces misleading "Loading catalog…"
+- [x] `api/satellite-info.ts` Vercel proxy — exposes `GET /api/satellite-info?query=` publicly (proxies to orbital service)
+- [x] API docs page (`/docs`) — full redesign: left nav sidebar, response schema tables, copy buttons, `/api/satellite-info` documented, pass response fields corrected
 
 **Session 30 completed tasks:**
 - [x] `CountryHighlightMesh` fill re-enabled: `subdivideRing` + `refineTris` in `sphereUtils.ts` — edges subdivided to ≤4° before earcut, large interior triangles recursively split
@@ -246,7 +250,11 @@ Sessions 1–17 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-21 — Session 23: NORAD ID leading-zero mismatch caused wrong satellite lookup and missing metadata.** TLE catalog pads NORAD IDs to 5 digits (`'06707'`); Space-Track satcat omits leading zeros (`'6707'`); LLM (Haiku) normalizes digits and strips the leading zero. Three compounding bugs: (1) `satinfo.py` used string equality for NORAD ID lookup — `'6707' != '06707'` → miss, then fell through to name search where `'6707'` is a substring of `'STARLINK-36707'` → wrong satellite returned. (2) `satcat.ts` built the Map with raw Space-Track keys (`'6707'`), but SatInfoCard looked up by TLE-derived padded key (`'06707'`) → no metadata. Fix: (1) use integer comparison in `satinfo.py` so `int('6707') == int('06707')`; name-search fallback only runs for non-digit queries. (2) pad NORAD ID to 5 chars in `parseSatcatJson` so map keys match TLE format. Cache bumped to v5. Rule: all NORAD ID comparisons must use integer equality — string equality silently fails on leading-zero format differences.
 
-- **2026-05-21 — Session 22 hotfix: `flex-1 overflow-y-auto` requires bounded parent `height`, not just `maxHeight`.** Desktop PassPanel container had `maxHeight: calc(100dvh - 6rem)` but no `height`. With no explicit height on the flex container, `flex-1` in the child resolves to content height, so `overflow-y-auto` never triggers — tall pass lists are silently clipped by the parent's `overflow: hidden`. Fix: replaced `flex-1 overflow-y-auto min-h-0` on the results div with `overflow-y-auto max-h-[50dvh]` — scroll cap works independently of the parent chain. Rule: for a scrollable region inside an absolutely-positioned card that only has `maxHeight`, do not rely on `flex-1`; set `max-height` directly on the scrollable element.
+- **2026-05-21 — Session 22 hotfix: `flex-1 overflow-y-auto` requires bounded parent `height`, not just `maxHeight`.** Desktop PassPanel container had `maxHeight: calc(100dvh - 6rem)` but no `height`. With no explicit height on the flex container, `flex-1` in the child resolves to content height, so `overflow-y-auto` never triggers — tall pass lists are silently clipped by the parent's `overflow: hidden`. Fix: replaced `flex-1 overflow-y-auto min-h-0` on the results div with `overflow-y-auto max-h-[50dvh]` — scroll cap works independently of the parent chain. **Superseded by Session 31 fix below.**
+
+- **2026-05-25 — Session 31: Scroll clip fix — `flex flex-col` on outer wrapper + `flex-1` on scroll container; `max-h-[50dvh]` inside `maxHeight: calc(50dvh - 2rem)` clips the last row.** The S22 fix set `max-h-[50dvh]` on results — correct for `flex-1` not resolving, but created a new bug: the outer wrapper clips at `50dvh - 2rem`, so the bottom `2rem` of the `max-h-[50dvh]` scroll container is always in the clipped zone. When scrolled to bottom, the last row lands exactly there. Fix: add `flex flex-col` to the outer motion.div; PassPanel outer div uses `flex-1` (now resolves because parent is a real flex container); results div uses `flex-1 overflow-y-auto` — scroll area is bounded by the flex chain, not an independent `max-height`. Rule: when a scroll container is nested inside a `maxHeight + overflow-hidden` wrapper, make the wrapper a `flex flex-col` so the child can use `flex-1` to fill exactly the available space.
+
+- **2026-05-25 — Session 31: Country overhead list shows all sats when all categories off — "no filter" is not the same as "empty filter".** `getOverheadSatellites` always passed `activeCategoryMask` to `computeOverhead`. When all category toggles are off, the mask is all-zeros — every satellite is skipped, returning `[]`. The panel showed "Loading catalog…" with no sats. Fix: pass `null` (no mask) when `activeCategories.size === 0`. "All off" maps to "no filter" not "filter to nothing". Rule: a UI "all off" toggle state should be treated as "show everything" — never pass an all-zero mask to a filter function; use null/undefined to signal no filter.
 
 - **2026-05-21 — Session 25: Frontend redesign used pure CSS token replacement — no logic changes needed.** Nothing/Terminal aesthetic achieved entirely via Tailwind class swaps across 9 files. Key pattern: Tailwind v4 `@theme` block defines named tokens (`--color-accent`, `--color-secondary`, `--color-label` etc.) which become named utilities (`text-accent`, `text-secondary`, `text-label`). These propagate to all components without using arbitrary values. All 75 tests continued to pass because tests assert on content/structure, not CSS classes. Rule: for a pure CSS redesign, define tokens in `@theme` first — it makes every subsequent class replacement consistent and grep-able.
 
