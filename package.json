@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/node": "^5.7.17",
     "satellite.js": "^4.1.4"
   },

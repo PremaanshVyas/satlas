@@ -4,6 +4,55 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 30] — Country highlight fill + border-outside-boundary fix (2026-05-24)
+
+### What shipped
+
+The country fill that had been blocked since Session 28 is now working. Selecting a country in border mode shows a solid cyan tinted fill plus the bright cyan border ring, with no depth artifacts or border overflow.
+
+**Root cause (recapped from Session 29).** Any flat WebGL triangle with vertices on a sphere at radius r=1.0022 has its interior chord dip below the Earth sphere (r=1.0) when the triangle spans more than ~7.5°. The interior then fails the WebGL depth test against the opaque Earth mesh — only the edges (touching the sphere surface) remained visible, producing a border-only ring.
+
+**Fix: edge subdivision + triangle refinement.** `sphereUtils.ts` (new shared module) provides two functions used by both `CountryHighlightMesh` and `CountryFillMesh`:
+
+- `subdivideRing(ring, maxDeg)` — inserts intermediate vertices on every boundary edge longer than `maxDeg` (4°). Each inserted point is projected onto the sphere via `toVec3`, keeping all edges above the Earth surface.
+- `refineTris(flat, tris, maxDeg)` — post-processes earcut output. Any triangle with a longest edge > `maxDeg` is split at the flat midpoint of that edge; an edge cache prevents cracks between adjacent triangles sharing a split edge. Recursion stops when all edges ≤ 4°.
+
+**SLERP was wrong — flat lon/lat interpolation is right.** The initial implementation used great-circle SLERP for inserted midpoints. Russia's 80°N coastline then extended 3–5° into the Arctic Ocean: a great-circle arc between two boundary points at 80°N has its midpoint at ~83°N — outside the actual polygon. Fix: flat linear interpolation (`lon0 + (lon1-lon0)*t, lat0 + (lat1-lat0)*t`) follows the polygon boundary as defined in GeoJSON (flat lon/lat space). Depth test is unaffected — each subdivided point is still projected to the sphere via `toVec3`.
+
+**MultiPolygon stacking fix.** Countries like Russia have 100+ sub-polygons. With `opacity: 0.25`, each polygon's fill fragments accumulated additively — islands overlapping the mainland created bright solid bands. Fix: stencil buffer on the fill material (`NotEqualStencilFunc + ReplaceStencilOp`). Three.js auto-clears stencil to 0 each frame; the first fill fragment at any screen pixel writes stencil=1 and is drawn; all subsequent fragments at that pixel fail and are discarded. Each screen pixel rendered exactly once regardless of sub-polygon count.
+
+**CountryFillMesh void fix.** The background dark navy country fills (non-selected, always visible in border mode) had the same depth problem for large countries (Australia, Russia, Canada). Now uses the same `subdivideRing` + `refineTris` pipeline from the shared `sphereUtils.ts`.
+
+**Deselect on panel close.** Closing the CountryPanel now also clears the cyan highlight ring on the globe. The fix threads `Globe.clearCountryHighlight()` through `useGlobe` → `GlobeView.onClearHighlightReady` callback ref → `App.tsx` `dismissCountry()` helper. All dismiss paths (close button, mobile sheet, clicking a different country) go through this helper.
+
+### Technical decisions
+
+**Flat vs SLERP interpolation for geographic polygon fill.** SLERP is the mathematically correct arc for two points on a sphere — but geographic polygons are not defined in spherical geometry. GeoJSON coordinates are flat lon/lat values, and the "boundary" between two vertices is the straight line in that flat space. SLERP inflates the boundary toward the pole at high latitudes (it follows the shortest 3D path, not the lat/lon path). Rule: for polygon fill on a globe, follow the source coordinate space — flat interpolation respects the GeoJSON boundary; SLERP does not.
+
+**Shared `sphereUtils.ts` prevents fix divergence.** CountryHighlightMesh and CountryFillMesh had separately duplicated geometry helpers. Before refactoring, applying a fix to one file would silently leave the other broken. Extracting into a shared module means any future change to subdivision logic applies to both fills automatically.
+
+---
+
+## [Session 29] — Border mode polish: dark map, labels, country hover (2026-05-24)
+
+### What shipped
+
+Visual polish pass on the border/map mode introduced in Session 28.
+
+**Dark map style.** `EarthMesh.setMapMode(on)` swaps between the photorealistic `ShaderMaterial` (day/night, sun terminator, cloud layer) and a flat dark `MeshBasicMaterial` (`#060d18`). Border mode enables dark map; disabling borders restores the photo mode including clouds. The swap is in `Globe.setBordersVisible`.
+
+**Background country fills.** `CountryFillMesh` — all countries merged into a single dark navy mesh (`#0d2040`) at r=1.001, below the border lines (r=1.002) and labels (r=1.0015). Earcut-triangulated per-polygon. Z-layering: fill < graticule < borders < highlight border — no z-fighting at any layer. *(Depth artifacts still existed for large countries at this point; fixed in Session 30.)*
+
+**Lat/lon graticule.** `GraticuleMesh` draws lines every 30° at r=1.0015. Thin, low-opacity, above the fill but below the borders.
+
+**Country name labels.** `CSS2DRenderer` label overlay with zoom-based threshold (large countries show at wider zoom, small countries require closer zoom). Labels are hidden by setting `labelRenderer.domElement.style.display = 'none'` when border mode is off — per-object visibility flags don't flush the DOM without an additional render call.
+
+**Country hover tooltip.** `mousemove` handler ray-casts to Earth surface, back-projects to lon/lat, runs `geoContains` over all ~250 features (throttled 40ms). When no satellite is under the cursor, fires `onSatelliteHover(name, null, ...)` — the existing hover tooltip shows the country name with no altitude row. `HoverInfo.altKm` is now `number | null` to support this.
+
+**TypeScript Vercel errors fixed.** `@types/earcut`, `@types/d3-geo`, `@types/geojson` added as devDependencies to satisfy Vercel's strict tsc check on deploy.
+
+---
+
 ## [Session 28] — Country borders + country selection panel (2026-05-24)
 
 ### What shipped

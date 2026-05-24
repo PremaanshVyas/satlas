@@ -110,13 +110,18 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 29 — Border mode polish (dark map, label visibility, label screen burn). Country fill still broken — deferred to Session 30.
+**Current phase:** Session 30 — Country highlight fill fixed. All globe map mode features working. Ready for V2 direction decision.
 
-**Blocker for Session 30:** `CountryHighlightMesh` fill is disabled (border-only highlight). Root cause: any flat WebGL triangle spanning >~7° of arc at r=1.0022 dips below the Earth sphere (r=1.0) and fails the depth test — only the triangle's edges pass, producing a "ring" around the coast rather than a solid fill. Two approaches tried and failed: earcut on flat (lon/lat) creates large interior triangles that span the full country; centroid fan triangulation also spans large arcs radially. Fix requires edge subdivision to <5° before triangulation (great-circle SLERP between vertices), plus Steiner interior points or a recursive triangle split for any earcut triangle that still exceeds the limit. See ADR for full analysis.
-
-**Next milestone for Session 30:** Fix CountryHighlightMesh fill using edge subdivision + earcut (or fan triangulation with subdivided radial edges). Then decide V2 direction.
+**Next milestone for Session 31:** V2 direction decision — vision pipeline (bushfire scar detection), orbit history (TimescaleDB), Go API gateway, or more agent tools. Also minor polish: label zoom threshold tuning, fill opacity review, README update for V2 framing.
 
 **Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
+
+**Session 30 completed tasks:**
+- [x] `CountryHighlightMesh` fill re-enabled: `subdivideRing` + `refineTris` in `sphereUtils.ts` — edges subdivided to ≤4° before earcut, large interior triangles recursively split
+- [x] `CountryFillMesh` void fixed: same `subdivideRing` + `refineTris` applied via shared `sphereUtils.ts`
+- [x] SLERP → flat lon/lat interpolation: SLERP midpoints bulge outward at high latitudes (Russia ~3-5° into Arctic), replaced with flat `[lon0 + (lon1-lon0)*t, lat0 + (lat1-lat0)*t]` in both `subdivideRing` and `refineTris`
+- [x] MultiPolygon stacking fix: stencil buffer (`NotEqual/Replace`) prevents transparent fill fragments from accumulating additively across sub-polygons (Russia's islands no longer show bright overlap bands)
+- [x] Deselect on panel close: `Globe.clearCountryHighlight()` wired through `useGlobe` → `GlobeView.onClearHighlightReady` → `App.tsx` `dismissCountry()` helper — closing CountryPanel now clears the globe highlight ring
 
 **Session 29 completed tasks:**
 - [x] Vercel TS errors fixed: `@types/earcut`, `@types/d3-geo`, `@types/geojson` added as devDependencies
@@ -261,13 +266,19 @@ Sessions 1–17 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-24 — Session 28: CountryHighlightMesh should import `GeoJSONFeature` from CountryBorderMesh, not re-define it.** First pass defined a private `Feature` interface inside CountryHighlightMesh — looser typing that allowed subtle mismatches. Fix: import the shared `GeoJSONFeature` type exported from CountryBorderMesh. Rule: types that describe shared data structures (GeoJSON features, TLE records) should be defined once and imported — parallel private type definitions diverge silently.
 
-- **2026-05-24 — Session 29: Flat WebGL triangles dip below sphere surface — max safe edge ~7° at r=1.0022.** For a chord connecting two sphere-surface points at angular separation θ, the midpoint of the chord is at r_mid = r * cos(θ/2). At r=1.0022 (CountryHighlightMesh), the midpoint dips below r=1.0 (Earth surface) when θ > 2*acos(1/1.0022) ≈ 7.5°. This fails WebGL depth test against the opaque Earth mesh. Earcut on flat (lon/lat) for large countries (Australia spans ~40° lon, ~34° lat) creates interior triangles that span the full country — dipping meters or km below the surface. Two approaches tried and reverted: (1) earcut on flat (lon/lat) — interior black, edges cyan ring; (2) centroid fan triangulation — starburst spike artifacts from long radial edges. Fix: subdivide every edge to <5° using great-circle SLERP before earcut, plus split any remaining large earcut triangle. Rule: on a globe at r=1+ε, triangle edges longer than ~7° will fail depth test; always subdivide edges to max 5° before triangulating.
+- **2026-05-24 — Session 29/30: Flat WebGL triangles dip below sphere surface — fix: subdivide edges to ≤4° using flat lon/lat interpolation before earcut.** For a chord connecting two sphere-surface points at angular separation θ, the midpoint of the chord is at r_mid = r * cos(θ/2). At r=1.0022 (CountryHighlightMesh), the midpoint dips below r=1.0 (Earth surface) when θ > 7.5°. Two approaches tried and reverted in Session 29: (1) earcut on flat (lon/lat) — interior black, edges cyan ring; (2) centroid fan — starburst spike artifacts. Session 30 fix: `subdivideRing` + `refineTris` in `sphereUtils.ts` — insert intermediate points on boundary edges > 4°, then recursively split any earcut triangle whose longest edge still exceeds 4°. **Key correction (Session 30):** Session 29 proposed SLERP for interpolation. SLERP was implemented and found to extend fill outside the geographic boundary at high latitudes (Russia's 80°N coast extended ~3-5° into the Arctic Ocean). Root cause: great-circle arc between two boundary points at 80°N has its midpoint at ~83°N — outside the actual polygon. GeoJSON polygons are defined in flat lon/lat; flat linear interpolation `(lon0 + (lon1-lon0)*t, lat0 + (lat1-lat0)*t)` correctly follows the boundary. Depth test still passes: each subdivided vertex is projected onto the sphere at radius r via `toVec3`. Rule: on a globe at r=1+ε, subdivide edges to max 4° before triangulating; use flat (not great-circle) interpolation so fill follows the geographic polygon boundary.
 
 - **2026-05-24 — Session 29: Country hover in border mode — geoContains on mousemove is fast enough at 40ms throttle.** d3-geo `geoContains` checks all ~250 Natural Earth features per mousemove (throttled 40ms). Each check uses ray-casting on the polygon vertices. Total: ~250 × avg 300 vertices ≈ 75k comparisons per 40ms. Measured as non-blocking on modern browsers. `hoveredCountryName` tracks last name so the callback only fires on name change (no setState churn). Rule: for globe hit-testing on mousemove at 40ms, geoContains over 250 Natural Earth 50m features is fast enough; don't pre-filter or cache.
 
 - **2026-05-24 — Session 29: CSS2DRenderer screen-burn fix — hide domElement, not individual labels.** When `setBordersVisible(false)` is called, setting each `CSS2DObject.visible = false` doesn't flush the DOM — the renderer's DOM elements persist from the last `render()` call, frozen in their last visible state. Setting `labelRenderer.domElement.style.display = 'none'` hides the entire overlay instantly with no additional render pass needed. Rule: to clear a CSS2DRenderer completely, hide its `domElement` — don't rely on per-object visibility flags without a follow-up render call.
 
 - **2026-05-24 — Session 29: Left column panel stacking uses a single shared wrapper `flex flex-col gap-2`.** Two separate `absolute` divs for SatInfoCard/PassPanel and CountryPanel would overlap. Fix: a single wrapper div `absolute top-10 left-3 mt-2 w-64 z-20 flex flex-col gap-2` contains both AnimatePresence blocks — panels stack vertically with a consistent 0.5rem gap. PassPanel maxHeight reduced to `calc(50dvh − 2rem)` so CountryPanel always has visible space when both are open. Rule: for multiple independently-animated panels that should stack, use a single flex column wrapper — two separate absolute divs will overlap.
+
+- **2026-05-24 — Session 30: Stencil buffer prevents transparent highlight fill from stacking on MultiPolygon countries.** Russia, Canada, and other MultiPolygon countries have 10-100+ sub-polygons (mainland + islands). With `opacity: 0.25` and `transparent: true`, each sub-polygon's fill writes to the same screen pixels — fragments accumulate additively → overlapping regions become 0.5, 0.75, 1.0 opacity. Russia's highlight had a bright solid band through the mainland where island polygon fills stacked. Fix: `stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc, stencilZPass: THREE.ReplaceStencilOp` on the fill material. Three.js clears stencil to 0 each frame (autoClearStencil defaults to true). First fill fragment at any screen pixel writes stencil=1; all subsequent fragments at that pixel fail NotEqual and are discarded → each screen pixel rendered exactly once. Rule: for any set of transparent fill meshes that could overlap on screen (MultiPolygon countries, feature sets with shared border regions), use stencil NotEqual/Replace to prevent additive blending artifacts.
+
+- **2026-05-24 — Session 30: Closing CountryPanel left the globe highlight ring active — React unmount does not clean up Three.js state.** `setSelectedCountry(null)` dismissed the React panel but `CountryHighlightMesh.clear()` was never called — the cyan border ring persisted on the globe after the panel closed. Fix: added `Globe.clearCountryHighlight()` → `useGlobe` hook return value → `GlobeView` exposes it via `onClearHighlightReady` callback ref pattern → `App.tsx` stores it in `clearCountryHighlightRef`. All dismiss paths (close button, mobile sheet `onOpenChange`, selecting a different country) now call `dismissCountry()` which calls both `setSelectedCountry(null)` and `clearCountryHighlightRef.current?.()`. Rule: whenever a React state controls a Three.js object's lifecycle, the React teardown path must explicitly call the Three.js cleanup method — React does not know about WebGL resources.
+
+- **2026-05-24 — Session 30: `sphereUtils.ts` shared between CountryHighlightMesh and CountryFillMesh — single source of subdivision truth.** CountryFillMesh originally had the same flat-triangle depth problem (background country fills showed voids for large countries). Extracting `subdivideRing`, `refineTris`, `toVec3`, and `arcDeg` into `sphereUtils.ts` meant one fix in one place covers both the highlight fill and the background fill. Previously each mesh had its own partial version of these helpers. Rule: geometry helpers that operate on the same data model (lon/lat → sphere coordinates) belong in a shared module — duplicated helpers diverge silently as fixes are applied to only one copy.
 
 ---
 
@@ -288,7 +299,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-29-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-30-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -316,7 +327,9 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/session-22-bootstrap.md` | Session 22 bootstrap (historical). |
 | `docs/session-23-bootstrap.md` | Session 23 bootstrap (historical). |
 | `docs/session-24-bootstrap.md` | Session 24 bootstrap (historical). |
-| `docs/session-25-bootstrap.md` | Session 25 bootstrap — paste at start of Session 26 (contains V2 direction options). |
+| `docs/session-25-bootstrap.md` | Session 25 bootstrap (historical). |
+| `docs/session-29-bootstrap.md` | Session 29 bootstrap (historical) — spherical triangulation blocker analysis. |
+| `docs/session-30-bootstrap.md` | Session 30 bootstrap — paste at start of Session 31. V2 direction options + polish backlog. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
