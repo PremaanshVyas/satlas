@@ -15,6 +15,7 @@ import type { TLERecord } from '../lib/celestrak'
 import { fetchSatcat } from '../lib/satcat'
 import type { SatcatEntry } from '../lib/satcat'
 import { matchSatelliteQuery } from './searchUtils'
+import type { SearchResults } from './searchUtils'
 import type { SearchResult } from './searchUtils'
 import { geoContains } from 'd3-geo'
 import type { Feature as GeoFeature } from 'geojson'
@@ -843,18 +844,17 @@ export class Globe {
     this._refreshTrail(ISS_NORAD, this.issSatrec)
   }
 
-  searchCatalog(query: string, maxResults = 8): SearchResult[] {
+  searchCatalog(query: string, maxResults = 8): SearchResults {
     const results: SearchResult[] = []
     const q = query.trim().toLowerCase()
-    if (!q) return []
-    if (this.issName.toLowerCase().includes(q) || ISS_NORAD.startsWith(q)) {
-      results.push({ name: this.issName, noradId: ISS_NORAD })
-    }
-    if (results.length < maxResults) {
-      const rest = matchSatelliteQuery(query, this.satNames, this.satNoradIds, maxResults - results.length)
-      results.push(...rest)
-    }
-    return results
+    if (!q) return { results: [], total: 0 }
+    const issMatch = this.issName.toLowerCase().includes(q) || ISS_NORAD.startsWith(q)
+    if (issMatch) results.push({ name: this.issName, noradId: ISS_NORAD })
+    const { results: rest, total: restTotal } = matchSatelliteQuery(
+      query, this.satNames, this.satNoradIds, maxResults - results.length,
+    )
+    results.push(...rest)
+    return { results, total: restTotal + (issMatch ? 1 : 0) }
   }
 
   private _flyToCurrentPosition(satrec: satellite.SatRec): void {

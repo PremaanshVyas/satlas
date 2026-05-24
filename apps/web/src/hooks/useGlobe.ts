@@ -4,10 +4,11 @@ import { Globe } from '../globe/Globe'
 import type { SatCategory, OrbitalParams, LivePosition, OverheadSat } from '../globe/Globe'
 import type { HighlightDirective } from '../types/chat'
 import type { SatcatEntry } from '../lib/satcat'
-import type { SearchResult } from '../globe/searchUtils'
+import type { SearchResult, SearchResults } from '../globe/searchUtils'
 
 export type { OrbitalParams, LivePosition, OverheadSat }
 export type { SatcatEntry }
+export type { SearchResults }
 
 export interface HoverInfo {
   name: string
@@ -38,7 +39,7 @@ export function useGlobe(
   applyAgentFilter: (cats: SatCategory[]) => void
   removeFromSelection: (noradId: string) => void
   setCloudVisibility: (visible: boolean) => void
-  searchCatalog: (query: string) => SearchResult[]
+  searchCatalog: (query: string) => SearchResults
   selectCatalogSatellite: (noradId: string) => void
   setBordersVisible: (visible: boolean) => Promise<void>
   clearCountryHighlight: () => void
@@ -120,8 +121,8 @@ export function useGlobe(
     globeRef.current?.setCloudVisibility(visible)
   }, [])
 
-  const searchCatalog = useCallback((query: string): SearchResult[] => {
-    return globeRef.current?.searchCatalog(query) ?? []
+  const searchCatalog = useCallback((query: string): SearchResults => {
+    return globeRef.current?.searchCatalog(query) ?? { results: [], total: 0 }
   }, [])
 
   const selectCatalogSatellite = useCallback((noradId: string): void => {

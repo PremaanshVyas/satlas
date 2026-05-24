@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import type { SearchResult } from '../globe/searchUtils'
+import type { SearchResult, SearchResults } from '../globe/searchUtils'
 
 interface SearchBarProps {
-  onSearch: (query: string) => SearchResult[]
+  onSearch: (query: string) => SearchResults
   onSelect: (noradId: string, name: string) => void
 }
 
 export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
+  const [total, setTotal] = useState(0)
   const [open, setOpen] = useState(false)
   const [activeIdx, setActiveIdx] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -16,8 +17,9 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setQuery(val)
-    const r = onSearch(val)
+    const { results: r, total: t } = onSearch(val)
     setResults(r)
+    setTotal(t)
     setOpen(r.length > 0 && val.trim().length > 0)
     setActiveIdx(-1)
   }, [onSearch])
@@ -79,7 +81,7 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
           {results.map((r, i) => (
             <button
               key={r.noradId}
-              className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-[rgba(255,255,255,0.04)] last:border-0 transition-colors ${
+              className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-[rgba(255,255,255,0.04)] transition-colors ${
                 i === activeIdx ? 'bg-[rgba(255,255,255,0.04)]' : ''
               }`}
               onMouseDown={e => { e.preventDefault(); handleSelect(r) }}
@@ -89,6 +91,11 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
               <span className="font-mono text-[10px] text-label flex-shrink-0">{r.noradId}</span>
             </button>
           ))}
+          {total > results.length && (
+            <div className="px-3 py-2 font-mono text-[10px] text-[rgba(255,255,255,0.25)] select-none border-t border-[rgba(255,255,255,0.04)]">
+              +{total - results.length} more — refine your search
+            </div>
+          )}
         </div>
       )}
     </div>

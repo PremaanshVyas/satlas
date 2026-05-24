@@ -73,27 +73,30 @@ describe('matchSatelliteQuery', () => {
   const noradIds = ['25544',       '45178',         '37753',      '20580']
 
   it('returns matches by name substring (case-insensitive)', () => {
-    const r = matchSatelliteQuery('starlink', names, noradIds, 10)
-    expect(r).toHaveLength(1)
-    expect(r[0].name).toBe('STARLINK-1001')
-    expect(r[0].noradId).toBe('45178')
+    const { results, total } = matchSatelliteQuery('starlink', names, noradIds, 10)
+    expect(results).toHaveLength(1)
+    expect(total).toBe(1)
+    expect(results[0].name).toBe('STARLINK-1001')
+    expect(results[0].noradId).toBe('45178')
   })
 
   it('returns matches by NORAD ID prefix', () => {
-    const r = matchSatelliteQuery('255', names, noradIds, 10)
-    expect(r).toHaveLength(1)
-    expect(r[0].noradId).toBe('25544')
+    const { results, total } = matchSatelliteQuery('255', names, noradIds, 10)
+    expect(results).toHaveLength(1)
+    expect(total).toBe(1)
+    expect(results[0].noradId).toBe('25544')
   })
 
   it('respects maxResults limit', () => {
     const bigNames   = Array.from({ length: 20 }, (_, i) => `SAT-${i}`)
     const bigNoradIds = Array.from({ length: 20 }, (_, i) => `1000${i}`)
-    const r = matchSatelliteQuery('sat', bigNames, bigNoradIds, 5)
-    expect(r).toHaveLength(5)
+    const { results, total } = matchSatelliteQuery('sat', bigNames, bigNoradIds, 5)
+    expect(results).toHaveLength(5)
+    expect(total).toBe(20)
   })
 
   it('returns empty array for empty query', () => {
-    expect(matchSatelliteQuery('', names, noradIds, 10)).toHaveLength(0)
-    expect(matchSatelliteQuery('   ', names, noradIds, 10)).toHaveLength(0)
+    expect(matchSatelliteQuery('', names, noradIds, 10).results).toHaveLength(0)
+    expect(matchSatelliteQuery('   ', names, noradIds, 10).results).toHaveLength(0)
   })
 })
