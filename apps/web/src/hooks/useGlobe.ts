@@ -4,7 +4,7 @@ import { Globe } from '../globe/Globe'
 import type { SatCategory, OrbitalParams, LivePosition, OverheadSat } from '../globe/Globe'
 import type { HighlightDirective } from '../types/chat'
 import type { SatcatEntry } from '../lib/satcat'
-import type { SearchResult, SearchResults } from '../globe/searchUtils'
+import type { SearchResults } from '../globe/searchUtils'
 
 export type { OrbitalParams, LivePosition, OverheadSat }
 export type { SatcatEntry }
