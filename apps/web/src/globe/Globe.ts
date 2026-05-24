@@ -99,7 +99,7 @@ const ISS_TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.5003444
 const ISS_NORAD = '25544'
 const FLY_DURATION_MS = 1500
 const CAMERA_DISTANCE = 3.5
-const FIELD_TICK_MS = 100
+const FIELD_TICK_MS = 50
 const R_EARTH_KM = 6371.0
 const ARC_POINTS = 180
 
@@ -160,6 +160,7 @@ export class Globe {
   private rafId: number | null = null
   private catalogRefreshInterval: ReturnType<typeof setInterval> | null = null
 
+  private _sunDir = new THREE.Vector3()
   private flyFromPos: THREE.Vector3 | null = null
   private flyToPos: THREE.Vector3 | null = null
   private flyStartTime: number | null = null
@@ -270,7 +271,7 @@ export class Globe {
 
     this.controls = new OrbitControls(this.camera, canvas)
     this.controls.enableDamping = true
-    this.controls.dampingFactor = 0.05
+    this.controls.dampingFactor = 0.07
     this.controls.minDistance = 1.3
     this.controls.maxDistance = 15
     this.controls.autoRotate = false
@@ -1239,9 +1240,9 @@ export class Globe {
     const now = new Date()
     const nowMs = now.getTime()
 
-    const sunDir = getSunDirection(now)
-    this.earth.update(sunDir)
-    this.sun.update(sunDir)
+    getSunDirection(now, this._sunDir)
+    this.earth.update(this._sunDir)
+    this.sun.update(this._sunDir)
     this.iss.update(now)
 
     if (this.worker && nowMs - this.lastFieldTickMs >= FIELD_TICK_MS) {

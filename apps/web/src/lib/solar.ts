@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-export function getSunDirection(date: Date): THREE.Vector3 {
+export function getSunDirection(date: Date, target = new THREE.Vector3()): THREE.Vector3 {
   const JD = date.getTime() / 86400000 + 2440587.5
   const n = JD - 2451545.0 // days since J2000.0
 
@@ -25,5 +25,5 @@ export function getSunDirection(date: Date): THREE.Vector3 {
   const zECEF = zECI
 
   // ECEF → Three.js: xECEF (prime meridian) → +X, zECEF (north pole) → +Y, -yECEF → +Z
-  return new THREE.Vector3(xECEF, zECEF, -yECEF).normalize()
+  return target.set(xECEF, zECEF, -yECEF).normalize()
 }
