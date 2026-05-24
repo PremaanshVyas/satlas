@@ -32,6 +32,7 @@ export function useGlobe(
 ): {
   isLoading: boolean
   satelliteCount: number
+  catalogError: boolean
   hoverInfo: HoverInfo | null
   setActiveCategories: (cats: Set<SatCategory>) => void
   applyAgentFilter: (cats: SatCategory[]) => void
@@ -44,6 +45,7 @@ export function useGlobe(
 } {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
+  const [catalogError, setCatalogError] = useState(false)
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
   const globeRef = useRef<Globe | null>(null)
 
@@ -65,6 +67,7 @@ export function useGlobe(
       setSatelliteCount(count)
       callbacksRef.current.onCategoryCounts?.(globe.getAllCategoryCounts())
     }
+    globe.onCatalogError = () => setCatalogError(true)
     globe.onSatelliteClick = (name, noradId) => callbacksRef.current.onSatelliteClick?.(name, noradId)
     globe.onSatelliteHover = (name, altKm, screenX, screenY) => {
       if (name !== null) setHoverInfo({ name, altKm, screenX, screenY })
@@ -88,6 +91,7 @@ export function useGlobe(
     return () => {
       observer.disconnect()
       globe.onCatalogRefresh = null
+      globe.onCatalogError = null
       globe.unmount()
       globeRef.current = null
       canvas.remove()
@@ -132,5 +136,5 @@ export function useGlobe(
     globeRef.current?.clearCountryHighlight()
   }, [])
 
-  return { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight }
+  return { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight }
 }

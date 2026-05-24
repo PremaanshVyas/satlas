@@ -226,6 +226,7 @@ export class Globe {
   private countryLabelSizes: number[] = []
 
   onCatalogRefresh: ((count: number) => void) | null = null
+  onCatalogError: (() => void) | null = null
   onSatelliteClick: ((name: string, noradId: string) => void) | null = null
   onSatelliteHover: ((name: string | null, altKm: number | null, screenX: number, screenY: number) => void) | null = null
   onLivePosition: ((pos: LivePosition) => void) | null = null
@@ -544,6 +545,7 @@ export class Globe {
       this.worker.postMessage({ type: 'init', tles: others })
     } catch (err) {
       console.warn('[Globe] Catalog unavailable, running ISS-only:', err)
+      this.onCatalogError?.()
     }
   }
 

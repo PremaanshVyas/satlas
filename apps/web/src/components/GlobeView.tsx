@@ -55,7 +55,7 @@ export default function GlobeView({
   const [cloudsVisible, setCloudsVisible] = useState(true)
   const [bordersVisible, setBordersVisibleState] = useState(false)
 
-  const { isLoading, satelliteCount, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight } = useGlobe(
+  const { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight } = useGlobe(
     containerRef,
     highlight,
     { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove, onCategoryCounts, onCountryClick },
@@ -181,7 +181,16 @@ export default function GlobeView({
 
         {/* Satellite count — top-right */}
         {!isLoading && (
-          satelliteCount > 0 ? (
+          catalogError ? (
+            <button
+              onClick={() => window.location.reload()}
+              className="absolute right-3 font-mono text-[13px] text-label hover:text-secondary transition-colors select-none cursor-pointer"
+              style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
+            >
+              <span className="sm:hidden">Catalog error — tap to retry</span>
+              <span className="hidden sm:inline">Catalog unavailable — click to retry</span>
+            </button>
+          ) : satelliteCount > 0 ? (
             <div
               className="absolute right-3 font-mono text-[13px] text-accent select-none"
               style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
