@@ -26,6 +26,8 @@ const NAV_ITEMS = [
   { id: 'pass',            label: '/api/pass' },
   { id: 'chat',            label: '/api/chat' },
   { id: 'satellite-info',  label: '/api/satellite-info' },
+  { id: 'satellites',      label: '/api/satellites' },
+  { id: 'overhead',        label: '/api/overhead' },
   { id: 'errors',          label: 'Errors' },
   { id: 'data',            label: 'Data Sources' },
 ]
@@ -204,7 +206,7 @@ export default function ApiDocs() {
               {[
                 { label: 'Objects tracked', value: '31,000+' },
                 { label: 'Auth required', value: 'None' },
-                { label: 'Catalog refresh', value: 'Every 2 hours' },
+                { label: 'Endpoints', value: '6' },
                 { label: 'TLE propagation', value: 'SGP4 / skyfield' },
               ].map(stat => (
                 <div key={stat.label} className="border border-[rgba(255,255,255,0.06)] rounded-[3px] px-4 py-3">
@@ -445,6 +447,128 @@ export default function ApiDocs() {
                 { name: 'velocity_kmps',        type: 'number',  description: 'Total orbital speed in km/s (magnitude of 3D velocity vector)' },
                 { name: 'orbital_period_min',   type: 'number',  description: 'Orbital period in minutes, derived from mean motion' },
                 { name: 'inclination_deg',      type: 'number',  description: 'Orbital inclination in degrees relative to the equatorial plane' },
+              ]} />
+            </div>
+          </section>
+
+          <div className="border-t border-[rgba(255,255,255,0.05)]" />
+
+          {/* ── GET /api/satellites ──────────────────────────────────────────── */}
+          <section id="satellites">
+            <div className="flex items-center gap-3 mb-3">
+              <MethodBadge method="GET" />
+              <code className="font-mono text-[13px] text-white">/api/satellites</code>
+            </div>
+            <p className="font-mono text-[11px] font-light text-secondary mb-6 leading-relaxed">
+              Search the full satellite catalog by name or NORAD ID, with optional category filtering.
+              Returns name, NORAD ID, and category for each match. At least one of <code className="text-secondary">q</code>{' '}
+              or <code className="text-secondary">category</code> is required. Cached for 2 minutes.
+            </p>
+
+            <div className="mb-5">
+              <SectionLabel>Query Parameters</SectionLabel>
+              <ParamsTable params={[
+                { name: 'q',        type: 'string',  required: false, description: 'Name substring (case-insensitive) or exact NORAD ID (digits only). At least one of q or category required.' },
+                { name: 'category', type: 'string',  required: false, description: 'Filter to a category: STARLINK | GPS | IRIDIUM | DEBRIS | OTHER' },
+                { name: 'limit',    type: 'integer', required: false, description: 'Max results to return (1–100). Default: 20' },
+              ]} />
+            </div>
+
+            <div className="mb-5">
+              <SectionLabel>Examples</SectionLabel>
+              <div className="space-y-2">
+                <CodeBlock code={`curl "${BASE}/api/satellites?q=starlink&limit=5"`} />
+                <CodeBlock code={`curl "${BASE}/api/satellites?category=GPS"`} />
+                <CodeBlock code={`curl "${BASE}/api/satellites?q=25544"`} />
+              </div>
+            </div>
+
+            <div className="mb-5">
+              <SectionLabel>Response</SectionLabel>
+              <CodeBlock code={JSON.stringify({
+                total: 7042,
+                limit: 5,
+                results: [
+                  { name: 'STARLINK-1007', norad_id: '44713', category: 'STARLINK' },
+                  { name: 'STARLINK-1008', norad_id: '44714', category: 'STARLINK' },
+                  { name: 'STARLINK-1009', norad_id: '44715', category: 'STARLINK' },
+                  { name: 'STARLINK-1010', norad_id: '44716', category: 'STARLINK' },
+                  { name: 'STARLINK-1011', norad_id: '44717', category: 'STARLINK' },
+                ],
+              }, null, 2)} />
+            </div>
+
+            <div>
+              <SectionLabel>Response Schema</SectionLabel>
+              <SchemaTable fields={[
+                { name: 'total',              type: 'integer', description: 'Total number of matching satellites (before limit is applied)' },
+                { name: 'limit',              type: 'integer', description: 'Max results returned, as requested' },
+                { name: 'results[].name',     type: 'string',  description: 'Official satellite name from the Space-Track catalog' },
+                { name: 'results[].norad_id', type: 'string',  description: 'NORAD catalog number (5-digit, zero-padded)' },
+                { name: 'results[].category', type: 'string',  description: 'Derived category: STARLINK | GPS | IRIDIUM | DEBRIS | OTHER' },
+              ]} />
+            </div>
+          </section>
+
+          <div className="border-t border-[rgba(255,255,255,0.05)]" />
+
+          {/* ── GET /api/overhead ────────────────────────────────────────────── */}
+          <section id="overhead">
+            <div className="flex items-center gap-3 mb-3">
+              <MethodBadge method="GET" />
+              <code className="font-mono text-[13px] text-white">/api/overhead</code>
+            </div>
+            <p className="font-mono text-[11px] font-light text-secondary mb-6 leading-relaxed">
+              All satellites currently above the horizon at a given location, sorted by elevation angle.
+              Propagates the full catalog (31,000+ objects) to the current instant using SGP4. Response time
+              is typically 3–8 seconds on cold start, under 1 second warm. Cached for 15 seconds.
+            </p>
+
+            <div className="mb-5">
+              <SectionLabel>Query Parameters</SectionLabel>
+              <ParamsTable params={[
+                { name: 'latitude',      type: 'number',  required: true,  description: 'Observer latitude in decimal degrees (south = negative)' },
+                { name: 'longitude',     type: 'number',  required: true,  description: 'Observer longitude in decimal degrees (west = negative)' },
+                { name: 'min_elevation', type: 'number',  required: false, description: 'Minimum elevation angle in degrees. Default: 10' },
+                { name: 'category',      type: 'string',  required: false, description: 'Restrict to a category: STARLINK | GPS | IRIDIUM | DEBRIS | OTHER' },
+                { name: 'limit',         type: 'integer', required: false, description: 'Max results to return (1–50). Default: 25' },
+              ]} />
+            </div>
+
+            <div className="mb-5">
+              <SectionLabel>Examples</SectionLabel>
+              <div className="space-y-2">
+                <CodeBlock code={`curl "${BASE}/api/overhead?latitude=-37.81&longitude=144.96"`} />
+                <CodeBlock code={`curl "${BASE}/api/overhead?latitude=51.51&longitude=-0.13&category=STARLINK&limit=10"`} />
+              </div>
+            </div>
+
+            <div className="mb-5">
+              <SectionLabel>Response</SectionLabel>
+              <CodeBlock code={JSON.stringify({
+                location:   { latitude: -37.81, longitude: 144.96 },
+                count:      142,
+                limit:      25,
+                satellites: [
+                  { name: 'ISS (ZARYA)', norad_id: '25544', category: 'OTHER', elevation_deg: 68.4, azimuth_deg: 312.7, direction: 'NW' },
+                  { name: 'STARLINK-3109', norad_id: '52750', category: 'STARLINK', elevation_deg: 54.1, azimuth_deg: 88.2, direction: 'E' },
+                  { name: 'STARLINK-3204', norad_id: '53240', category: 'STARLINK', elevation_deg: 41.8, azimuth_deg: 201.5, direction: 'SSW' },
+                ],
+              }, null, 2)} />
+            </div>
+
+            <div>
+              <SectionLabel>Response Schema</SectionLabel>
+              <SchemaTable fields={[
+                { name: 'location',                   type: 'object',  description: 'Echo of the requested latitude/longitude' },
+                { name: 'count',                      type: 'integer', description: 'Total satellites found above min_elevation (before limit)' },
+                { name: 'limit',                      type: 'integer', description: 'Max results returned, as requested' },
+                { name: 'satellites[].name',          type: 'string',  description: 'Official satellite name' },
+                { name: 'satellites[].norad_id',      type: 'string',  description: 'NORAD catalog number' },
+                { name: 'satellites[].category',      type: 'string',  description: 'STARLINK | GPS | IRIDIUM | DEBRIS | OTHER' },
+                { name: 'satellites[].elevation_deg', type: 'number',  description: 'Current elevation angle above horizon in degrees' },
+                { name: 'satellites[].azimuth_deg',   type: 'number',  description: 'Current azimuth in degrees (0° = North, clockwise)' },
+                { name: 'satellites[].direction',     type: 'string',  description: '16-point compass direction (N, NNE, NE … NNW)' },
               ]} />
             </div>
           </section>
