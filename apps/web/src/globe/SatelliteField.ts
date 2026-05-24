@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import vertexShader from './shaders/satellite.vert.glsl?raw'
 import fragmentShader from './shaders/satellite.frag.glsl?raw'
 
-export const DEFAULT_COLOR = new THREE.Color(0x60a5fa)
+export const DEFAULT_COLOR = new THREE.Color(0x00d4ff)
 
 // Base disc diameter in scene units (globe radius = 1).
 // Matches the previous SphereGeometry radius of 0.005 so hit-test math is unchanged.
