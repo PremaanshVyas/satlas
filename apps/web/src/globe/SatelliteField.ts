@@ -1,20 +1,36 @@
 import * as THREE from 'three'
+import vertexShader from './shaders/satellite.vert.glsl?raw'
+import fragmentShader from './shaders/satellite.frag.glsl?raw'
 
 export const DEFAULT_COLOR = new THREE.Color(0x60a5fa)
 
+// Base disc diameter in scene units (globe radius = 1).
+// Matches the previous SphereGeometry radius of 0.005 so hit-test math is unchanged.
+const DOT_SIZE = 0.010
+
 export class SatelliteField {
   readonly mesh: THREE.InstancedMesh
-  private readonly mat: THREE.MeshBasicMaterial
+  private readonly mat: THREE.ShaderMaterial
   private dummy = new THREE.Object3D()
 
   constructor(count: number) {
-    const geo = new THREE.SphereGeometry(0.005, 6, 6)
-    // Mat stays white always — all coloring is done via instanceColor so individual
-    // instances can be recoloured (hover, selection, category highlight) without
-    // changing the shared material. mat × instanceColor = instanceColor when mat=white.
-    this.mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 })
+    // Unit plane — the vertex shader billboards it toward the camera each frame.
+    const geo = new THREE.PlaneGeometry(1, 1)
+
+    this.mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uSize:    { value: DOT_SIZE },
+        uOpacity: { value: 0.85 },
+      },
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+      depthWrite: false,
+    })
+
     this.mesh = new THREE.InstancedMesh(geo, this.mat, count)
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+
     // Pre-init instanceColor to DEFAULT_COLOR (blue). Buffer stays non-null always
     // to avoid null→non-null VAO rebinding bugs when colours change later.
     for (let i = 0; i < count; i++) this.mesh.setColorAt(i, DEFAULT_COLOR)
@@ -39,7 +55,6 @@ export class SatelliteField {
   }
 
   // Color each instance by category. catColors=null resets all to default blue.
-  // Mat is always white — instanceColor is the sole source of per-dot colour.
   setCategoryColors(catMap: string[], catColors: Record<string, THREE.Color> | null): void {
     const count = this.mesh.count
     if (catColors === null) {
