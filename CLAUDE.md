@@ -110,11 +110,17 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 30 — Country highlight fill fixed. All globe map mode features working. Ready for V2 direction decision.
+**Current phase:** Session 31 — V2 direction decision. Globe map mode fully working. Small polish done.
 
-**Next milestone for Session 31:** V2 direction decision — vision pipeline (bushfire scar detection), orbit history (TimescaleDB), Go API gateway, or more agent tools. Also minor polish: label zoom threshold tuning, fill opacity review, README update for V2 framing.
+**Next milestone:** Pick V2 direction and scope first milestone. Options in `docs/session-30-bootstrap.md`.
 
 **Sessions 1–20 (complete, stable):** See `docs/session-21-bootstrap.md` (S21 context) and `docs/decisions-archive.md` (all ADRs through S17). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
+
+**Session 31 completed tasks (so far):**
+- [x] Vercel Analytics (`@vercel/analytics`) added to `apps/web` — page views, visitors, referrers live on Vercel dashboard
+- [x] Vercel Speed Insights (`@vercel/speed-insights`) added — Core Web Vitals (LCP, FID, CLS) tracking
+- [x] PassPanel scroll clipping fixed: `pb-2` on results container — last pass row no longer cut off
+- [x] CountryPanel overhead list scroll clipping fixed: `pb-1` on sat list container
 
 **Session 30 completed tasks:**
 - [x] `CountryHighlightMesh` fill re-enabled: `subdivideRing` + `refineTris` in `sphereUtils.ts` — edges subdivided to ≤4° before earcut, large interior triangles recursively split
