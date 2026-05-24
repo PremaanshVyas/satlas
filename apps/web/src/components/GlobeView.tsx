@@ -165,7 +165,7 @@ export default function GlobeView({
           />
           <Link
             to="/docs"
-            className="flex items-center bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg font-mono text-[11px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors whitespace-nowrap"
+            className="hidden sm:flex items-center bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg font-mono text-[11px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors whitespace-nowrap"
           >
             API Docs
           </Link>
@@ -201,71 +201,71 @@ export default function GlobeView({
           )
         )}
 
-        {/* Cloud toggle */}
-        <button
-          onClick={toggleClouds}
-          title={cloudsVisible ? 'Hide clouds' : 'Show clouds'}
-          className="absolute right-3 z-20 flex items-center gap-2 pointer-events-auto px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
+        {/* Toggle group — stacked, labels hidden on mobile to keep buttons compact */}
+        <div
+          className="absolute right-3 z-20 pointer-events-auto flex flex-col gap-1.5"
           style={{ top: `max(2.75rem, calc(${safeTop} + 2.25rem))` }}
         >
-          <svg width="13" height="9" viewBox="0 0 24 16" fill="none" className="flex-shrink-0">
-            <path d="M19 12a5 5 0 0 0-9.9-1A3.5 3.5 0 1 0 4 14.5h15a3.5 3.5 0 0 0 0-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <span>Clouds</span>
-          <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
-            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
-          </div>
-        </button>
+          <button
+            onClick={toggleClouds}
+            title={cloudsVisible ? 'Hide clouds' : 'Show clouds'}
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
+          >
+            <svg width="13" height="9" viewBox="0 0 24 16" fill="none" className="flex-shrink-0">
+              <path d="M19 12a5 5 0 0 0-9.9-1A3.5 3.5 0 1 0 4 14.5h15a3.5 3.5 0 0 0 0-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className="hidden sm:inline">Clouds</span>
+            <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+              <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+            </div>
+          </button>
 
-        {/* Debris toggle */}
-        <button
-          onClick={() => toggleCategory('DEBRIS')}
-          title={activeCategories.has('DEBRIS') ? 'Hide debris' : 'Show debris'}
-          className="absolute right-3 z-20 flex items-center gap-2 pointer-events-auto px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
-          style={{ top: `max(4.75rem, calc(${safeTop} + 4.25rem))` }}
-        >
-          <svg width="13" height="9" viewBox="0 0 14 10" fill="currentColor" className="flex-shrink-0">
-            <circle cx="2" cy="2" r="1.3" opacity="0.6"/>
-            <circle cx="7" cy="5" r="1.3" opacity="0.6"/>
-            <circle cx="12" cy="2" r="1.3" opacity="0.6"/>
-            <circle cx="10" cy="8.5" r="1.3" opacity="0.6"/>
-            <circle cx="4" cy="8.5" r="1.3" opacity="0.6"/>
-          </svg>
-          <span>Debris</span>
-          <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${activeCategories.has('DEBRIS') ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
-            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${activeCategories.has('DEBRIS') ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
-          </div>
-        </button>
+          <button
+            onClick={() => toggleCategory('DEBRIS')}
+            title={activeCategories.has('DEBRIS') ? 'Hide debris' : 'Show debris'}
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
+          >
+            <svg width="13" height="9" viewBox="0 0 14 10" fill="currentColor" className="flex-shrink-0">
+              <circle cx="2" cy="2" r="1.3" opacity="0.6"/>
+              <circle cx="7" cy="5" r="1.3" opacity="0.6"/>
+              <circle cx="12" cy="2" r="1.3" opacity="0.6"/>
+              <circle cx="10" cy="8.5" r="1.3" opacity="0.6"/>
+              <circle cx="4" cy="8.5" r="1.3" opacity="0.6"/>
+            </svg>
+            <span className="hidden sm:inline">Debris</span>
+            <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${activeCategories.has('DEBRIS') ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+              <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${activeCategories.has('DEBRIS') ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+            </div>
+          </button>
 
-        {/* Borders / Map mode toggle */}
-        <button
-          onClick={toggleBorders}
-          title={bordersVisible ? 'Hide map mode' : 'Show map mode'}
-          className="absolute right-3 z-20 flex items-center gap-2 pointer-events-auto px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
-          style={{ top: `max(6.75rem, calc(${safeTop} + 6.25rem))` }}
-        >
-          <svg width="13" height="9" viewBox="0 0 14 10" fill="none" stroke="currentColor" strokeWidth="1.4" className="flex-shrink-0">
-            <rect x="0.7" y="0.7" width="12.6" height="8.6" rx="0.8"/>
-            <path d="M4.7 0.7v8.6M9.3 0.7v8.6"/>
-          </svg>
-          <span>Borders</span>
-          <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${bordersVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
-            <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${bordersVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
-          </div>
-        </button>
+          <button
+            onClick={toggleBorders}
+            title={bordersVisible ? 'Hide map mode' : 'Show map mode'}
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
+          >
+            <svg width="13" height="9" viewBox="0 0 14 10" fill="none" stroke="currentColor" strokeWidth="1.4" className="flex-shrink-0">
+              <rect x="0.7" y="0.7" width="12.6" height="8.6" rx="0.8"/>
+              <path d="M4.7 0.7v8.6M9.3 0.7v8.6"/>
+            </svg>
+            <span className="hidden sm:inline">Borders</span>
+            <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${bordersVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+              <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${bordersVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+            </div>
+          </button>
+        </div>
 
-        {/* Category filter pills — bottom-center with glass background */}
+        {/* Category filter pills — full-width scrollable row on mobile, centered wrap on desktop */}
         <div
-          className="absolute left-1/2 -translate-x-1/2 pointer-events-auto"
+          className="absolute left-0 right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 pointer-events-auto px-3 sm:px-0"
           style={{ bottom: `max(1rem, calc(${safeBottom} + 0.5rem))` }}
         >
-          <div className="flex gap-1.5 flex-wrap justify-center bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg">
+          <div className="flex gap-1.5 flex-nowrap sm:flex-wrap sm:justify-center overflow-x-auto sm:overflow-x-visible bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {ALL_CATEGORIES.map(cat => (
               <button
                 key={cat}
                 data-active={activeCategories.has(cat)}
                 onClick={() => toggleCategory(cat)}
-                className={`px-3 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
+                className={`flex-shrink-0 px-3 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
                   activeCategories.has(cat)
                     ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
                     : 'border-[rgba(255,255,255,0.07)] text-label hover:text-secondary hover:border-[rgba(255,255,255,0.12)]'

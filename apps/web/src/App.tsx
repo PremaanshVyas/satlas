@@ -155,8 +155,8 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute left-3 z-20 w-52 sm:w-56"
-            style={{ bottom: 'max(3.5rem, calc(env(safe-area-inset-bottom, 0px) + 3rem))' }}
+            className="absolute left-3 z-20 w-44 sm:w-56"
+            style={{ bottom: 'max(4.5rem, calc(env(safe-area-inset-bottom, 0px) + 4rem))' }}
           >
             <button
               onClick={() => setTrayOpen(o => !o)}
@@ -184,7 +184,7 @@ export default function App() {
                   className="mt-1 bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] overflow-hidden"
                   style={{ overflow: 'hidden' }}
                 >
-                  <div className="max-h-44 overflow-y-auto divide-y divide-[rgba(255,255,255,0.04)]">
+                  <div className="max-h-32 sm:max-h-44 overflow-y-auto divide-y divide-[rgba(255,255,255,0.04)]">
                     {selectedSats.map(sat => (
                       <div
                         key={sat.noradId}
@@ -388,7 +388,7 @@ export default function App() {
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
             onClick={() => setChatOpen(true)}
             className="absolute right-4 z-30 w-12 h-12 rounded-full bg-[rgba(9,9,9,0.9)] border border-[rgba(0,212,255,0.25)] text-accent shadow-lg flex items-center justify-center touch-manipulation hover:border-[rgba(0,212,255,0.45)] transition-colors"
-            style={{ bottom: 'max(4rem, calc(env(safe-area-inset-bottom, 0px) + 3.5rem))' }}
+            style={{ bottom: 'max(4.5rem, calc(env(safe-area-inset-bottom, 0px) + 4rem))' }}
             aria-label="Open AI chat"
           >
             {messages.length > 0 ? (
@@ -406,7 +406,7 @@ export default function App() {
       {!chatOpen && messages.length > 0 && (
         <div
           className="absolute right-3 z-40 w-2.5 h-2.5 rounded-full bg-accent border border-[#080808]"
-          style={{ bottom: 'max(5.25rem, calc(env(safe-area-inset-bottom, 0px) + 4.75rem))' }}
+          style={{ bottom: 'max(5.75rem, calc(env(safe-area-inset-bottom, 0px) + 5.25rem))' }}
         />
       )}
     </div>
