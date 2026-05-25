@@ -84,6 +84,19 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
                     em:     ({ children }) => <em className="text-[#aaa]">{children}</em>,
                     code:   ({ children }) => <code className="bg-[rgba(255,255,255,0.07)] px-1 rounded text-accent text-[12px]">{children}</code>,
                     a:      ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2">{children}</a>,
+                    h1:     ({ children }) => <p className="text-white font-medium mb-1">{children}</p>,
+                    h2:     ({ children }) => <p className="text-white font-medium mb-1">{children}</p>,
+                    h3:     ({ children }) => <p className="text-secondary font-medium mb-1">{children}</p>,
+                    table:  ({ children }) => (
+                      <div className="my-2 w-full overflow-x-auto [&_td:first-child]:whitespace-nowrap [&_td:first-child]:pr-4 [&_td:first-child]:text-[rgba(255,255,255,0.6)] [&_th:first-child]:pr-4">
+                        <table className="w-full text-[12px] border-collapse">{children}</table>
+                      </div>
+                    ),
+                    thead:  ({ children }) => <thead className="border-b border-[rgba(255,255,255,0.08)]">{children}</thead>,
+                    tbody:  ({ children }) => <tbody>{children}</tbody>,
+                    tr:     ({ children }) => <tr className="border-b border-[rgba(255,255,255,0.05)] last:border-0">{children}</tr>,
+                    th:     ({ children }) => <th className="text-left text-[10px] uppercase tracking-[0.08em] text-label font-normal py-1.5">{children}</th>,
+                    td:     ({ children }) => <td className="py-1.5 text-secondary align-top">{children}</td>,
                   }}
                 >
                   {msg.content}
