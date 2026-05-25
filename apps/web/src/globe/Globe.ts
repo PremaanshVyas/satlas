@@ -293,7 +293,6 @@ export class Globe {
     this.controls = new OrbitControls(this.camera, canvas)
     this.controls.enableDamping = true
     this.controls.dampingFactor = 0.07
-    this.controls.rotateSpeed = 0.5
     this.controls.minDistance = 1.3
     this.controls.maxDistance = 15
     this.controls.autoRotate = false
@@ -1333,23 +1332,32 @@ export class Globe {
 
     this.controls.update()
 
-    // Scale dots and zoom speed with camera distance each frame.
-    // Size formula: uSize = targetPx × depth × 2tan(fov/2) / viewportHeight
+    // Per-frame dot size, opacity, and control sensitivity — all zoom-aware.
+    // uSize formula: uSize = targetPx × depth × 2tan(fov/2) / viewportHeight
     // where 0.8284 = 2 × tan(22.5°) for the 45° vertical FOV.
-    // t^0.5 curve keeps dots small quickly as you pull back — prevents the dense
-    // LEO belt from completely filling the earth at mid/far zoom.
-    if (this.field) {
+    {
       const camDist = this.camera.position.length()
       const h = this.renderer.domElement.height / this.renderer.getPixelRatio()
       const depth = Math.max(camDist - 1.0, 0.3)
-      const t = Math.max(0, Math.min(1, (camDist - 1.3) / 13.7))
-      const tCurved = Math.sqrt(t)
-      const targetPx = 3.0 - tCurved * 1.5   // 3.0px close → 1.5px far
-      const opacity  = 0.85 - t * 0.35        // 0.85 close → 0.50 far
-      this.field.setDotStyle(targetPx * depth * 0.8284 / h, opacity)
+      const fovFactor = h / 0.8284
+      const t = Math.max(0, Math.min(1, (camDist - 1.3) / 13.7)) // 0=close, 1=far
+
+      if (this.field) {
+        // Keep original perspective scaling (DOT_SIZE=0.010 feels right at default zoom)
+        // but clamp: max 4.5px so close-zoom dots stay tappable, min 1.5px so far-zoom
+        // dots stay visible against the star field.
+        const rawPx = 0.010 * fovFactor / depth
+        const targetPx = Math.max(1.5, Math.min(4.5, rawPx))
+        const opacity  = 0.85 - t * 0.35  // 0.85 close → 0.50 far
+        this.field.setDotStyle(targetPx * depth / fovFactor, opacity)
+      }
+
+      // Rotate slower when close — short swipes shouldn't whip past the target region.
+      // Zoom slower when close — prevents overshooting the surface.
+      const tSqrt = Math.sqrt(t)
+      this.controls.rotateSpeed = 0.25 + tSqrt * 0.25  // 0.25 close → 0.50 far
+      this.controls.zoomSpeed   = 0.50 + t    * 0.50   // 0.50 close → 1.00 far
     }
-    // Zoom speed: slightly slower when close so fine-grained navigation is easier.
-    this.controls.zoomSpeed = 0.7 + Math.max(0, Math.min(1, (this.camera.position.length() - 1.3) / 13.7)) * 0.3
 
     this.renderer.render(this.scene, this.camera)
     if (this.labelRenderer && this.bordersEnabled) {
