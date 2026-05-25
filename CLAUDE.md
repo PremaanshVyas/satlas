@@ -110,9 +110,9 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 33 — V1 polish (visual quality + render performance). No new features; preparing V1 for V2 work to begin.
+**Current phase:** Session 33 complete. Session 34 — V2 direction decision next.
 
-**Next milestone:** V2 direction decision (Options A–D in decisions log below).
+**Next milestone:** V2 direction decision (Options A–D in decisions log below). Also posted to r/Starlink (🌎 Constellation flair) — monitor for feedback.
 
 **Sessions 1–20 (complete, stable):** See `docs/decisions-archive.md` (all ADRs through S25). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
 
