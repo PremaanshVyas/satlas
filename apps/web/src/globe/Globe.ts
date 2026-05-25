@@ -293,6 +293,7 @@ export class Globe {
     this.controls = new OrbitControls(this.camera, canvas)
     this.controls.enableDamping = true
     this.controls.dampingFactor = 0.07
+    this.controls.rotateSpeed = 0.5
     this.controls.minDistance = 1.3
     this.controls.maxDistance = 15
     this.controls.autoRotate = false
@@ -1331,6 +1332,20 @@ export class Globe {
     }
 
     this.controls.update()
+
+    // Keep dots a consistent screen size across zoom levels.
+    // Target: ~4.5 screen-px at minDistance, ~2.5px at maxDistance.
+    // Formula: uSize = targetPx × depth × 2tan(fov/2) / viewportHeight
+    // where 0.8284 = 2 × tan(22.5°) for the 45° vertical FOV.
+    if (this.field) {
+      const camDist = this.camera.position.length()
+      const h = this.renderer.domElement.height / this.renderer.getPixelRatio()
+      const depth = Math.max(camDist - 1.0, 0.3)
+      const t = Math.max(0, Math.min(1, (camDist - 1.3) / 13.7))
+      const targetPx = 4.5 - t * 2.0
+      this.field.setDotSize(targetPx * depth * 0.8284 / h)
+    }
+
     this.renderer.render(this.scene, this.camera)
     if (this.labelRenderer && this.bordersEnabled) {
       this._updateLabelVisibility()
