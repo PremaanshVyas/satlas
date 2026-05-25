@@ -16,8 +16,11 @@ const DEV_NOTES: DevNote[] = [
   },
 ]
 
-export default function DevNotes() {
+interface DevNotesProps { hidden?: boolean }
+
+export default function DevNotes({ hidden = false }: DevNotesProps) {
   const [open, setOpen] = useState(true)
+  if (hidden) return null
 
   return (
     <>

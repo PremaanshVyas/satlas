@@ -412,7 +412,7 @@ export default function App() {
         />
       )}
 
-      <DevNotes />
+      <DevNotes hidden={chatOpen} />
     </div>
   )
 }
