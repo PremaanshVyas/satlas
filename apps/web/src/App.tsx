@@ -23,7 +23,7 @@ interface SelectedCountry {
 }
 
 export default function App() {
-  const { messages, isLoading, sendMessage, highlight, setFilter } = useChat()
+  const { messages, isLoading, sendMessage, highlight, setFilter, spotlight } = useChat()
   const [chatOpen, setChatOpen] = useState(false)
   const [prefill, setPrefill] = useState<string | null>(null)
 
@@ -134,6 +134,7 @@ export default function App() {
       <GlobeView
         highlight={highlight}
         setFilter={setFilter}
+        spotlight={spotlight}
         onSatelliteSelect={handleSatelliteSelect}
         onSatelliteSelectInfo={handleSatelliteSelectInfo}
         onLivePosition={handleLivePosition}

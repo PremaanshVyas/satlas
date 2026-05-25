@@ -183,6 +183,7 @@ export class Globe {
   private activeCategories: Set<SatCategory> = new Set(ALL_CATEGORIES)
   private activeCategoryMask: Uint8Array | null = null
   private agentFilterCategories: SatCategory[] | null = null
+  private spotlightNoradId: string | null = null
 
   // Multi-satellite selection — keyed by NORAD ID string
   private selectedNoradIds: Set<string> = new Set()
@@ -554,6 +555,7 @@ export class Globe {
   // ── Category filtering ──────────────────────────────────────────────────────
 
   setActiveCategories(cats: Set<SatCategory>): void {
+    this.spotlightNoradId = null
     this.agentFilterCategories = null
     this.activeCategories = cats
     this.rebuildCategoryMask()
@@ -566,6 +568,7 @@ export class Globe {
   }
 
   applyAgentFilter(categories: SatCategory[]): void {
+    this.spotlightNoradId = null
     const cats = categories.length > 0 ? categories : [...ALL_CATEGORIES]
     this.agentFilterCategories = categories.length > 0 ? [...categories] : null
     this.activeCategories = new Set(cats)
@@ -574,6 +577,35 @@ export class Globe {
       this.field.update(this.lastPositionBuffer, this.activeCategoryMask, this.satScales)
     }
     this.applyAgentCategoryColors()
+  }
+
+  applySpotlight(noradId: string | null): void {
+    this.spotlightNoradId = noradId
+    if (noradId === null) {
+      this.rebuildCategoryMask()
+    } else if (noradId === ISS_NORAD) {
+      // ISS is its own SatelliteMesh — zero out the field mask to hide all catalog satellites
+      const count = this.satCategories.length
+      this.activeCategoryMask = count > 0 ? new Uint8Array(count) : null
+    } else {
+      const idx = this.satNoradIds.indexOf(noradId)
+      const count = this.satCategories.length
+      if (idx !== -1 && count > 0) {
+        const mask = new Uint8Array(count)
+        mask[idx] = 1
+        this.activeCategoryMask = mask
+      } else {
+        // Not in catalog — fall back to normal mask
+        this.spotlightNoradId = null
+        this.rebuildCategoryMask()
+      }
+    }
+    if (this.field && this.lastPositionBuffer) {
+      this.field.update(this.lastPositionBuffer, this.activeCategoryMask, this.satScales)
+    }
+    this.field?.setCategoryColors([], null)
+    if (this.hoveredIdx >= 0) this.refreshInstanceColor(this.hoveredIdx)
+    for (const idx of this.selectedIdxs) this.refreshInstanceColor(idx)
   }
 
   private applyAgentCategoryColors(): void {

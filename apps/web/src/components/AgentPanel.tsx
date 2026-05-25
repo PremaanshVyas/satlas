@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { ChatMessage } from '../types/chat'
 
 interface AgentPanelProps {
@@ -62,19 +64,37 @@ export default function AgentPanel({ messages, isLoading, sendMessage, prefill, 
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[88%] rounded-[3px] px-3 py-2 font-mono text-[13px] font-light whitespace-pre-wrap leading-relaxed ${
+              className={`max-w-[88%] rounded-[3px] px-3 py-2 font-mono text-[13px] font-light leading-relaxed ${
                 msg.role === 'user'
-                  ? 'bg-[rgba(0,212,255,0.08)] border border-[rgba(0,212,255,0.15)] text-white'
+                  ? 'bg-[rgba(0,212,255,0.08)] border border-[rgba(0,212,255,0.15)] text-white whitespace-pre-wrap'
                   : 'border border-[rgba(255,255,255,0.06)] text-secondary'
               }`}
             >
-              {msg.content || (msg.streaming ? (
+              {msg.role === 'user' ? (
+                msg.content
+              ) : msg.content ? (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p:      ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                    ul:     ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
+                    ol:     ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+                    li:     ({ children }) => <li className="leading-relaxed">{children}</li>,
+                    strong: ({ children }) => <strong className="text-white font-medium">{children}</strong>,
+                    em:     ({ children }) => <em className="text-[#aaa]">{children}</em>,
+                    code:   ({ children }) => <code className="bg-[rgba(255,255,255,0.07)] px-1 rounded text-accent text-[12px]">{children}</code>,
+                    a:      ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2">{children}</a>,
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              ) : msg.streaming ? (
                 <span className="inline-flex gap-1 items-center h-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce [animation-delay:150ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce [animation-delay:300ms]" />
                 </span>
-              ) : null)}
+              ) : null}
             </div>
           </div>
         ))}

@@ -37,6 +37,7 @@ export function useGlobe(
   hoverInfo: HoverInfo | null
   setActiveCategories: (cats: Set<SatCategory>) => void
   applyAgentFilter: (cats: SatCategory[]) => void
+  applySpotlight: (noradId: string | null) => void
   removeFromSelection: (noradId: string) => void
   setCloudVisibility: (visible: boolean) => void
   searchCatalog: (query: string) => SearchResults
@@ -113,6 +114,10 @@ export function useGlobe(
     globeRef.current?.applyAgentFilter(cats)
   }, [])
 
+  const applySpotlight = useCallback((noradId: string | null) => {
+    globeRef.current?.applySpotlight(noradId)
+  }, [])
+
   const removeFromSelection = useCallback((noradId: string): void => {
     globeRef.current?.removeFromSelection(noradId)
   }, [])
@@ -137,5 +142,5 @@ export function useGlobe(
     globeRef.current?.clearCountryHighlight()
   }, [])
 
-  return { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight }
+  return { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight }
 }

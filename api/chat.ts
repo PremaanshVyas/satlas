@@ -228,6 +228,18 @@ async function toolFindSatellitesOverhead(
   }
 }
 
+// ── Filter-command detection ──────────────────────────────────────────────────
+// When a message is unambiguously about changing what's displayed, force tool use
+// so the model cannot skip the tool call and just reply with text.
+
+const FILTER_VERBS = ['show', 'hide', 'add', 'remove', 'only', 'just', 'display', 'enable', 'disable', 'turn on', 'turn off', 'bring back', 'include', 'exclude']
+const FILTER_TARGETS = ['starlink', 'gps', 'iridium', 'debris', 'other', 'all', 'everything', 'nothing', 'satellite', 'categories', 'category']
+
+function isFilterCommand(msg: string): boolean {
+  const m = msg.toLowerCase()
+  return FILTER_VERBS.some(v => m.includes(v)) && FILTER_TARGETS.some(t => m.includes(t))
+}
+
 // ── System prompt ─────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(now: Date, shownCategories: string[], categoryCounts: Record<string, number>): string {
@@ -250,13 +262,14 @@ TOOL USAGE RULES:\
 \n- get_satellite_info: call when the user asks about ANY specific satellite — "where is X", "tell me about X", "what altitude is X". ALWAYS call this tool; NEVER answer satellite position, altitude, velocity, inclination, orbital period, tracking status, or catalog presence from your training knowledge. A successful tool response (contains latitude/longitude/altitude) means the satellite IS in our catalog and IS actively tracked — never contradict this with training knowledge. When the user's message includes a NORAD ID (plain integer), pass just that number. Always call highlight_on_globe IN THE SAME RESPONSE (in parallel).\
 \n- predict_passes: call when the user asks about pass times, ISS visibility, or when a satellite will be overhead. Requires latitude, longitude, and the satellite's NORAD ID or name.\
 \n- highlight_on_globe: call IN THE SAME TURN as get_satellite_info — never wait for satellite info first. Do not mention the highlight in your text.\
-\n- set_category_filter: FILTER RULES:\
-\n  * Currently shown: ${shownList}\
-\n  * "Show X" / "also show X" = ADD X to current. Call with CURRENT + X.\
-\n  * "Only show X" / "just X" = REPLACE. Call with just X.\
-\n  * "Hide X" = REMOVE X. Call with current minus X.\
-\n  * "Show all" / "reset" = call with all 5 categories.\
-\n  * ALWAYS call immediately — never argue about current state.\
+\n- set_category_filter: MANDATORY — calling this tool IS the change; without it the globe does NOT update, no matter what your text says.\
+\n  * Currently shown categories: [${shownList}]\
+\n  * ADD a category ("also show X", "add X", "and X"): call with [${shownList}] PLUS the new one.\
+\n  * REMOVE a category ("hide X", "remove X"): call with [${shownList}] MINUS that one.\
+\n  * REPLACE ("only X", "just X", "show only X"): call with [X] only. If X is a specific satellite name (not a category), use spotlight_satellite instead.\
+\n  * RESET ("show all", "reset", "show everything"): call with ['STARLINK','GPS','IRIDIUM','DEBRIS','OTHER'].\
+\n  * RULE: you MUST call this tool for every filter request. Responding with text alone does nothing. Call the tool first, then confirm in text.\
+\n- spotlight_satellite: call when user wants to see ONLY one specific named satellite ("show only ISS", "just show Hubble", "hide everything except X"). Shows exactly that satellite dot, hiding all others. Always call highlight_on_globe in the same turn so the camera focuses on it. Do NOT use set_category_filter for this — that shows the whole category.\
 \n- find_satellites_overhead: call when the user asks what satellites are currently overhead, above, or passing over a location right now. Infer lat/lon from well-known cities (Sydney: -33.87, 151.21; Melbourne: -37.81, 144.96; London: 51.51, -0.13; New York: 40.71, -74.01; Tokyo: 35.68, 139.69). Ask if the location is ambiguous.\
 \n\nIMPORTANT — you are the PRESENTER, not the calculator. Every value you show must come from a tool result. Never compute or guess position, altitude, pass times, or any data value.\
 \n\nIF ANY TOOL RETURNS AN ERROR: respond with exactly "The live data service is temporarily unavailable — please try again in a moment." Do NOT use training knowledge.\
@@ -339,7 +352,20 @@ const FIND_OVERHEAD_TOOL: Anthropic.Tool = {
   },
 }
 
-const TOOLS = [GET_SAT_INFO_TOOL, PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL, SET_FILTER_TOOL, FIND_OVERHEAD_TOOL]
+const SPOTLIGHT_TOOL: Anthropic.Tool = {
+  name: 'spotlight_satellite',
+  description: 'Show only one specific satellite on the globe, hiding all others. Use when the user asks to see ONLY a single named satellite ("show only ISS", "just Hubble", "hide everything except X"). Do NOT use set_category_filter for single-satellite requests — that shows the whole category.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      norad_id:       { type: 'string', description: 'NORAD catalog number of the satellite to spotlight.' },
+      satellite_name: { type: 'string', description: 'Human-readable name, e.g. "ISS".' },
+    },
+    required: ['norad_id', 'satellite_name'],
+  },
+}
+
+const TOOLS = [GET_SAT_INFO_TOOL, PREDICT_PASSES_TOOL, HIGHLIGHT_TOOL, SET_FILTER_TOOL, FIND_OVERHEAD_TOOL, SPOTLIGHT_TOOL]
 
 // ── Input interfaces ──────────────────────────────────────────────────────────
 
@@ -348,6 +374,7 @@ interface PassesInput    { satellite: string; latitude: number; longitude: numbe
 interface HighlightInput { norad_id: string; satellite_name: string; latitude?: number; longitude?: number }
 interface SetFilterInput { categories: ('STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER')[] }
 interface OverheadInput  { latitude: number; longitude: number; min_elevation?: number }
+interface SpotlightInput { norad_id: string; satellite_name: string }
 interface HistoryMessage { role: 'user' | 'assistant'; content: string }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -380,7 +407,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const historyMessages: Anthropic.MessageParam[] = history.map(m => ({
       role: m.role,
       content: m.role === 'assistant'
-        ? m.content.split('\n__HIGHLIGHT__:')[0].split('\n__SET_FILTER__:')[0]
+        ? m.content.split('\n__HIGHLIGHT__:')[0].split('\n__SET_FILTER__:')[0].split('\n__SPOTLIGHT__:')[0]
         : m.content,
     }))
 
@@ -394,11 +421,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       max_tokens: 1024,
       system: systemPrompt,
       tools: TOOLS,
+      // Force tool use for unambiguous filter commands — prevents the model from
+      // responding with text only and leaving the globe unchanged.
+      tool_choice: isFilterCommand(message) ? { type: 'any' } : { type: 'auto' },
       messages: currentMessages,
     })
 
     let pendingHighlight: HighlightInput | null = null
     let pendingSetFilter: SetFilterInput | null = null
+    let pendingSpotlight: SpotlightInput | null = null
 
     if (response1.stop_reason === 'tool_use') {
       const messages: Anthropic.MessageParam[] = [
@@ -439,6 +470,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const result = await toolFindSatellitesOverhead(input.latitude, input.longitude, input.min_elevation ?? 10)
           toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
 
+        } else if (block.name === 'spotlight_satellite') {
+          pendingSpotlight = block.input as SpotlightInput
+          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: 'ok' })
+
         } else {
           toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: 'error: unknown tool', is_error: true })
         }
@@ -470,6 +505,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (pendingHighlight) res.write(`\n__HIGHLIGHT__:${JSON.stringify(pendingHighlight)}\n`)
+    if (pendingSpotlight) res.write(`\n__SPOTLIGHT__:${JSON.stringify(pendingSpotlight)}\n`)
     if (pendingSetFilter) res.write(`\n__SET_FILTER__:${JSON.stringify(pendingSetFilter)}\n`)
     res.end()
   } catch (err) {

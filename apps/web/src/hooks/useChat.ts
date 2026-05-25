@@ -1,38 +1,44 @@
 import { useState, useCallback } from 'react'
-import type { ChatMessage, HighlightDirective, SetFilterDirective } from '../types/chat'
+import type { ChatMessage, HighlightDirective, SetFilterDirective, SpotlightDirective } from '../types/chat'
 
-const HIGHLIGHT_MARKER = '\n__HIGHLIGHT__:'
+const HIGHLIGHT_MARKER  = '\n__HIGHLIGHT__:'
 const SET_FILTER_MARKER = '\n__SET_FILTER__:'
+const SPOTLIGHT_MARKER  = '\n__SPOTLIGHT__:'
+
+const ALL_MARKERS = [HIGHLIGHT_MARKER, SET_FILTER_MARKER, SPOTLIGHT_MARKER]
+
+function extractDirective<T>(text: string, marker: string): T | null {
+  const idx = text.indexOf(marker)
+  if (idx === -1) return null
+  const start = idx + marker.length
+  // End = start of the next directive marker, or end of string
+  const nextIdx = ALL_MARKERS
+    .map(m => text.indexOf(m, start))
+    .filter(i => i !== -1)
+    .reduce((min, i) => Math.min(min, i), text.length)
+  try { return JSON.parse(text.slice(start, nextIdx).replace(/\n+$/, '')) as T } catch { return null }
+}
 
 function parseDirectives(accumulated: string): {
   text: string
   highlight: HighlightDirective | null
   setFilter: SetFilterDirective | null
+  spotlight: SpotlightDirective | null
 } {
-  let text = accumulated
-  let highlight: HighlightDirective | null = null
-  let setFilter: SetFilterDirective | null = null
+  const highlight = extractDirective<HighlightDirective>(accumulated, HIGHLIGHT_MARKER)
+  const setFilter = extractDirective<SetFilterDirective>(accumulated, SET_FILTER_MARKER)
+  const spotlight = extractDirective<SpotlightDirective>(accumulated, SPOTLIGHT_MARKER)
 
-  // Process __HIGHLIGHT__ first (emitted before __SET_FILTER__ in the stream)
-  const hIdx = text.indexOf(HIGHLIGHT_MARKER)
-  if (hIdx !== -1) {
-    const jsonStr = text.slice(hIdx + HIGHLIGHT_MARKER.length).replace(/\n$/, '')
-    try {
-      highlight = JSON.parse(jsonStr) as HighlightDirective
-      text = text.slice(0, hIdx)  // only strip when parse succeeds
-    } catch { /* malformed: keep raw text so user sees it */ }
-  }
+  // Only truncate at markers that parsed successfully — malformed directives stay visible as raw text
+  const validPositions = [
+    highlight !== null ? accumulated.indexOf(HIGHLIGHT_MARKER) : -1,
+    setFilter !== null ? accumulated.indexOf(SET_FILTER_MARKER) : -1,
+    spotlight !== null ? accumulated.indexOf(SPOTLIGHT_MARKER) : -1,
+  ].filter(i => i !== -1)
 
-  const sfIdx = text.indexOf(SET_FILTER_MARKER)
-  if (sfIdx !== -1) {
-    const jsonStr = text.slice(sfIdx + SET_FILTER_MARKER.length).replace(/\n$/, '')
-    try {
-      setFilter = JSON.parse(jsonStr) as SetFilterDirective
-      text = text.slice(0, sfIdx)
-    } catch { /* malformed: keep raw text */ }
-  }
+  const cutoff = validPositions.length > 0 ? Math.min(...validPositions) : accumulated.length
 
-  return { text, highlight, setFilter }
+  return { text: accumulated.slice(0, cutoff), highlight, setFilter, spotlight }
 }
 
 export function useChat() {
@@ -40,11 +46,13 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false)
   const [highlight, setHighlight] = useState<HighlightDirective | null>(null)
   const [setFilter, setSetFilter] = useState<SetFilterDirective | null>(null)
+  const [spotlight, setSpotlight] = useState<SpotlightDirective | null>(null)
 
   const sendMessage = useCallback(async (content: string, shownCategories?: string[], categoryCounts?: Record<string, number>) => {
     // Reset directives at the start of every new message
     setHighlight(null)
     setSetFilter(null)
+    setSpotlight(null)
 
     // Snapshot history from messages currently in state (before adding new user message).
     // Filter out any still-streaming message (shouldn't exist at this point, but defensive).
@@ -99,13 +107,14 @@ export function useChat() {
       }
 
       // Final parse: extract all directives
-      const { text, highlight: newHighlight, setFilter: newSetFilter } = parseDirectives(rawAccumulated)
+      const { text, highlight: newHighlight, setFilter: newSetFilter, spotlight: newSpotlight } = parseDirectives(rawAccumulated)
       const displayText = text.trim() ? text : 'No response — please try again.'
       setMessages(prev =>
         prev.map(m => (m.id === assistantId ? { ...m, content: displayText } : m)),
       )
       if (newHighlight) setHighlight(newHighlight)
       if (newSetFilter) setSetFilter(newSetFilter)
+      if (newSpotlight) setSpotlight(newSpotlight)
     } catch {
       setMessages(prev =>
         prev.map(m =>
@@ -122,5 +131,5 @@ export function useChat() {
     }
   }, [messages])
 
-  return { messages, isLoading, sendMessage, highlight, setFilter }
+  return { messages, isLoading, sendMessage, highlight, setFilter, spotlight }
 }

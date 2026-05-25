@@ -17,3 +17,8 @@ export interface HighlightDirective {
 export interface SetFilterDirective {
   categories: ('STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER')[]
 }
+
+export interface SpotlightDirective {
+  norad_id: string
+  satellite_name: string
+}

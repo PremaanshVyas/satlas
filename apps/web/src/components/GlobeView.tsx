@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useGlobe } from '../hooks/useGlobe'
 import type { OrbitalParams, LivePosition, SatcatEntry, OverheadSat } from '../hooks/useGlobe'
 export type { OverheadSat }
-import type { HighlightDirective, SetFilterDirective } from '../types/chat'
+import type { HighlightDirective, SetFilterDirective, SpotlightDirective } from '../types/chat'
 import type { SatCategory } from '../globe/Globe'
 import { ALL_CATEGORIES } from '../globe/Globe'
 import SearchBar from './SearchBar'
@@ -22,6 +22,7 @@ const CATEGORY_LABELS: Record<SatCategory, string> = {
 interface GlobeViewProps {
   highlight: HighlightDirective | null
   setFilter: SetFilterDirective | null
+  spotlight: SpotlightDirective | null
   onSatelliteSelect?: (name: string, noradId: string) => void
   onSatelliteSelectInfo?: (orbital: OrbitalParams, meta: SatcatEntry | null) => void
   onLivePosition?: (pos: LivePosition | null) => void
@@ -37,6 +38,7 @@ interface GlobeViewProps {
 export default function GlobeView({
   highlight,
   setFilter,
+  spotlight,
   onSatelliteSelect,
   onSatelliteSelectInfo,
   onLivePosition,
@@ -55,7 +57,7 @@ export default function GlobeView({
   const [cloudsVisible, setCloudsVisible] = useState(true)
   const [bordersVisible, setBordersVisibleState] = useState(false)
 
-  const { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight } = useGlobe(
+  const { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight } = useGlobe(
     containerRef,
     highlight,
     { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove, onCategoryCounts, onCountryClick },
@@ -94,6 +96,12 @@ export default function GlobeView({
     applyAgentFilter(cats)
     onCategoriesChange?.([...next])
   }, [setFilter, applyAgentFilter, onCategoriesChange])
+
+  // Agent directive: spotlight a single satellite
+  useEffect(() => {
+    if (!spotlight) return
+    applySpotlight(spotlight.norad_id)
+  }, [spotlight, applySpotlight])
 
   const [utcClock, setUtcClock] = useState('')
 
