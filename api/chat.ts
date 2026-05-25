@@ -228,16 +228,66 @@ async function toolFindSatellitesOverhead(
   }
 }
 
-// ── Filter-command detection ──────────────────────────────────────────────────
-// When a message is unambiguously about changing what's displayed, force tool use
-// so the model cannot skip the tool call and just reply with text.
+// ── Tool-choice routing ───────────────────────────────────────────────────────
+// Returns the tool_choice to use for a given user message.
+// - 'tool' + name: force exactly that tool (clearest signal)
+// - 'any': force some tool, let model pick (ambiguous but action-needed)
+// - 'auto': let model decide (conversational / info questions)
 
-const FILTER_VERBS = ['show', 'hide', 'add', 'remove', 'only', 'just', 'display', 'enable', 'disable', 'turn on', 'turn off', 'bring back', 'include', 'exclude']
-const FILTER_TARGETS = ['starlink', 'gps', 'iridium', 'debris', 'other', 'all', 'everything', 'nothing', 'satellite', 'categories', 'category']
-
-function isFilterCommand(msg: string): boolean {
+function getToolChoice(msg: string): Anthropic.ToolChoice {
   const m = msg.toLowerCase()
-  return FILTER_VERBS.some(v => m.includes(v)) && FILTER_TARGETS.some(t => m.includes(t))
+
+  // Overhead/above-location queries must not be forced into set_category_filter
+  if (['overhead', 'above me', 'over my ', 'visible from', 'passing over', 'currently above'].some(p => m.includes(p))) {
+    return { type: 'auto' }
+  }
+
+  // Named satellites → could be spotlight or satellite-info, check before category logic
+  const hasNamedSat = ['iss', 'hubble', 'zarya', 'tiangong', 'goes', 'landsat', 'sentinel'].some(s => m.includes(s))
+    || /\b\d{5}\b/.test(m)
+
+  // "Show all / hide all / reset" are always category filters — unless a specific satellite
+  // is also named (e.g. "hide all and show only ISS" → spotlight, not category filter)
+  const RESET_PHRASES = ['show all', 'hide all', 'show everything', 'hide everything', 'reset filter', 'show all types', 'show all categories']
+  if (!hasNamedSat && RESET_PHRASES.some(p => m.includes(p))) {
+    return { type: 'tool', name: 'set_category_filter' }
+  }
+
+  // Category words — the exact 5 categories + common aliases
+  const CAT_WORDS = ['starlink', 'gps', 'iridium', 'debris',
+    'other type', 'other category', 'the others', 'others', 'the rest',
+    'all types', 'all categories', 'all satellites', 'everything', 'nothing', 'all of them']
+  // Bare "other" only as a whole word (not "another")
+  const hasCat = CAT_WORDS.some(c => m.includes(c)) || /\bother\b/.test(m)
+
+  // Strong filter phrases — unambiguously about category visibility
+  const STRONG = [
+    'show only', 'only show', 'show just', 'just show',
+    'also show', 'turn on', 'turn off', 'bring back', 'enable', 'disable',
+  ]
+  // Weak verbs — only count when paired with a category word
+  const WEAK = ['hide ', 'add ', 'remove ', 'and show ', 'show ', 'just ']
+
+  const hasStrong = STRONG.some(v => m.includes(v))
+  const hasWeak = hasCat && WEAK.some(v => m.includes(v))
+  const hasVerb = hasStrong || hasWeak
+
+  // Unambiguous category filter: verb + category, no named satellite
+  if (hasVerb && hasCat && !hasNamedSat) {
+    return { type: 'tool', name: 'set_category_filter' }
+  }
+
+  // Could be filter + specific satellite (e.g. "show GPS and ISS"), or spotlight
+  if (hasVerb && hasNamedSat) {
+    return { type: 'any' }
+  }
+
+  // Category word without a clear verb (e.g. "just GPS" already handled above via WEAK)
+  if (hasCat) {
+    return { type: 'any' }
+  }
+
+  return { type: 'auto' }
 }
 
 // ── System prompt ─────────────────────────────────────────────────────────────
@@ -262,14 +312,27 @@ TOOL USAGE RULES:\
 \n- get_satellite_info: call when the user asks about ANY specific satellite — "where is X", "tell me about X", "what altitude is X". ALWAYS call this tool; NEVER answer satellite position, altitude, velocity, inclination, orbital period, tracking status, or catalog presence from your training knowledge. A successful tool response (contains latitude/longitude/altitude) means the satellite IS in our catalog and IS actively tracked — never contradict this with training knowledge. When the user's message includes a NORAD ID (plain integer), pass just that number. Always call highlight_on_globe IN THE SAME RESPONSE (in parallel).\
 \n- predict_passes: call when the user asks about pass times, ISS visibility, or when a satellite will be overhead. Requires latitude, longitude, and the satellite's NORAD ID or name.\
 \n- highlight_on_globe: call IN THE SAME TURN as get_satellite_info — never wait for satellite info first. Do not mention the highlight in your text.\
-\n- set_category_filter: MANDATORY — calling this tool IS the change; without it the globe does NOT update, no matter what your text says.\
-\n  * Currently shown categories: [${shownList}]\
-\n  * ADD a category ("also show X", "add X", "and X"): call with [${shownList}] PLUS the new one.\
-\n  * REMOVE a category ("hide X", "remove X"): call with [${shownList}] MINUS that one.\
-\n  * REPLACE ("only X", "just X", "show only X"): call with [X] only. If X is a specific satellite name (not a category), use spotlight_satellite instead.\
-\n  * RESET ("show all", "reset", "show everything"): call with ['STARLINK','GPS','IRIDIUM','DEBRIS','OTHER'].\
-\n  * RULE: you MUST call this tool for every filter request. Responding with text alone does nothing. Call the tool first, then confirm in text.\
-\n- spotlight_satellite: call when user wants to see ONLY one specific named satellite ("show only ISS", "just show Hubble", "hide everything except X"). Shows exactly that satellite dot, hiding all others. Always call highlight_on_globe in the same turn so the camera focuses on it. Do NOT use set_category_filter for this — that shows the whole category.\
+\n- set_category_filter: MANDATORY — this tool IS the change. Text alone does nothing.\
+\n  GLOBE CATEGORIES (exact names for tool calls):\
+\n    STARLINK = SpaceX constellation (~6k+ sats)\
+\n    GPS      = navigation sats (~90)\
+\n    IRIDIUM  = Iridium comms (~66)\
+\n    DEBRIS   = rocket bodies + tracked debris (~12k+)\
+\n    OTHER    = everything else: ISS, Hubble, weather, science, military (~8k)\
+\n  ISS is always shown as its own marker — independent of these filters.\
+\n  Currently visible: [${shownList}]\
+\n  RULES (call the tool, then confirm in text):\
+\n    ADD    "also show X" / "add X" / "and X"       → [${shownList}] + X\
+\n    REMOVE "hide X" / "remove X" / "turn off X"    → [${shownList}] minus X\
+\n    ONLY   "show only X" / "just X" / "X only"     → [X]\
+\n    ALL    "show all" / "reset" / "everything"      → ['STARLINK','GPS','IRIDIUM','DEBRIS','OTHER']\
+\n    COMBO  "show X and Y"                           → [X, Y]\
+\n    ALIAS  "the other type"/"others"/"the rest"     → OTHER category\
+\n    NOTE   "show GPS and ISS" → ['GPS'] only — ISS is always shown anyway\
+\n- spotlight_satellite: use when user wants ONLY one specific satellite ("show only ISS", "just Hubble", "hide everything + show X").\
+\n  Always also call highlight_on_globe in the same turn.\
+\n  "hide all sats and show only ISS" → spotlight 25544, do NOT call set_category_filter.\
+\n  For any named satellite + hide-everything request: spotlight, not category filter.\
 \n- find_satellites_overhead: call when the user asks what satellites are currently overhead, above, or passing over a location right now. Infer lat/lon from well-known cities (Sydney: -33.87, 151.21; Melbourne: -37.81, 144.96; London: 51.51, -0.13; New York: 40.71, -74.01; Tokyo: 35.68, 139.69). Ask if the location is ambiguous.\
 \n\nIMPORTANT — you are the PRESENTER, not the calculator. Every value you show must come from a tool result. Never compute or guess position, altitude, pass times, or any data value.\
 \n\nIF ANY TOOL RETURNS AN ERROR: respond with exactly "The live data service is temporarily unavailable — please try again in a moment." Do NOT use training knowledge.\
@@ -421,9 +484,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       max_tokens: 1024,
       system: systemPrompt,
       tools: TOOLS,
-      // Force tool use for unambiguous filter commands — prevents the model from
-      // responding with text only and leaving the globe unchanged.
-      tool_choice: isFilterCommand(message) ? { type: 'any' } : { type: 'auto' },
+      tool_choice: getToolChoice(message),
       messages: currentMessages,
     })
 
