@@ -11,16 +11,22 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [total, setTotal] = useState(0)
   const [open, setOpen] = useState(false)
+  const [noResults, setNoResults] = useState(false)
   const [activeIdx, setActiveIdx] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setQuery(val)
+    const trimmed = val.trim()
+    if (!trimmed) {
+      setResults([]); setTotal(0); setOpen(false); setNoResults(false); setActiveIdx(-1); return
+    }
     const { results: r, total: t } = onSearch(val)
     setResults(r)
     setTotal(t)
-    setOpen(r.length > 0 && val.trim().length > 0)
+    setNoResults(r.length === 0)
+    setOpen(true)
     setActiveIdx(-1)
   }, [onSearch])
 
@@ -76,26 +82,37 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
         )}
       </div>
 
-      {open && results.length > 0 && (
+      {open && (
         <div className="absolute top-full mt-1 w-full bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden z-50">
-          {results.map((r, i) => (
-            <button
-              key={r.noradId}
-              className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-[rgba(255,255,255,0.04)] transition-colors ${
-                i === activeIdx ? 'bg-[rgba(255,255,255,0.04)]' : ''
-              }`}
-              onMouseDown={e => { e.preventDefault(); handleSelect(r) }}
-              onMouseEnter={() => setActiveIdx(i)}
-            >
-              <span className="font-mono text-[12px] text-secondary truncate">{r.name}</span>
-              <span className="font-mono text-[10px] text-label flex-shrink-0">{r.noradId}</span>
-            </button>
-          ))}
-          {total > results.length && (
-            <div className="px-3 py-2 font-mono text-[10px] text-[rgba(255,255,255,0.25)] select-none border-t border-[rgba(255,255,255,0.04)]">
-              +{total - results.length} more — refine your search
+          {results.length > 0 ? (
+            <>
+              {results.map((r, i) => (
+                <button
+                  key={r.noradId}
+                  className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-[rgba(255,255,255,0.04)] transition-colors ${
+                    i === activeIdx ? 'bg-[rgba(255,255,255,0.04)]' : ''
+                  }`}
+                  onMouseDown={e => { e.preventDefault(); handleSelect(r) }}
+                  onMouseEnter={() => setActiveIdx(i)}
+                >
+                  <span className="font-mono text-[12px] text-secondary truncate">{r.name}</span>
+                  <span className="font-mono text-[10px] text-label flex-shrink-0">{r.noradId}</span>
+                </button>
+              ))}
+              {total > results.length && (
+                <div className="px-3 py-1.5 font-mono text-[10px] text-[rgba(255,255,255,0.25)] select-none border-t border-[rgba(255,255,255,0.04)]">
+                  +{total - results.length} more — refine your search
+                </div>
+              )}
+            </>
+          ) : noResults ? (
+            <div className="px-3 py-2.5">
+              <div className="font-mono text-[11px] text-label">No results for "{query}"</div>
             </div>
-          )}
+          ) : null}
+          <div className="px-3 py-2 font-mono text-[9px] text-[rgba(255,255,255,0.18)] select-none border-t border-[rgba(255,255,255,0.04)] leading-relaxed">
+            Some satellites use catalog names — try their NORAD ID if a name search misses.
+          </div>
         </div>
       )}
     </div>
