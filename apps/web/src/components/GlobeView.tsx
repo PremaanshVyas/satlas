@@ -33,6 +33,8 @@ interface GlobeViewProps {
   onSelectReady?: (select: (noradId: string) => void) => void
   onCountryClick?: (name: string, continent: string, overheadSats: OverheadSat[]) => void
   onClearHighlightReady?: (fn: () => void) => void
+  onSimulatedTime?: (date: Date) => void
+  onTimeReady?: (controls: { setTimeScale: (scale: number) => void }) => void
 }
 
 export default function GlobeView({
@@ -49,6 +51,8 @@ export default function GlobeView({
   onSelectReady,
   onCountryClick,
   onClearHighlightReady,
+  onSimulatedTime,
+  onTimeReady,
 }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // Debris off by default — too numerous to show on landing (12k+ objects)
@@ -57,7 +61,7 @@ export default function GlobeView({
   const [cloudsVisible, setCloudsVisible] = useState(true)
   const [bordersVisible, setBordersVisibleState] = useState(false)
 
-  const { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight } = useGlobe(
+  const { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight, simulatedTime, setTimeScale } = useGlobe(
     containerRef,
     highlight,
     { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove, onCategoryCounts, onCountryClick },
@@ -75,6 +79,18 @@ export default function GlobeView({
   const onClearHighlightReadyRef = useRef(onClearHighlightReady)
   useEffect(() => { onClearHighlightReadyRef.current = onClearHighlightReady })
   useEffect(() => { onClearHighlightReadyRef.current?.(clearCountryHighlight) }, [clearCountryHighlight])
+
+  const onTimeReadyRef = useRef(onTimeReady)
+  useEffect(() => { onTimeReadyRef.current = onTimeReady })
+  useEffect(() => {
+    onTimeReadyRef.current?.({ setTimeScale })
+  }, [setTimeScale])
+
+  const onSimulatedTimeRef = useRef(onSimulatedTime)
+  useEffect(() => { onSimulatedTimeRef.current = onSimulatedTime })
+  useEffect(() => {
+    onSimulatedTimeRef.current?.(simulatedTime)
+  }, [simulatedTime])
 
   // Apply debris-off default to Globe engine on mount
   useEffect(() => {
@@ -103,20 +119,10 @@ export default function GlobeView({
     applySpotlight(spotlight.norad_id)
   }, [spotlight, applySpotlight])
 
-  const [utcClock, setUtcClock] = useState('')
-
-  useEffect(() => {
-    function tick() {
-      const now = new Date()
-      const hh = String(now.getUTCHours()).padStart(2, '0')
-      const mm = String(now.getUTCMinutes()).padStart(2, '0')
-      const ss = String(now.getUTCSeconds()).padStart(2, '0')
-      setUtcClock(`${hh}:${mm}:${ss} UTC`)
-    }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [])
+  const hh = String(simulatedTime.getUTCHours()).padStart(2, '0')
+  const mm = String(simulatedTime.getUTCMinutes()).padStart(2, '0')
+  const ss = String(simulatedTime.getUTCSeconds()).padStart(2, '0')
+  const utcClock = `${hh}:${mm}:${ss} UTC`
 
   const toggleCategory = useCallback((cat: SatCategory) => {
     setActiveCategoriesState(prev => {

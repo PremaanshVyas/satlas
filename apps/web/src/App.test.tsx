@@ -6,13 +6,20 @@ vi.mock('./hooks/useGlobe', () => ({
   useGlobe: vi.fn(() => ({
     isLoading: true,
     satelliteCount: 0,
+    catalogError: false,
     hoverInfo: null,
     setActiveCategories: vi.fn(),
     applyAgentFilter: vi.fn(),
+    applySpotlight: vi.fn(),
     removeFromSelection: vi.fn(),
     setCloudVisibility: vi.fn(),
-    searchCatalog: vi.fn(() => []),
+    searchCatalog: vi.fn(() => ({ results: [], total: 0 })),
     selectCatalogSatellite: vi.fn(),
+    setBordersVisible: vi.fn(),
+    clearCountryHighlight: vi.fn(),
+    simulatedTime: new Date('2026-01-01T00:00:00Z'),
+    timeScale: 1,
+    setTimeScale: vi.fn(),
   })),
 }))
 vi.mock('./hooks/useChat', () => ({
