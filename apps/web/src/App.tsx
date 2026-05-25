@@ -7,6 +7,7 @@ import SatInfoCard from './components/SatInfoCard'
 import PassPanel from './components/PassPanel'
 import CountryPanel from './components/CountryPanel'
 import DevNotes from './components/DevNotes'
+import TimeControls from './components/TimeControls'
 import type { OverheadSat } from './components/GlobeView'
 import { useChat } from './hooks/useChat'
 import { ALL_CATEGORIES } from './globe/Globe'
@@ -52,6 +53,15 @@ export default function App() {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  const [simulatedTime, setSimulatedTime] = useState<Date>(() => new Date())
+  const [timeScale, setTimeScaleState] = useState(1)
+  const setTimeScaleRef = useRef<((scale: number) => void) | null>(null)
+
+  function handleSetScale(scale: number) {
+    setTimeScaleRef.current?.(scale)
+    setTimeScaleState(scale)
+  }
 
   const removeFromSelectionRef = useRef<((noradId: string) => void) | null>(null)
   const selectSatRef = useRef<((noradId: string) => void) | null>(null)
@@ -146,75 +156,90 @@ export default function App() {
         onSelectReady={(fn) => { selectSatRef.current = fn }}
         onClearHighlightReady={(fn) => { clearCountryHighlightRef.current = fn }}
         onCountryClick={(name, continent, overheadSats) => setSelectedCountry({ name, continent, overheadSats })}
+        onSimulatedTime={setSimulatedTime}
+        onTimeReady={({ setTimeScale }) => { setTimeScaleRef.current = setTimeScale }}
       />
 
-      {/* Selection tray — animates up from bottom-left */}
-      <AnimatePresence>
-        {selectedSats.length > 0 && (
-          <motion.div
-            key="tray"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute left-3 z-20 w-44 sm:w-56"
-            style={{ bottom: 'max(4.5rem, calc(env(safe-area-inset-bottom, 0px) + 4rem))' }}
-          >
-            <button
-              onClick={() => setTrayOpen(o => !o)}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] font-mono text-[9px] touch-manipulation"
+      {/* Bottom-left cluster: satellite tray above, time controls below */}
+      <div
+        className="absolute left-3 z-20 flex flex-col gap-2 w-44 sm:w-56"
+        style={{ bottom: 'max(3.75rem, calc(env(safe-area-inset-bottom, 0px) + 3.25rem))' }}
+      >
+        {/* Satellite selection tray */}
+        <AnimatePresence>
+          {selectedSats.length > 0 && (
+            <motion.div
+              key="tray"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
             >
-              <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-secondary">{selectedSats.length} Selected</span>
-              <motion.svg
-                width="12" height="12" viewBox="0 0 12 12" fill="none"
-                animate={{ rotate: trayOpen ? 180 : 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex-shrink-0"
+              <button
+                onClick={() => setTrayOpen(o => !o)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] font-mono text-[9px] touch-manipulation"
               >
-                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </motion.svg>
-            </button>
-
-            <AnimatePresence>
-              {trayOpen && (
-                <motion.div
-                  key="traylist"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.18, ease: 'easeInOut' }}
-                  className="mt-1 bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] overflow-hidden"
-                  style={{ overflow: 'hidden' }}
+                <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-secondary">{selectedSats.length} Selected</span>
+                <motion.svg
+                  width="12" height="12" viewBox="0 0 12 12" fill="none"
+                  animate={{ rotate: trayOpen ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex-shrink-0"
                 >
-                  <div className="max-h-32 sm:max-h-44 overflow-y-auto divide-y divide-[rgba(255,255,255,0.04)]">
-                    {selectedSats.map(sat => (
-                      <div
-                        key={sat.noradId}
-                        className={`flex items-center gap-2 px-3 py-3 sm:py-2.5 transition-colors ${
-                          cardSat?.noradId === sat.noradId ? 'bg-[rgba(0,212,255,0.06)]' : ''
-                        }`}
-                      >
-                        <button
-                          className="flex-1 min-w-0 text-left touch-manipulation"
-                          onClick={() => handleTrayChipClick(sat)}
+                  <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </motion.svg>
+              </button>
+
+              <AnimatePresence>
+                {trayOpen && (
+                  <motion.div
+                    key="traylist"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.18, ease: 'easeInOut' }}
+                    className="mt-1 bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] overflow-hidden"
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <div className="max-h-32 sm:max-h-44 overflow-y-auto divide-y divide-[rgba(255,255,255,0.04)]">
+                      {selectedSats.map(sat => (
+                        <div
+                          key={sat.noradId}
+                          className={`flex items-center gap-2 px-3 py-3 sm:py-2.5 transition-colors ${
+                            cardSat?.noradId === sat.noradId ? 'bg-[rgba(0,212,255,0.06)]' : ''
+                          }`}
                         >
-                          <div className="font-mono text-[11px] text-secondary truncate leading-tight uppercase tracking-[0.03em]">{sat.name}</div>
-                          <div className="font-mono text-[10px] text-label mt-0.5">{sat.noradId}</div>
-                        </button>
-                        <button
-                          onClick={() => handleRemoveFromTray(sat.noradId)}
-                          className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-label hover:text-secondary rounded-[2px] touch-manipulation transition-colors"
-                          aria-label={`Remove ${sat.name}`}
-                        >×</button>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                          <button
+                            className="flex-1 min-w-0 text-left touch-manipulation"
+                            onClick={() => handleTrayChipClick(sat)}
+                          >
+                            <div className="font-mono text-[11px] text-secondary truncate leading-tight uppercase tracking-[0.03em]">{sat.name}</div>
+                            <div className="font-mono text-[10px] text-label mt-0.5">{sat.noradId}</div>
+                          </button>
+                          <button
+                            onClick={() => handleRemoveFromTray(sat.noradId)}
+                            className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-label hover:text-secondary rounded-[2px] touch-manipulation transition-colors"
+                            aria-label={`Remove ${sat.name}`}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Time controls — hidden on mobile, always visible on desktop */}
+        <div className="hidden sm:block">
+          <TimeControls
+            timeScale={timeScale}
+            simulatedTime={simulatedTime}
+            onSetScale={handleSetScale}
+          />
+        </div>
+      </div>
 
       {/* Desktop left column — SatInfoCard / PassPanel stacked above CountryPanel */}
       {!isMobile && (
