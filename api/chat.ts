@@ -53,7 +53,6 @@ function parseTleText(text: string): TleRecord[] {
 // ── Catalog fetch for bulk queries (overhead) ────────────────────────────────
 
 const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://getsatlas.vercel.app'
-const ORBITAL_SERVICE_URL = process.env.ORBITAL_SERVICE_URL ?? 'https://api.satlas.app'
 
 async function fetchCatalogTles(): Promise<TleRecord[]> {
   const res = await fetch(`${CATALOG_BASE}/api/catalog`, { signal: AbortSignal.timeout(8000) })
@@ -223,15 +222,32 @@ function computePasses(rec: TleRecord, latDeg: number, lonDeg: number, hoursAhea
   return passes
 }
 
-// ── Tool implementations (no Railway) ────────────────────────────────────────
+// ── Tool implementations ──────────────────────────────────────────────────────
 
 async function toolGetSatelliteInfo(query: string): Promise<unknown> {
-  const res = await fetch(
-    `${ORBITAL_SERVICE_URL}/satellite-info?query=${encodeURIComponent(query)}`,
-    { signal: AbortSignal.timeout(8000) },
-  )
-  if (!res.ok) return { error: `Satellite not found: ${query}` }
-  return res.json()
+  const rec = await fetchTle(query)
+  if (!rec) return { error: `Satellite not found: ${query}` }
+  const satrec = satellite.twoline2satrec(rec.tle1, rec.tle2)
+  const now = new Date()
+  const posVel = satellite.propagate(satrec, now)
+  if (!posVel.position || typeof posVel.position === 'boolean') {
+    return { error: `Could not propagate orbit for: ${rec.name}` }
+  }
+  const gmst = satellite.gstime(now)
+  const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst)
+  const vel = posVel.velocity as satellite.EciVec3<number>
+  const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
+  const period = (2 * Math.PI / satrec.no) / 60
+  return {
+    name: rec.name,
+    norad_id: rec.noradId,
+    latitude:  Math.round(satellite.degreesLat(geo.latitude)  * 10000) / 10000,
+    longitude: Math.round(satellite.degreesLong(geo.longitude) * 10000) / 10000,
+    altitude_km: Math.round(geo.height * 10) / 10,
+    velocity_kmps: Math.round(speed * 100) / 100,
+    orbital_period_min: Math.round(period * 10) / 10,
+    inclination_deg: Math.round(satrec.inclo * (180 / Math.PI) * 100) / 100,
+  }
 }
 
 async function toolPredictPasses(
