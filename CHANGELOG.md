@@ -4,6 +4,22 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 35] — Time controls + agent reliability (2026-05-26)
+
+### What shipped
+
+**Time controls.** A transport bar at the bottom-left of the globe lets you run the simulation at 2×, 10×, 50×, or 100× in either direction, pause, or snap back to live. Every moving part — satellite positions, Earth rotation, sun direction, and the UTC clock — advances together at the selected rate. Clicking the active speed button again pauses. The UTC clock gains an inline badge (⏸ or e.g. 50×►) when not at 1×, so there is no duplicate time display.
+
+**AI agent ISS queries fixed.** Asking "where is the ISS right now?" had been returning "something went wrong" for users who happened to hit the service on a cold start. The chat agent and the public `/api/satellite-info` endpoint now compute position locally from the same CloudFront TLE cache used by pass predictions — no external service call, no cold-start exposure.
+
+### Technical decisions
+
+**Worker rate-limiting uses real time; simulated time is payload only.** The satellite propagation worker receives the simulated timestamp so it can compute correct positions for any point in time. But the gate that controls *how often* the worker is called must use real wall-clock time — otherwise changing speed direction can make the gate condition unsatisfiable and freeze all satellite motion.
+
+**Stable reference identity in React test mocks prevents OOM.** A `new Date()` call inside a `vi.fn()` factory creates a fresh object on every `useGlobe()` invocation. When that date is used as a `useEffect` dependency, React sees a "new" value every render and re-fires the effect infinitely. Moved to the outer `vi.mock` factory closure so all calls share the same reference.
+
+---
+
 ## [Session 34] — Pass visibility + UX polish (2026-05-26)
 
 ### What shipped

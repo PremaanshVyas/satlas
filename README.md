@@ -228,7 +228,7 @@ Then add `VITE_CHAT_URL=http://localhost:3000/api/chat` to `apps/web/.env.local`
 
 ```bash
 cd apps/web
-npx vitest run               # 104 frontend unit tests
+npx vitest run               # 113 frontend unit tests
 npx tsc -b --noEmit          # TypeScript type check
 npx eslint .                 # lint
 
