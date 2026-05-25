@@ -61,7 +61,7 @@ export default function GlobeView({
   const [cloudsVisible, setCloudsVisible] = useState(true)
   const [bordersVisible, setBordersVisibleState] = useState(false)
 
-  const { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight, simulatedTime, setTimeScale } = useGlobe(
+  const { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight, simulatedTime, timeScale, setTimeScale } = useGlobe(
     containerRef,
     highlight,
     { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove, onCategoryCounts, onCountryClick },
@@ -187,10 +187,18 @@ export default function GlobeView({
 
         {/* UTC clock — top-left */}
         <div
-          className="absolute left-3 font-mono text-[13px] text-secondary select-none"
+          className="absolute left-3 flex items-center gap-2 select-none"
           style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
         >
-          {utcClock}
+          <span className="font-mono text-[13px] text-secondary">{utcClock}</span>
+          {timeScale === 0 && (
+            <span className="font-mono text-[9px] text-secondary bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.15)] rounded-[2px] px-1.5 py-px">⏸</span>
+          )}
+          {timeScale !== 0 && timeScale !== 1 && (
+            <span className="font-mono text-[9px] text-amber-400 bg-[rgba(245,158,11,0.08)] border border-[rgba(245,158,11,0.25)] rounded-[2px] px-1.5 py-px">
+              {timeScale > 0 ? `${timeScale}×►` : `◄${Math.abs(timeScale)}×`}
+            </span>
+          )}
         </div>
 
         {/* Satellite count — top-right */}

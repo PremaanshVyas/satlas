@@ -235,7 +235,6 @@ export default function App() {
         <div className="hidden sm:block">
           <TimeControls
             timeScale={timeScale}
-            simulatedTime={simulatedTime}
             onSetScale={handleSetScale}
           />
         </div>

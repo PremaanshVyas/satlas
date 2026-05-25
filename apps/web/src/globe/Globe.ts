@@ -244,6 +244,8 @@ export class Globe {
   setTimeScale(scale: number): void {
     this._timeScale = scale
     if (scale === 1) this._simTimeMs = Date.now()
+    // Reset so the worker gets a tick on the very next frame regardless of direction change
+    this.lastFieldTickMs = 0
   }
 
   getSimulatedTime(): Date {
@@ -1311,8 +1313,8 @@ export class Globe {
     this.sun.update(this._sunDir)
     this.iss.update(now)
 
-    if (this.worker && nowMs - this.lastFieldTickMs >= FIELD_TICK_MS) {
-      this.lastFieldTickMs = nowMs
+    if (this.worker && realNow - this.lastFieldTickMs >= FIELD_TICK_MS) {
+      this.lastFieldTickMs = realNow  // real-time rate limiting; timestamp is simulated
       this.worker.postMessage({ type: 'tick', timestamp: nowMs })
     }
 

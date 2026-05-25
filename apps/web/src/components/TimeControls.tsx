@@ -2,26 +2,17 @@ import type { FC } from 'react'
 
 interface TimeControlsProps {
   timeScale: number
-  simulatedTime: Date
   onSetScale: (scale: number) => void
 }
 
 const SPEEDS = [2, 10, 50, 100] as const
-
-function formatDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
-
-function formatTime(d: Date): string {
-  return d.toISOString().slice(11, 19)
-}
 
 function SpeedBadge({ timeScale }: { timeScale: number }) {
   if (timeScale === 1) {
     return (
       <span
         data-testid="speed-badge"
-        className="font-mono text-[10px] text-accent bg-[rgba(0,212,255,0.08)] border border-[rgba(0,212,255,0.25)] rounded-[2px] px-1.5 py-px tracking-wide"
+        className="font-mono text-[9px] text-accent bg-[rgba(0,212,255,0.08)] border border-[rgba(0,212,255,0.25)] rounded-[2px] px-1.5 py-px tracking-wide"
       >
         LIVE
       </span>
@@ -31,7 +22,7 @@ function SpeedBadge({ timeScale }: { timeScale: number }) {
     return (
       <span
         data-testid="speed-badge"
-        className="font-mono text-[10px] text-secondary bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.15)] rounded-[2px] px-1.5 py-px"
+        className="font-mono text-[9px] text-secondary bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.15)] rounded-[2px] px-1.5 py-px"
       >
         ⏸
       </span>
@@ -42,7 +33,7 @@ function SpeedBadge({ timeScale }: { timeScale: number }) {
   return (
     <span
       data-testid="speed-badge"
-      className="font-mono text-[10px] text-amber-400 bg-[rgba(245,158,11,0.08)] border border-[rgba(245,158,11,0.25)] rounded-[2px] px-1.5 py-px"
+      className="font-mono text-[9px] text-amber-400 bg-[rgba(245,158,11,0.08)] border border-[rgba(245,158,11,0.25)] rounded-[2px] px-1.5 py-px"
     >
       {label}
     </span>
@@ -57,7 +48,7 @@ interface BtnProps {
 }
 
 function Btn({ active, title, label, onClick }: BtnProps) {
-  const base = 'flex-1 font-mono text-[10px] py-1.5 rounded-[2px] border transition-colors touch-manipulation select-none'
+  const base = 'flex-1 font-mono text-[9px] py-1.5 rounded-[2px] border transition-colors touch-manipulation select-none min-w-0'
   const inactive = 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.08)] text-label hover:text-secondary hover:border-[rgba(255,255,255,0.15)]'
   const liveStyle = 'bg-[rgba(0,212,255,0.08)] border-[rgba(0,212,255,0.3)] text-accent'
   const pauseStyle = 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.2)] text-secondary'
@@ -78,31 +69,21 @@ function Btn({ active, title, label, onClick }: BtnProps) {
   )
 }
 
-const TimeControls: FC<TimeControlsProps> = ({ timeScale, simulatedTime, onSetScale }) => {
+const TimeControls: FC<TimeControlsProps> = ({ timeScale, onSetScale }) => {
   function handleSpeed(scale: number) {
-    // Second click on the active speed toggles to pause
-    if (timeScale === scale) {
-      onSetScale(0)
-    } else {
-      onSetScale(scale)
-    }
+    if (timeScale === scale) onSetScale(0)
+    else onSetScale(scale)
   }
 
   return (
-    <div className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg">
-      {/* Row 1: date · time · speed badge */}
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="font-mono text-[11px] text-secondary tracking-wide">
-          <span>{formatDate(simulatedTime)}</span>
-          <span className="text-label mx-1">·</span>
-          <span>{formatTime(simulatedTime)}</span>
-          <span className="text-label text-[10px] ml-1">UTC</span>
-        </div>
+    <div className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 shadow-lg">
+      {/* Speed indicator */}
+      <div className="flex justify-end mb-1">
         <SpeedBadge timeScale={timeScale} />
       </div>
 
-      {/* Row 2: transport buttons */}
-      <div className="flex gap-1">
+      {/* Transport buttons */}
+      <div className="flex gap-px">
         {[...SPEEDS].reverse().map(s => (
           <Btn
             key={`rev-${s}`}

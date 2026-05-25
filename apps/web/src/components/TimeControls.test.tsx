@@ -5,18 +5,18 @@ import TimeControls from './TimeControls'
 function make(overrides: Partial<Parameters<typeof TimeControls>[0]> = {}) {
   const defaults = {
     timeScale: 1,
-    simulatedTime: new Date('2026-05-26T14:32:17Z'),
     onSetScale: vi.fn(),
   }
   return { ...defaults, ...overrides, onSetScale: overrides.onSetScale ?? defaults.onSetScale }
 }
 
 describe('TimeControls', () => {
-  it('renders the simulated date and time', () => {
-    const { onSetScale } = make()
-    render(<TimeControls {...make({ onSetScale })} />)
-    expect(screen.getByText('2026-05-26')).toBeInTheDocument()
-    expect(screen.getByText('14:32:17')).toBeInTheDocument()
+  it('renders all transport buttons', () => {
+    render(<TimeControls {...make()} />)
+    expect(screen.getByTitle('10× forward')).toBeInTheDocument()
+    expect(screen.getByTitle('10× reverse')).toBeInTheDocument()
+    expect(screen.getByTitle('Pause')).toBeInTheDocument()
+    expect(screen.getByTitle('Snap to real time')).toBeInTheDocument()
   })
 
   it('shows LIVE badge when timeScale is 1', () => {
