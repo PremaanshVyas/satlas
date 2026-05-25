@@ -30,8 +30,8 @@ export default function DevNotes() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.97 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="absolute right-4 z-30 w-72"
-            style={{ bottom: 'max(4.25rem, calc(env(safe-area-inset-bottom, 0px) + 3.75rem))' }}
+            className="absolute right-20 z-30 w-72"
+            style={{ bottom: 'max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem))' }}
           >
             <div className="bg-[rgba(9,9,9,0.92)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden">
               {/* Header */}
