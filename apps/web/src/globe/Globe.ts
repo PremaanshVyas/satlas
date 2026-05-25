@@ -65,7 +65,7 @@ export function computeOverhead(
   }
 
   result.sort((a, b) => b.elevDeg - a.elevDeg)
-  return result.slice(0, 25)
+  return result
 }
 
 // Orbital parameters computed from TLE data (satrec fields).

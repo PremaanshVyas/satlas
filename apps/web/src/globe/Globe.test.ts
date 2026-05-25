@@ -43,13 +43,13 @@ describe('computeOverhead', () => {
     expect(result[0].name).toBe('A')
   })
 
-  test('returns at most 25 results', () => {
-    // 30 satellites all directly overhead
+  test('returns all overhead results without a cap', () => {
+    // 30 satellites all directly overhead — all 30 should be returned
     const buf = new Float32Array(30 * 3).fill(0)
     for (let i = 0; i < 30; i++) buf[i * 3] = 1.063 + i * 0.001
     const names = Array.from({ length: 30 }, (_, i) => `SAT${i}`)
     const ids = Array.from({ length: 30 }, (_, i) => String(i))
     const result = computeOverhead(buf, names, ids, null, 0, 0, 0)
-    expect(result).toHaveLength(25)
+    expect(result).toHaveLength(30)
   })
 })
