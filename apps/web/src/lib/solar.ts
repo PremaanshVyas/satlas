@@ -15,15 +15,7 @@ export function getSunDirection(date: Date, target = new THREE.Vector3()): THREE
   const yECI = Math.cos(epsilon) * Math.sin(lambda)
   const zECI = Math.sin(epsilon) * Math.sin(lambda)
 
-  // Rotate ECI → ECEF via Greenwich Mean Sidereal Time
-  const GMST =
-    ((280.46061837 + 360.98564736629 * (JD - 2451545.0)) % 360) * (Math.PI / 180)
-  const cosG = Math.cos(GMST)
-  const sinG = Math.sin(GMST)
-  const xECEF = xECI * cosG + yECI * sinG
-  const yECEF = -xECI * sinG + yECI * cosG
-  const zECEF = zECI
-
-  // ECEF → Three.js: xECEF (prime meridian) → +X, zECEF (north pole) → +Y, -yECEF → +Z
-  return target.set(xECEF, zECEF, -yECEF).normalize()
+  // ECI → Three.js world: ECI X → world X, ECI Z (north pole) → world Y, ECI Y → world -Z
+  // No ECEF rotation needed — world space is now ECI; earthGroup rotates by GMST each frame.
+  return target.set(xECI, zECI, -yECI).normalize()
 }

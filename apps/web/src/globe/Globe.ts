@@ -39,9 +39,11 @@ export function computeOverhead(
   latDeg: number,
   lonDeg: number,
   minElevDeg = 10,
+  gmstRad = 0,
 ): OverheadSat[] {
   const lat = latDeg * (Math.PI / 180)
-  const lon = lonDeg * (Math.PI / 180)
+  // Geographic lon + GMST = ECI longitude; satellite buffer is in ECI world space
+  const lon = lonDeg * (Math.PI / 180) + gmstRad
   const ox = Math.cos(lat) * Math.cos(lon)
   const oy = Math.sin(lat)
   const oz = -Math.cos(lat) * Math.sin(lon)
@@ -122,9 +124,6 @@ function easeInOutCubic(t: number): number {
 function computeArcPoints(satrec: satellite.SatRec): THREE.Vector3[] {
   const periodMs = (2 * Math.PI / satrec.no) * 60 * 1000
   const now = new Date()
-  const gmst = satellite.gstime(now)
-  const cosG = Math.cos(gmst)
-  const sinG = Math.sin(gmst)
   const points: THREE.Vector3[] = []
   for (let i = 0; i < ARC_POINTS; i++) {
     const t = new Date(now.getTime() + (i / ARC_POINTS) * periodMs)
@@ -134,10 +133,7 @@ function computeArcPoints(satrec: satellite.SatRec): THREE.Vector3[] {
     const mag = Math.sqrt(pos.x ** 2 + pos.y ** 2 + pos.z ** 2)
     if (mag < 1) continue
     const r = mag / R_EARTH_KM
-    const ex = (pos.x * cosG + pos.y * sinG) / mag
-    const ey = (-pos.x * sinG + pos.y * cosG) / mag
-    const ez = pos.z / mag
-    points.push(new THREE.Vector3(ex * r, ez * r, -ey * r))
+    points.push(new THREE.Vector3(pos.x / mag * r, pos.z / mag * r, -pos.y / mag * r))
   }
   return points
 }
@@ -146,6 +142,7 @@ export class Globe {
   private renderer!: THREE.WebGLRenderer
   private camera!: THREE.PerspectiveCamera
   private scene!: THREE.Scene
+  private earthGroup!: THREE.Group
   private controls!: OrbitControls
   private earth!: EarthMesh
   private atmosphere!: AtmosphereMesh
@@ -161,6 +158,8 @@ export class Globe {
   private catalogRefreshInterval: ReturnType<typeof setInterval> | null = null
 
   private _sunDir = new THREE.Vector3()
+  private _lastGmst = 0
+  private _tempLabelWorldPos = new THREE.Vector3()
   private flyFromPos: THREE.Vector3 | null = null
   private flyToPos: THREE.Vector3 | null = null
   private flyStartTime: number | null = null
@@ -251,6 +250,12 @@ export class Globe {
 
     this.scene = new THREE.Scene()
 
+    // earthGroup rotates by GMST each frame — all Earth-surface geometry lives here
+    // (Earth mesh, clouds, borders, fills, graticule, country labels, highlight).
+    // Satellites and arcs remain in scene (ECI world space).
+    this.earthGroup = new THREE.Group()
+    this.scene.add(this.earthGroup)
+
     this.stars = new StarField()
     this.stars.addToScene(this.scene)
 
@@ -258,10 +263,10 @@ export class Globe {
     this.sun.addToScene(this.scene)
 
     this.earth = new EarthMesh(this.renderer)
-    this.scene.add(this.earth.mesh)
+    this.earthGroup.add(this.earth.mesh)
 
     this.clouds = new CloudMesh()
-    this.scene.add(this.clouds.mesh)
+    this.earthGroup.add(this.clouds.mesh)
 
     this.atmosphere = new AtmosphereMesh()
     this.scene.add(this.atmosphere.mesh)
@@ -339,9 +344,9 @@ export class Globe {
       // Restore photorealistic style
       this.earth.setMapMode(false)
       this.clouds.mesh.visible = this._userCloudsVisible
-      if (this.countryFillMesh) this.scene.remove(this.countryFillMesh.mesh)
-      if (this.graticuleMesh) this.scene.remove(this.graticuleMesh.mesh)
-      if (this.countryBorderMesh) this.scene.remove(this.countryBorderMesh.mesh)
+      if (this.countryFillMesh) this.earthGroup.remove(this.countryFillMesh.mesh)
+      if (this.graticuleMesh) this.earthGroup.remove(this.graticuleMesh.mesh)
+      if (this.countryBorderMesh) this.earthGroup.remove(this.countryBorderMesh.mesh)
       this.countryHighlightMesh?.clear()
       for (const label of this.countryLabelObjects) label.visible = false
       // Hide label overlay DOM so frozen CSS2D elements don't linger ("screen burn")
@@ -355,11 +360,11 @@ export class Globe {
     this.clouds.mesh.visible = false
     if (this.labelRenderer) this.labelRenderer.domElement.style.display = ''
 
-    // Already loaded — just re-add to scene
+    // Already loaded — just re-add to earthGroup
     if (this.countryFeatures.length > 0 && this.countryBorderMesh) {
-      if (this.countryFillMesh) this.scene.add(this.countryFillMesh.mesh)
-      if (this.graticuleMesh) this.scene.add(this.graticuleMesh.mesh)
-      this.scene.add(this.countryBorderMesh.mesh)
+      if (this.countryFillMesh) this.earthGroup.add(this.countryFillMesh.mesh)
+      if (this.graticuleMesh) this.earthGroup.add(this.graticuleMesh.mesh)
+      this.earthGroup.add(this.countryBorderMesh.mesh)
       return
     }
 
@@ -375,15 +380,15 @@ export class Globe {
       this.countryFeatures = geojson.features
 
       this.countryFillMesh = new CountryFillMesh(geojson)
-      this.scene.add(this.countryFillMesh.mesh)
+      this.earthGroup.add(this.countryFillMesh.mesh)
 
       this.graticuleMesh = new GraticuleMesh()
-      this.scene.add(this.graticuleMesh.mesh)
+      this.earthGroup.add(this.graticuleMesh.mesh)
 
       this.countryBorderMesh = new CountryBorderMesh(geojson)
-      this.scene.add(this.countryBorderMesh.mesh)
+      this.earthGroup.add(this.countryBorderMesh.mesh)
 
-      this.countryHighlightMesh = new CountryHighlightMesh(this.scene)
+      this.countryHighlightMesh = new CountryHighlightMesh(this.earthGroup)
 
       this._initCountryLabels(geojson)
     } catch (err) {
@@ -455,7 +460,7 @@ export class Globe {
       const label = new CSS2DObject(div)
       label.position.copy(pos)
       label.visible = false
-      this.scene.add(label)
+      this.earthGroup.add(label)
       this.countryLabelObjects.push(label)
       this.countryLabelPositions.push(pos.clone())
       this.countryLabelSizes.push(sizeProxy)
@@ -468,10 +473,10 @@ export class Globe {
 
     for (let i = 0; i < this.countryLabelObjects.length; i++) {
       const sizeProxy = this.countryLabelSizes[i] ?? 0
-      // Larger countries (Russia ~100) get a higher threshold so they appear when further out;
-      // tiny countries (Singapore ~0.4) only show when very zoomed in.
       const showThreshold = Math.max(1.5, Math.min(2.5, 1.4 + sizeProxy * 0.01))
-      const onFront = this.countryLabelPositions[i].dot(camDir) > 0.15
+      // Labels are in earthGroup (local ECEF space) — must use world position for cull check
+      this.countryLabelObjects[i].getWorldPosition(this._tempLabelWorldPos)
+      const onFront = this._tempLabelWorldPos.dot(camDir) > 0.15
       this.countryLabelObjects[i].visible = onFront && camDist < showThreshold
     }
   }
@@ -768,9 +773,6 @@ export class Globe {
   private _buildTrail(satrec: satellite.SatRec): THREE.Line | null {
     const now = new Date()
     const nowMs = now.getTime()
-    const gmst = satellite.gstime(now)
-    const cosG = Math.cos(gmst)
-    const sinG = Math.sin(gmst)
 
     const TRAIL_POINTS = 60
     const TRAIL_MS = 10 * 60 * 1000
@@ -785,10 +787,7 @@ export class Globe {
       const mag = Math.sqrt(pos.x ** 2 + pos.y ** 2 + pos.z ** 2)
       if (mag < 1) continue
       const r = mag / R_EARTH_KM
-      const ex = (pos.x * cosG + pos.y * sinG) / mag
-      const ey = (-pos.x * sinG + pos.y * cosG) / mag
-      const ez = pos.z / mag
-      positions.push(ex * r, ez * r, -ey * r)
+      positions.push(pos.x / mag * r, pos.z / mag * r, -pos.y / mag * r)
       const alpha = i / (TRAIL_POINTS - 1)
       colors.push(0x4a / 255 * alpha, 0xde / 255 * alpha, 0x80 / 255 * alpha)
     }
@@ -850,7 +849,7 @@ export class Globe {
     this._refreshTrail(noradId, satrec)
     this.refreshInstanceColor(idx)
 
-    // Recompute arc and trail every 60 s to stay aligned with GMST drift
+    // Recompute arc every 60 s to keep its start point near the current position
     const interval = setInterval(() => {
       if (!this.selectedNoradIds.has(noradId)) return
       const t = this.satTles[idx]
@@ -889,17 +888,15 @@ export class Globe {
     const now = new Date()
     const posVel = satellite.propagate(satrec, now)
     if (!posVel.position || typeof posVel.position !== 'object') return
-    const gmst = satellite.gstime(now)
-    const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst)
-    const lat = geo.latitude
-    const lon = geo.longitude
-    const satRadius = geo.height / R_EARTH_KM + 1
-    const flyDistance = Math.max(CAMERA_DISTANCE, satRadius * 1.5)
+    const pos = posVel.position as satellite.EciVec3<number>
+    const mag = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z)
+    if (mag < 1) return
+    const flyDistance = Math.max(CAMERA_DISTANCE, (mag / R_EARTH_KM) * 1.5)
     this.flyFromPos = this.camera.position.clone()
     this.flyToPos = new THREE.Vector3(
-      flyDistance * Math.cos(lat) * Math.cos(lon),
-      flyDistance * Math.sin(lat),
-      -flyDistance * Math.cos(lat) * Math.sin(lon),
+       (pos.x / mag) * flyDistance,
+       (pos.z / mag) * flyDistance,  // ECI Z → world Y
+      -(pos.y / mag) * flyDistance,  // ECI Y → world -Z
     )
     this.flyStartTime = performance.now()
   }
@@ -907,9 +904,9 @@ export class Globe {
   private _satFlyDistance(satrec: satellite.SatRec): number {
     const posVel = satellite.propagate(satrec, new Date())
     if (!posVel.position || typeof posVel.position !== 'object') return CAMERA_DISTANCE
-    const gmst = satellite.gstime(new Date())
-    const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst)
-    return Math.max(CAMERA_DISTANCE, (geo.height / R_EARTH_KM + 1) * 1.5)
+    const pos = posVel.position as satellite.EciVec3<number>
+    const mag = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z)
+    return mag < 1 ? CAMERA_DISTANCE : Math.max(CAMERA_DISTANCE, (mag / R_EARTH_KM) * 1.5)
   }
 
   selectCatalogSatellite(noradId: string): void {
@@ -1047,8 +1044,9 @@ export class Globe {
       const hits = this._raycaster.intersectObject(this.earth.mesh)
       if (hits.length > 0) {
         const p = hits[0].point
+        // p is in ECI world space — subtract GMST to get geographic (ECEF) longitude
         const latDeg = Math.asin(Math.max(-1, Math.min(1, p.y))) * (180 / Math.PI)
-        const lonDeg = Math.atan2(-p.z, p.x) * (180 / Math.PI)
+        const lonDeg = (Math.atan2(-p.z, p.x) - this._lastGmst) * (180 / Math.PI)
         const feature = this.countryFeatures.find(
           f => geoContains(f as unknown as GeoFeature, [lonDeg, latDeg])
         )
@@ -1170,8 +1168,9 @@ export class Globe {
         const hits = this._raycaster.intersectObject(this.earth.mesh)
         if (hits.length > 0) {
           const p = hits[0].point
+          // p is in ECI world space — subtract GMST to get geographic (ECEF) longitude
           const latDeg = Math.asin(Math.max(-1, Math.min(1, p.y))) * (180 / Math.PI)
-          const lonDeg = Math.atan2(-p.z, p.x) * (180 / Math.PI)
+          const lonDeg = (Math.atan2(-p.z, p.x) - this._lastGmst) * (180 / Math.PI)
           const feature = this.countryFeatures.find(
             f => geoContains(f as unknown as GeoFeature, [lonDeg, latDeg])
           )
@@ -1213,7 +1212,8 @@ export class Globe {
 
     if (latDeg !== undefined && lonDeg !== undefined) {
       const lat = latDeg * (Math.PI / 180)
-      const lon = lonDeg * (Math.PI / 180)
+      // Geographic lon → ECI lon by adding GMST (world space is ECI)
+      const lon = lonDeg * (Math.PI / 180) + this._lastGmst
       targetPos = new THREE.Vector3(
          flyDistance * Math.cos(lat) * Math.cos(lon),
          flyDistance * Math.sin(lat),
@@ -1259,6 +1259,7 @@ export class Globe {
       latDeg,
       lonDeg,
       minElevDeg,
+      this._lastGmst,
     )
   }
 
@@ -1266,6 +1267,10 @@ export class Globe {
     this.rafId = requestAnimationFrame(() => this.tick())
     const now = new Date()
     const nowMs = now.getTime()
+
+    const gmst = satellite.gstime(now)
+    this._lastGmst = gmst
+    this.earthGroup.rotation.y = gmst
 
     getSunDirection(now, this._sunDir)
     this.earth.update(this._sunDir)
@@ -1322,7 +1327,7 @@ export class Globe {
     this.graticuleMesh?.dispose()
     this.countryBorderMesh?.dispose()
     this.countryHighlightMesh?.clear()
-    for (const label of this.countryLabelObjects) this.scene.remove(label)
+    for (const label of this.countryLabelObjects) this.earthGroup.remove(label)
     this.countryLabelObjects = []
     this.countryLabelPositions = []
     this.countryLabelSizes = []

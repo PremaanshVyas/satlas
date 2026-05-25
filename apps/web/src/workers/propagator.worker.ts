@@ -38,7 +38,6 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
     if (satrecs.length === 0) return
 
     const date = new Date(msg.timestamp)
-    const gmst = satellite.gstime(date)
     const buffer = new Float32Array(satrecs.length * 3)
 
     satrecs.forEach((satrec, i) => {
@@ -48,17 +47,16 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         // Guard against false (propagation error) and any other non-object result
         if (!posVel.position || typeof posVel.position !== 'object') return
 
-        const geo = satellite.eciToGeodetic(
-          posVel.position as satellite.EciVec3<number>,
-          gmst,
-        )
-        const lat = geo.latitude
-        const lon = geo.longitude
-        const r = (R_EARTH_KM + geo.height) / R_EARTH_KM
+        // Emit ECI positions — world space is ECI; earthGroup rotates by GMST each frame.
+        // ECI X → world X, ECI Z (north pole) → world Y, ECI Y → world -Z
+        const pos = posVel.position as satellite.EciVec3<number>
+        const mag = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z)
+        if (mag < 1) return
+        const r = mag / R_EARTH_KM
 
-        buffer[i * 3]     =  r * Math.cos(lat) * Math.cos(lon)
-        buffer[i * 3 + 1] =  r * Math.sin(lat)
-        buffer[i * 3 + 2] = -r * Math.cos(lat) * Math.sin(lon)
+        buffer[i * 3]     =  pos.x / mag * r
+        buffer[i * 3 + 1] =  pos.z / mag * r
+        buffer[i * 3 + 2] = -pos.y / mag * r
       } catch {
         // Single bad satellite — zero its slot and continue (never crash the whole frame)
       }

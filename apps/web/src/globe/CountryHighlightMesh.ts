@@ -8,10 +8,10 @@ const BORDER_R = 1.004
 const MAX_ARC_DEG = 4
 
 export class CountryHighlightMesh {
-  private scene: THREE.Scene
+  private scene: THREE.Object3D
   private meshes: THREE.Object3D[] = []
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Object3D) {
     this.scene = scene
   }
 

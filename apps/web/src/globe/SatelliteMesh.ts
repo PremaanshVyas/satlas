@@ -41,43 +41,26 @@ export class SatelliteMesh {
     this.group.add(this.dot, this.halo, this.arc)
   }
 
-  // Dot position: ECEF (Earth-fixed) so it appears over the correct geography.
+  // Dot position: ECI world space — earthGroup rotates by GMST each frame so the ISS
+  // appears over the correct geography without any manual ECEF conversion here.
   private toThreePosition(date: Date): THREE.Vector3 | null {
     const posVel = satellite.propagate(this.satrec, date)
     if (typeof posVel.position === 'boolean') return null
 
-    const gmst = satellite.gstime(date)
-    const geo = satellite.eciToGeodetic(
-      posVel.position as satellite.EciVec3<number>,
-      gmst,
-    )
+    const pos = posVel.position as satellite.EciVec3<number>
+    const mag = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z)
+    if (mag < 1) return null
+    const r = mag / R_EARTH_KM
 
-    const lat = geo.latitude   // radians
-    const lon = geo.longitude  // radians
-    const r = (R_EARTH_KM + geo.height) / R_EARTH_KM  // actual orbital radius in Earth-radii units
-
-    return new THREE.Vector3(
-       r * Math.cos(lat) * Math.cos(lon),
-       r * Math.sin(lat),
-      -r * Math.cos(lat) * Math.sin(lon),
-    )
+    return new THREE.Vector3(pos.x / mag * r, pos.z / mag * r, -pos.y / mag * r)
   }
 
-  // Orbital ring: ECI positions rotated by the current GMST so the ring appears at
-  // the correct geographic longitude on the globe. GMST (Greenwich Mean Sidereal Time)
-  // is the angle between the ECI vernal equinox and Earth's prime meridian (+X in
-  // Three.js). Without this correction the ring is a correct closed ellipse but
-  // appears rotated by GMST from the satellite's actual geographic position.
-  // Using a single GMST for all 180 points keeps the ring geometrically closed
-  // (it is still the same ECI ellipse, just rotated). The per-point GMST error
-  // accumulates to ~22.9° over one orbital period — we correct this by recomputing
-  // the arc every 60 s so the ring stays aligned with the dot.
+  // Orbital ring: ECI positions directly — world space is ECI so no GMST rotation needed.
+  // The ring is naturally a correct inertial ellipse; earthGroup.rotation.y = GMST makes
+  // the Earth surface rotate beneath it, keeping satellite and ring aligned geographically.
   private computeArcPoints(): THREE.Vector3[] {
     const periodMs = (2 * Math.PI / this.satrec.no) * 60 * 1000
     const now = new Date()
-    const gmst = satellite.gstime(now)
-    const cosG = Math.cos(gmst)
-    const sinG = Math.sin(gmst)
     const points: THREE.Vector3[] = []
 
     for (let i = 0; i < 180; i++) {
@@ -89,14 +72,8 @@ export class SatelliteMesh {
       const mag = Math.sqrt(pos.x ** 2 + pos.y ** 2 + pos.z ** 2)
       if (mag < 1) continue
 
-      // Rotate ECI by GMST to align with the ECEF frame (same rotation that
-      // eciToGeodetic applies). Z (north pole) is unchanged by this rotation.
       const r = mag / R_EARTH_KM
-      const ex = (pos.x * cosG + pos.y * sinG) / mag
-      const ey = (-pos.x * sinG + pos.y * cosG) / mag
-      const ez = pos.z / mag
-      // ECEF → Three.js: prime meridian → +X, north → +Y, 90°E → −Z
-      points.push(new THREE.Vector3(ex * r, ez * r, -ey * r))
+      points.push(new THREE.Vector3(pos.x / mag * r, pos.z / mag * r, -pos.y / mag * r))
     }
     return points
   }
@@ -125,8 +102,7 @@ export class SatelliteMesh {
       this.halo.position.copy(pos)
     }
 
-    // GMST changes ~15°/hour, so recompute the arc every 60 s to keep the ring
-    // aligned with the satellite's geographic position on the globe.
+    // Recompute arc every 60 s so the ring's start point stays near the current position.
     const nowMs = date.getTime()
     if (nowMs - this.lastArcRecompute >= ARC_RECOMPUTE_MS) {
       this.lastArcRecompute = nowMs
