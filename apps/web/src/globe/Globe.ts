@@ -1355,7 +1355,7 @@ export class Globe {
       // Rotate slower when close — short swipes shouldn't whip past the target region.
       // Zoom slower when close — prevents overshooting the surface.
       const tSqrt = Math.sqrt(t)
-      this.controls.rotateSpeed = 0.25 + tSqrt * 0.25  // 0.25 close → 0.50 far
+      this.controls.rotateSpeed = 0.15 + tSqrt * 0.35  // 0.15 close → 0.50 far
       this.controls.zoomSpeed   = 0.50 + t    * 0.50   // 0.50 close → 1.00 far
     }
 
