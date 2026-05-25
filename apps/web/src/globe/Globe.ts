@@ -160,6 +160,10 @@ export class Globe {
   private _sunDir = new THREE.Vector3()
   private _lastGmst = 0
   private _tempLabelWorldPos = new THREE.Vector3()
+  private _simTimeMs = Date.now()
+  private _timeScale = 1.0
+  private _lastTickRealMs = 0
+  private _lastSimSecond = -1
   private flyFromPos: THREE.Vector3 | null = null
   private flyToPos: THREE.Vector3 | null = null
   private flyStartTime: number | null = null
@@ -235,6 +239,16 @@ export class Globe {
   // Fires when a satellite is individually removed from selection (tray ✕).
   onSatelliteRemove: ((noradId: string) => void) | null = null
   onCountryClick: ((name: string, continent: string, centLat: number, centLon: number) => void) | null = null
+  onSimulatedTime: ((date: Date) => void) | null = null
+
+  setTimeScale(scale: number): void {
+    this._timeScale = scale
+    if (scale === 1) this._simTimeMs = Date.now()
+  }
+
+  getSimulatedTime(): Date {
+    return new Date(this._simTimeMs)
+  }
 
   mount(canvas: HTMLCanvasElement, onReady?: () => void): void {
     this.mounted = true
@@ -675,7 +689,7 @@ export class Globe {
     this.liveSelectedSatrec = satrec
     const tick = () => {
       if (!this.liveSelectedSatrec || !this.onLivePosition) return
-      const now = new Date()
+      const now = new Date(this._simTimeMs)
       const posVel = satellite.propagate(this.liveSelectedSatrec, now)
       if (!posVel.position || typeof posVel.position !== 'object') return
       const gmst = satellite.gstime(now)
@@ -1265,8 +1279,28 @@ export class Globe {
 
   private tick(): void {
     this.rafId = requestAnimationFrame(() => this.tick())
-    const now = new Date()
-    const nowMs = now.getTime()
+
+    // Advance simulated time
+    const realNow = performance.now()
+    if (this._lastTickRealMs === 0) this._lastTickRealMs = realNow
+    const dt = realNow - this._lastTickRealMs
+    this._lastTickRealMs = realNow
+
+    if (this._timeScale === 1) {
+      this._simTimeMs = Date.now()  // stay pinned to real time, no drift
+    } else {
+      this._simTimeMs += dt * this._timeScale
+    }
+
+    // Fire per-second callback for UI clock updates
+    const simSecond = Math.floor(this._simTimeMs / 1000)
+    if (simSecond !== this._lastSimSecond) {
+      this._lastSimSecond = simSecond
+      this.onSimulatedTime?.(new Date(this._simTimeMs))
+    }
+
+    const now = new Date(this._simTimeMs)
+    const nowMs = this._simTimeMs
 
     const gmst = satellite.gstime(now)
     this._lastGmst = gmst
