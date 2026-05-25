@@ -183,7 +183,6 @@ export class Globe {
   private activeCategories: Set<SatCategory> = new Set(ALL_CATEGORIES)
   private activeCategoryMask: Uint8Array | null = null
   private agentFilterCategories: SatCategory[] | null = null
-  private spotlightNoradId: string | null = null
 
   // Multi-satellite selection — keyed by NORAD ID string
   private selectedNoradIds: Set<string> = new Set()
@@ -555,7 +554,6 @@ export class Globe {
   // ── Category filtering ──────────────────────────────────────────────────────
 
   setActiveCategories(cats: Set<SatCategory>): void {
-    this.spotlightNoradId = null
     this.agentFilterCategories = null
     this.activeCategories = cats
     this.rebuildCategoryMask()
@@ -568,7 +566,6 @@ export class Globe {
   }
 
   applyAgentFilter(categories: SatCategory[]): void {
-    this.spotlightNoradId = null
     const cats = categories.length > 0 ? categories : [...ALL_CATEGORIES]
     this.agentFilterCategories = categories.length > 0 ? [...categories] : null
     this.activeCategories = new Set(cats)
@@ -580,7 +577,6 @@ export class Globe {
   }
 
   applySpotlight(noradId: string | null): void {
-    this.spotlightNoradId = noradId
     if (noradId === null) {
       this.rebuildCategoryMask()
     } else if (noradId === ISS_NORAD) {
@@ -596,7 +592,6 @@ export class Globe {
         this.activeCategoryMask = mask
       } else {
         // Not in catalog — fall back to normal mask
-        this.spotlightNoradId = null
         this.rebuildCategoryMask()
       }
     }
