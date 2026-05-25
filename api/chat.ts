@@ -406,7 +406,15 @@ TOOL USAGE RULES:\
 \n\nLive catalog counts (from the tracking globe — use these directly when asked about how many of each type):\
 \n${countLines}\
 \n\nFor pass times (UTC ISO 8601), convert to local timezone only when you have been given the offset. For Australian locations use the Melbourne time above as reference.\
-\nEach pass includes visibility data: sky_condition (Night/Astronomical Twilight/Nautical Twilight/Civil Twilight/Day), satellite_illuminated (true = satellite in sunlight), visibility_label (Excellent/Good/Fair/Poor/None), visibility_score (0–100%). Always mention this — e.g. "Night, Excellent (82%)" or "Daytime — not visible". List each pass on one line: local time, max elevation, compass direction, visibility label.`
+\nEach pass includes visibility fields — always include them in your response:\
+\n  sky_condition: Night / Astronomical Twilight / Nautical Twilight / Civil Twilight / Day\
+\n  satellite_illuminated: true = satellite is in sunlight; false = in Earth's shadow\
+\n  visibility_label: Excellent / Good / Fair / Poor / None\
+\n  visibility_score: 0–100\
+\nFormat each pass on one line: "[time] [tz] — [max_elevation]°, [direction], [duration] — [sky_condition], [label] ([score]%)"\
+\nIf visibility_label is None and sky_condition is Day: append "not visible (daytime)"\
+\nIf visibility_label is None and satellite_illuminated is false: append "not visible (satellite in shadow)"\
+\nExample: "6:37 AM AEST — 11°, NE, 7m — Nautical Twilight, Fair (20%)" or "1:42 AM AEST — 54°, N, 6m — Night, not visible (satellite in shadow)"`
 }
 
 // ── Tool schemas ──────────────────────────────────────────────────────────────

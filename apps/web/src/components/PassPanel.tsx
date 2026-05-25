@@ -398,7 +398,9 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
                         ) : (
                           <>
                             <span className="text-[#2a2a2a] font-mono text-[9px]">·</span>
-                            <span className="font-mono text-[9px] text-[#444] uppercase tracking-[0.1em]">Not visible</span>
+                            <span className="font-mono text-[9px] text-[#444] uppercase tracking-[0.1em]">
+                              {p.sky_condition === 'Day' ? 'Daytime' : 'In shadow'}
+                            </span>
                           </>
                         )}
                       </div>
