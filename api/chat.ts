@@ -93,6 +93,55 @@ function isDebrisOrRocketBody(name: string): boolean {
 
 const MU = 398600.4418  // km³/s²
 const R_EARTH = 6371    // km
+const _DEG = Math.PI / 180
+
+function _toJd(d: Date): number { return d.getTime() / 86400000 + 2440587.5 }
+
+function _sunEciUnit(jd: number): { x: number; y: number; z: number } {
+  const T = (jd - 2451545.0) / 36525.0
+  const L0 = (280.46646 + 36000.76983 * T) % 360
+  const Mrad = ((357.52911 + 35999.05029 * T) % 360) * _DEG
+  const C = (1.914602 - 0.004817 * T) * Math.sin(Mrad)
+          + (0.019993 - 0.000101 * T) * Math.sin(2 * Mrad)
+          + 0.000289 * Math.sin(3 * Mrad)
+  const lon = (L0 + C) * _DEG
+  const eps = (23.439291 - 0.013004 * T) * _DEG
+  return { x: Math.cos(lon), y: Math.cos(eps) * Math.sin(lon), z: Math.sin(eps) * Math.sin(lon) }
+}
+
+function _sunElevationDeg(date: Date, latDeg: number, lonDeg: number): number {
+  const sun = _sunEciUnit(_toJd(date))
+  const gmst = satellite.gstime(date)
+  const latRad = latDeg * _DEG, lonRad = lonDeg * _DEG
+  const cx = Math.cos(latRad) * Math.cos(lonRad)
+  const cy = Math.cos(latRad) * Math.sin(lonRad)
+  const cz = Math.sin(latRad)
+  const ex = cx * Math.cos(gmst) - cy * Math.sin(gmst)
+  const ey = cx * Math.sin(gmst) + cy * Math.cos(gmst)
+  return Math.asin(Math.max(-1, Math.min(1, sun.x * ex + sun.y * ey + sun.z * cz))) / _DEG
+}
+
+function _inEarthShadow(satPos: { x: number; y: number; z: number }, sun: { x: number; y: number; z: number }): boolean {
+  const proj = satPos.x * sun.x + satPos.y * sun.y + satPos.z * sun.z
+  if (proj >= 0) return false
+  const r2 = satPos.x ** 2 + satPos.y ** 2 + satPos.z ** 2
+  return r2 - proj * proj < R_EARTH * R_EARTH
+}
+
+function _skyCondition(sunElev: number): string {
+  if (sunElev > 0)   return 'Day'
+  if (sunElev > -6)  return 'Civil Twilight'
+  if (sunElev > -12) return 'Nautical Twilight'
+  if (sunElev > -18) return 'Astronomical Twilight'
+  return 'Night'
+}
+
+function _visibilityScore(sunElev: number, illuminated: boolean, maxElev: number): { score: number; label: string } {
+  const sky = sunElev > 0 ? 0 : sunElev > -6 ? 0.08 : sunElev > -12 ? 0.35 : sunElev > -18 ? 0.65 : 0.90
+  if (sky === 0 || !illuminated) return { score: 0, label: 'None' }
+  const score = Math.min(100, Math.round(sky * (0.5 + 0.5 * Math.min(1, maxElev / 90)) * 100))
+  return { score, label: score >= 70 ? 'Excellent' : score >= 45 ? 'Good' : score >= 20 ? 'Fair' : 'Poor' }
+}
 
 interface Pass {
   start: string
@@ -100,6 +149,10 @@ interface Pass {
   max_elevation: number
   direction: string
   duration_seconds: number
+  sky_condition: string
+  satellite_illuminated: boolean
+  visibility_score: number
+  visibility_label: string
 }
 
 function azToCompass(azDeg: number): string {
@@ -142,12 +195,25 @@ function computePasses(rec: TleRecord, latDeg: number, lonDeg: number, hoursAhea
       passEnd = t + STEP_MS
       if (elDeg > maxEl) { maxEl = elDeg; maxElAz = azDeg }
     } else if (passStart !== null) {
+      const endTs = passEnd!
+      const midDate = new Date((passStart + endTs) / 2)
+      const sun = _sunEciUnit(_toJd(midDate))
+      const sunElev = _sunElevationDeg(midDate, latDeg, lonDeg)
+      const midPosVel = satellite.propagate(satrec, midDate)
+      const illuminated = midPosVel.position && typeof midPosVel.position !== 'boolean'
+        ? !_inEarthShadow(midPosVel.position as satellite.EciVec3<number>, sun)
+        : true
+      const { score, label } = _visibilityScore(sunElev, illuminated, Math.round(maxEl))
       passes.push({
         start: new Date(passStart).toISOString(),
-        end: new Date(passEnd!).toISOString(),
+        end: new Date(endTs).toISOString(),
         max_elevation: Math.round(maxEl),
         direction: azToCompass(maxElAz),
-        duration_seconds: Math.round((passEnd! - passStart) / 1000),
+        duration_seconds: Math.round((endTs - passStart) / 1000),
+        sky_condition: _skyCondition(sunElev),
+        satellite_illuminated: illuminated,
+        visibility_score: score,
+        visibility_label: label,
       })
       passStart = null; passEnd = null; maxEl = 0
       if (passes.length >= 8) break
@@ -340,7 +406,7 @@ TOOL USAGE RULES:\
 \n\nLive catalog counts (from the tracking globe — use these directly when asked about how many of each type):\
 \n${countLines}\
 \n\nFor pass times (UTC ISO 8601), convert to local timezone only when you have been given the offset. For Australian locations use the Melbourne time above as reference.\
-\nBe concise: list each pass on one line with local time, max elevation, and compass direction.`
+\nEach pass includes visibility data: sky_condition (Night/Astronomical Twilight/Nautical Twilight/Civil Twilight/Day), satellite_illuminated (true = satellite in sunlight), visibility_label (Excellent/Good/Fair/Poor/None), visibility_score (0–100%). Always mention this — e.g. "Night, Excellent (82%)" or "Daytime — not visible". List each pass on one line: local time, max elevation, compass direction, visibility label.`
 }
 
 // ── Tool schemas ──────────────────────────────────────────────────────────────
@@ -359,7 +425,7 @@ const GET_SAT_INFO_TOOL: Anthropic.Tool = {
 
 const PREDICT_PASSES_TOOL: Anthropic.Tool = {
   name: 'predict_passes',
-  description: 'Predict upcoming passes of a satellite over a given location. Returns start/end times (UTC), max elevation in degrees, and compass direction. Use for any question about when a satellite will be visible.',
+  description: 'Predict upcoming passes of a satellite over a given location. Returns start/end times (UTC), max elevation, compass direction, and visibility data (sky condition, satellite illumination, visibility score 0–100%). Use for any question about when a satellite will be visible.',
   input_schema: {
     type: 'object' as const,
     properties: {

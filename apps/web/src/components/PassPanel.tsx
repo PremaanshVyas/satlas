@@ -8,6 +8,11 @@ interface Pass {
   end_utc: string
   max_elevation_deg: number
   direction: string
+  sun_elevation_deg?: number
+  satellite_illuminated?: boolean
+  sky_condition?: string
+  visibility_score?: number
+  visibility_label?: string
 }
 
 interface PassPanelProps {
@@ -349,30 +354,58 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
             </div>
           ) : (
             <div className="divide-y divide-[rgba(255,255,255,0.04)]">
-              {passes.map((p, i) => (
-                <div key={i} className="px-3 py-2.5">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#555555]">{formatDateTime(p.start_utc).date}</span>
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="font-mono text-[12px] font-medium text-secondary">{formatDateTime(p.start_utc).time}</span>
-                        {tz && <span className="font-mono text-[10px] text-label">{tz}</span>}
+              {passes.map((p, i) => {
+                const vis = p.visibility_label
+                const visColor = vis === 'Excellent' ? 'text-[#00d4ff]'
+                  : vis === 'Good'      ? 'text-[#4ade80]'
+                  : vis === 'Fair'      ? 'text-[#fbbf24]'
+                  : 'text-[#555555]'
+                return (
+                  <div key={i} className="px-3 py-2.5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#555555]">{formatDateTime(p.start_utc).date}</span>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="font-mono text-[12px] font-medium text-secondary">{formatDateTime(p.start_utc).time}</span>
+                          {tz && <span className="font-mono text-[10px] text-label">{tz}</span>}
+                        </div>
+                      </div>
+                      <span className="font-mono text-[10px] text-label">{durationMin(p.start_utc, p.end_utc)}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <div className="font-mono text-[7px] uppercase tracking-[0.14em] text-[#3a3a3a] mb-0.5">Max Elevation</div>
+                        <div className="font-mono text-[12px] font-light text-secondary">{p.max_elevation_deg}°</div>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <CompassRose direction={p.direction} />
+                        <div className="font-mono text-[10px] text-label mt-0.5">{p.direction}</div>
                       </div>
                     </div>
-                    <span className="font-mono text-[10px] text-label">{durationMin(p.start_utc, p.end_utc)}</span>
+                    {p.sky_condition && (
+                      <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-[rgba(255,255,255,0.03)]">
+                        <span className="font-mono text-[9px] text-[#3a3a3a]">{p.sky_condition}</span>
+                        {p.visibility_label && p.visibility_label !== 'None' ? (
+                          <>
+                            <span className="text-[#2a2a2a] font-mono text-[9px]">·</span>
+                            <span className={`font-mono text-[9px] uppercase tracking-[0.1em] ${visColor}`}>
+                              {p.visibility_label}
+                            </span>
+                            {p.visibility_score !== undefined && (
+                              <span className={`font-mono text-[9px] ${visColor} opacity-60`}>{p.visibility_score}%</span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[#2a2a2a] font-mono text-[9px]">·</span>
+                            <span className="font-mono text-[9px] text-[#444] uppercase tracking-[0.1em]">Not visible</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <div className="font-mono text-[7px] uppercase tracking-[0.14em] text-[#3a3a3a] mb-0.5">Max Elevation</div>
-                      <div className="font-mono text-[12px] font-light text-secondary">{p.max_elevation_deg}°</div>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <CompassRose direction={p.direction} />
-                      <div className="font-mono text-[10px] text-label mt-0.5">{p.direction}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )
         )}

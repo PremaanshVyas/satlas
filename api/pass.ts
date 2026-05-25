@@ -1,6 +1,77 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import * as satellite from 'satellite.js'
 
 export const config = { maxDuration: 30 }
+
+// ── Solar / shadow helpers ────────────────────────────────────────────────────
+
+const DEG = Math.PI / 180
+const R_EARTH_KM = 6371.0
+
+function toJd(date: Date): number {
+  return date.getTime() / 86400000 + 2440587.5
+}
+
+// Sun ECI unit vector (Meeus simplified)
+function sunEciUnit(jd: number): { x: number; y: number; z: number } {
+  const T = (jd - 2451545.0) / 36525.0
+  const L0 = (280.46646 + 36000.76983 * T) % 360
+  const Mrad = ((357.52911 + 35999.05029 * T) % 360) * DEG
+  const C = (1.914602 - 0.004817 * T) * Math.sin(Mrad)
+          + (0.019993 - 0.000101 * T) * Math.sin(2 * Mrad)
+          + 0.000289 * Math.sin(3 * Mrad)
+  const lon = (L0 + C) * DEG
+  const eps = (23.439291 - 0.013004 * T) * DEG
+  return {
+    x: Math.cos(lon),
+    y: Math.cos(eps) * Math.sin(lon),
+    z: Math.sin(eps) * Math.sin(lon),
+  }
+}
+
+// Sun elevation at observer (degrees, negative = below horizon)
+function sunElevationDeg(date: Date, latDeg: number, lonDeg: number): number {
+  const sun = sunEciUnit(toJd(date))
+  const gmst = satellite.gstime(date)
+  const latRad = latDeg * DEG, lonRad = lonDeg * DEG
+  const cx = Math.cos(latRad) * Math.cos(lonRad)
+  const cy = Math.cos(latRad) * Math.sin(lonRad)
+  const cz = Math.sin(latRad)
+  // ECEF → ECI: rotate by GMST around Z
+  const ex = cx * Math.cos(gmst) - cy * Math.sin(gmst)
+  const ey = cx * Math.sin(gmst) + cy * Math.cos(gmst)
+  const dot = sun.x * ex + sun.y * ey + sun.z * cz
+  return Math.asin(Math.max(-1, Math.min(1, dot))) / DEG
+}
+
+// Cylindrical Earth shadow check (sat pos in km ECI, sun is unit vector)
+function inEarthShadow(satPos: { x: number; y: number; z: number }, sun: { x: number; y: number; z: number }): boolean {
+  const proj = satPos.x * sun.x + satPos.y * sun.y + satPos.z * sun.z
+  if (proj >= 0) return false  // satellite on sun-facing side
+  const r2 = satPos.x ** 2 + satPos.y ** 2 + satPos.z ** 2
+  return r2 - proj * proj < R_EARTH_KM * R_EARTH_KM
+}
+
+function skyCondition(sunElev: number): string {
+  if (sunElev > 0)   return 'Day'
+  if (sunElev > -6)  return 'Civil Twilight'
+  if (sunElev > -12) return 'Nautical Twilight'
+  if (sunElev > -18) return 'Astronomical Twilight'
+  return 'Night'
+}
+
+function computeVisibilityScore(sunElev: number, illuminated: boolean, maxElev: number): { score: number; label: string } {
+  const skyFactor = sunElev > 0 ? 0
+    : sunElev > -6  ? 0.08
+    : sunElev > -12 ? 0.35
+    : sunElev > -18 ? 0.65
+    : 0.90
+  if (skyFactor === 0 || !illuminated) return { score: 0, label: 'None' }
+  const elevFactor = 0.5 + 0.5 * Math.min(1, maxElev / 90)
+  const score = Math.min(100, Math.round(skyFactor * elevFactor * 100))
+  const label = score >= 70 ? 'Excellent' : score >= 45 ? 'Good' : score >= 20 ? 'Fair' : 'Poor'
+  return { score, label }
+}
 
 const ORBITAL_SERVICE_URL =
   process.env.ORBITAL_SERVICE_URL ??
@@ -82,8 +153,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Resolve TLE here so ECS doesn't need to do a catalog lookup.
   // This sidesteps ECS catalog epoch limits (30d) vs frontend catalog (60d).
+  let rec: TleRecord | null = null
   if (norad_id) {
-    const rec = await resolveTle(String(norad_id))
+    rec = await resolveTle(String(norad_id))
     if (!rec) {
       res.status(404).json({ error: `Satellite ${norad_id} not found in catalog` })
       return
@@ -103,6 +175,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(upstream.status).json(data)
       return
     }
+
+    // Augment passes with solar visibility data
+    if (rec && Array.isArray(data.passes) && data.passes.length > 0) {
+      const satrec = satellite.twoline2satrec(rec.tle1, rec.tle2)
+      const latNum = parseFloat(String(latitude))
+      const lonNum = parseFloat(String(longitude))
+
+      data.passes = data.passes.map((p: { start_utc: string; end_utc: string; max_elevation_deg: number; direction: string }) => {
+        const midMs = (new Date(p.start_utc).getTime() + new Date(p.end_utc).getTime()) / 2
+        const midDate = new Date(midMs)
+        const jd = toJd(midDate)
+        const sun = sunEciUnit(jd)
+        const sunElev = sunElevationDeg(midDate, latNum, lonNum)
+
+        let illuminated = true
+        const posVel = satellite.propagate(satrec, midDate)
+        if (posVel.position && typeof posVel.position !== 'boolean') {
+          illuminated = !inEarthShadow(posVel.position as satellite.EciVec3<number>, sun)
+        }
+
+        const { score, label } = computeVisibilityScore(sunElev, illuminated, p.max_elevation_deg)
+        return {
+          ...p,
+          sun_elevation_deg: Math.round(sunElev * 10) / 10,
+          satellite_illuminated: illuminated,
+          sky_condition: skyCondition(sunElev),
+          visibility_score: score,
+          visibility_label: label,
+        }
+      })
+    }
+
     res.status(200).json(data)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
