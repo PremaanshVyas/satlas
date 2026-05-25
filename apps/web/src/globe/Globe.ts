@@ -1283,7 +1283,7 @@ export class Globe {
     // Advance simulated time
     const realNow = performance.now()
     if (this._lastTickRealMs === 0) this._lastTickRealMs = realNow
-    const dt = realNow - this._lastTickRealMs
+    const dt = Math.min(realNow - this._lastTickRealMs, 200)
     this._lastTickRealMs = realNow
 
     if (this._timeScale === 1) {
