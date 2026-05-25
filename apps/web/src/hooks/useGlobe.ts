@@ -44,11 +44,16 @@ export function useGlobe(
   selectCatalogSatellite: (noradId: string) => void
   setBordersVisible: (visible: boolean) => Promise<void>
   clearCountryHighlight: () => void
+  simulatedTime: Date
+  timeScale: number
+  setTimeScale: (scale: number) => void
 } {
   const [isLoading, setIsLoading] = useState(true)
   const [satelliteCount, setSatelliteCount] = useState(0)
   const [catalogError, setCatalogError] = useState(false)
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
+  const [simulatedTime, setSimulatedTime] = useState<Date>(() => new Date())
+  const [timeScale, setTimeScaleState] = useState(1)
   const globeRef = useRef<Globe | null>(null)
 
   const callbacksRef = useRef(callbacks)
@@ -82,6 +87,9 @@ export function useGlobe(
       const overhead = globe.getOverheadSatellites(centLat, centLon)
       callbacksRef.current.onCountryClick?.(name, continent, overhead)
     }
+    globe.onSimulatedTime = (date) => {
+      setSimulatedTime(date)
+    }
     globeRef.current = globe
 
     const observer = new ResizeObserver(entries => {
@@ -94,6 +102,7 @@ export function useGlobe(
       observer.disconnect()
       globe.onCatalogRefresh = null
       globe.onCatalogError = null
+      globe.onSimulatedTime = null
       globe.unmount()
       globeRef.current = null
       canvas.remove()
@@ -142,5 +151,10 @@ export function useGlobe(
     globeRef.current?.clearCountryHighlight()
   }, [])
 
-  return { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight }
+  const setTimeScale = useCallback((scale: number): void => {
+    globeRef.current?.setTimeScale(scale)
+    setTimeScaleState(scale)
+  }, [])
+
+  return { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight, simulatedTime, timeScale, setTimeScale }
 }
