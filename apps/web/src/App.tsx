@@ -54,7 +54,6 @@ export default function App() {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  const [simulatedTime, setSimulatedTime] = useState<Date>(() => new Date())
   const [timeScale, setTimeScaleState] = useState(1)
   const setTimeScaleRef = useRef<((scale: number) => void) | null>(null)
 
@@ -156,7 +155,6 @@ export default function App() {
         onSelectReady={(fn) => { selectSatRef.current = fn }}
         onClearHighlightReady={(fn) => { clearCountryHighlightRef.current = fn }}
         onCountryClick={(name, continent, overheadSats) => setSelectedCountry({ name, continent, overheadSats })}
-        onSimulatedTime={setSimulatedTime}
         onTimeReady={({ setTimeScale }) => { setTimeScaleRef.current = setTimeScale }}
       />
 
