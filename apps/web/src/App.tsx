@@ -41,6 +41,14 @@ export default function App() {
 
   const [selectedCountry, setSelectedCountry] = useState<SelectedCountry | null>(null)
 
+  const [nameNoticeDismissed, setNameNoticeDismissed] = useState(() => {
+    try { return localStorage.getItem('satlas_name_notice_dismissed') === '1' } catch { return false }
+  })
+  function dismissNameNotice() {
+    try { localStorage.setItem('satlas_name_notice_dismissed', '1') } catch { /* non-critical */ }
+    setNameNoticeDismissed(true)
+  }
+
   // Mobile detection — drives Vaul vs desktop card
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640)
   useEffect(() => {
@@ -410,6 +418,34 @@ export default function App() {
           style={{ bottom: 'max(5.75rem, calc(env(safe-area-inset-bottom, 0px) + 5.25rem))' }}
         />
       )}
+
+      {/* Satellite name notice */}
+      <AnimatePresence>
+        {!nameNoticeDismissed && (
+          <motion.div
+            key="name-notice"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2, ease: 'easeOut', delay: 1.2 }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 max-w-[calc(100vw-2rem)] w-max"
+          >
+            <div className="flex items-center gap-3 px-3.5 py-2.5 bg-[rgba(9,9,9,0.88)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl">
+              <div className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0 opacity-70" />
+              <p className="font-mono text-[10px] text-[rgba(255,255,255,0.45)] leading-snug">
+                Some satellites show catalog IDs instead of common names.{' '}
+                <span className="text-[rgba(255,255,255,0.6)]">Search by NORAD ID</span>{' '}
+                if a name search misses — we're improving this.
+              </p>
+              <button
+                onClick={dismissNameNotice}
+                aria-label="Dismiss notice"
+                className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-[rgba(255,255,255,0.25)] hover:text-[rgba(255,255,255,0.5)] transition-colors font-mono text-[14px] leading-none touch-manipulation"
+              >×</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
