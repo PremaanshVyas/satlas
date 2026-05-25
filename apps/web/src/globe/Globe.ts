@@ -1333,18 +1333,23 @@ export class Globe {
 
     this.controls.update()
 
-    // Keep dots a consistent screen size across zoom levels.
-    // Target: ~4.5 screen-px at minDistance, ~2.5px at maxDistance.
-    // Formula: uSize = targetPx × depth × 2tan(fov/2) / viewportHeight
+    // Scale dots and zoom speed with camera distance each frame.
+    // Size formula: uSize = targetPx × depth × 2tan(fov/2) / viewportHeight
     // where 0.8284 = 2 × tan(22.5°) for the 45° vertical FOV.
+    // t^0.5 curve keeps dots small quickly as you pull back — prevents the dense
+    // LEO belt from completely filling the earth at mid/far zoom.
     if (this.field) {
       const camDist = this.camera.position.length()
       const h = this.renderer.domElement.height / this.renderer.getPixelRatio()
       const depth = Math.max(camDist - 1.0, 0.3)
       const t = Math.max(0, Math.min(1, (camDist - 1.3) / 13.7))
-      const targetPx = 4.5 - t * 2.0
-      this.field.setDotSize(targetPx * depth * 0.8284 / h)
+      const tCurved = Math.sqrt(t)
+      const targetPx = 3.0 - tCurved * 1.5   // 3.0px close → 1.5px far
+      const opacity  = 0.85 - t * 0.35        // 0.85 close → 0.50 far
+      this.field.setDotStyle(targetPx * depth * 0.8284 / h, opacity)
     }
+    // Zoom speed: slightly slower when close so fine-grained navigation is easier.
+    this.controls.zoomSpeed = 0.7 + Math.max(0, Math.min(1, (this.camera.position.length() - 1.3) / 13.7)) * 0.3
 
     this.renderer.render(this.scene, this.camera)
     if (this.labelRenderer && this.bordersEnabled) {

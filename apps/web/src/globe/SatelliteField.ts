@@ -74,8 +74,9 @@ export class SatelliteField {
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
   }
 
-  setDotSize(v: number): void {
-    this.mat.uniforms.uSize.value = v
+  setDotStyle(size: number, opacity: number): void {
+    this.mat.uniforms.uSize.value = size
+    this.mat.uniforms.uOpacity.value = opacity
   }
 
   dispose(): void {
