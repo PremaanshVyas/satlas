@@ -4,6 +4,30 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 34] — Pass visibility + UX polish (2026-05-26)
+
+### What shipped
+
+**Pass predictions now include visibility scoring.** Each predicted pass shows sky condition (Day / Civil Twilight / Nautical Twilight / Astronomical Twilight / Night) and whether the satellite is illuminated by the sun at that time. A visibility score (0–100%) combines sky darkness and max elevation angle. "Excellent" passes are night sky + illuminated satellite + high elevation; "None" is daytime regardless of elevation. The AI agent's pass answers now format this per-pass alongside the existing time/elevation/direction data.
+
+**Satellite illumination uses a cylindrical shadow model.** Given the satellite's ECI position vector P and the sun unit vector S, the satellite is in Earth's shadow when `dot(P, S) < 0` (behind Earth) and the perpendicular distance from the sun line is `sqrt(|P|² − dot(P,S)²) < R_earth`. This is an exact cylinder (not a cone), which slightly overestimates shadow extent but is accurate enough for pass planning. Solar position is computed using Meeus's simplified algorithm (±0.01° for near-future dates). Sky condition derives from sun elevation at the observer using standard astronomical twilight definitions.
+
+**Visibility evaluated at pass midpoint.** The orbital service returns start/end times but not an explicit maximum-elevation moment. Evaluating visibility at `(start + end) / 2` is close enough — for a 3–5 minute pass the midpoint is within ~60 seconds of max elevation.
+
+**Country overhead list uncapped.** `computeOverhead` previously sliced results to the top 25 — an arbitrary UI guard. The function already filters by elevation angle, so only satellites above the horizon are included. Removed `.slice(0, 25)` from `getOverheadSatellites`. Countries with dense coverage can now show all simultaneous overhead satellites.
+
+**Search dropdown catalog-name hint.** A persistent footer note in the search dropdown reads "Some satellites use catalog names — try their NORAD ID if a name search misses." Shown whenever the dropdown is open, whether results are found or not.
+
+**Developer notes panel.** A toggleable "i" button (bottom-right, below the chat button) replaces the old static dismissable banner. The panel lists messages from a `DEV_NOTES` array in `DevNotes.tsx` — one edit to add a developer note for all users. The panel hides when the chat is open to avoid UI overlap.
+
+### Technical decisions
+
+**Meeus simplified solar algorithm over full VSOP87.** VSOP87 gives sub-arcsecond accuracy but requires 1000+ terms. Meeus simplified computes mean longitude, mean anomaly, equation of center, and ecliptic obliquity in ~15 operations to produce a sun ECI unit vector accurate to ±0.01°. At the scale of pass visibility (binary day/night, ±6° twilight bucket widths), the simplified algorithm is identical in practice.
+
+**Solar helpers duplicated between `api/pass.ts` and `api/chat.ts`.** Vercel serverless functions cannot import from sibling `api/` files at runtime (ADR from Session 32). The solar math is ~50 lines; duplicating it with `_` prefixes keeps both functions self-contained without shared state. If the logic grows, the correct fix is to move helpers into a shared package that both functions bundle.
+
+---
+
 ## [Session 33] — V1 polish: render quality + performance (2026-05-25)
 
 ### What shipped

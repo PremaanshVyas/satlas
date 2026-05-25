@@ -110,11 +110,19 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 33 complete. Session 34 — V2 direction decision next.
+**Current phase:** Session 34 complete. Session 35 — V2 direction decision.
 
-**Next milestone:** V2 direction decision (Options A–D in decisions log below). Also posted to r/Starlink (🌎 Constellation flair) — monitor for feedback.
+**Next milestone:** V2 direction decision. Options: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. r/Starlink post from S33 may surface feedback — check before deciding.
 
 **Sessions 1–20 (complete, stable):** See `docs/decisions-archive.md` (all ADRs through S25). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
+
+**Session 34 completed tasks:**
+- [x] Pass visibility scoring — sky condition (Day/Civil/Nautical/Astronomical/Night), satellite illumination (cylindrical shadow model), visibility score 0–100%; computed at pass midpoint in both `api/pass.ts` and `api/chat.ts`
+- [x] Pass visibility shown in PassPanel — coloured label (Excellent=cyan, Good=green, Fair=amber, Poor/None=dim); "Daytime" / "In shadow" instead of generic "Not visible"
+- [x] Pass visibility in AI agent — system prompt updated with per-line format; agent formats sky_condition + visibility_label + score in pass answers
+- [x] Overhead list uncapped — removed `.slice(0, 25)` from `getOverheadSatellites`; `Globe.test.ts` updated (30 sats, not 25)
+- [x] Search dropdown catalog-name hint — persistent footer note in dropdown: "Some satellites use catalog names — try their NORAD ID if a name search misses"
+- [x] DevNotes component — toggleable "i" button (bottom-right, below chat button); `DEV_NOTES` array is the single edit point; `hidden={chatOpen}` prevents overlap; replaces old static banner
 
 **Session 33 completed tasks:**
 - [x] README roadmap fixed — country borders moved from V2 TODO to V1 complete; test count 75 → 104; "What's working now" updated with borders/CountryPanel/search fly-to
@@ -238,6 +246,14 @@ Sessions 1–25 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-25 — Session 33: `fwidth` for AA instead of a fixed smoothstep range.** The initial billboard shader used `smoothstep(0.6, 1.0, dist)` — a fade spanning 40% of the dot's radius. At small screen sizes this anti-aliases well; zoomed in, the fade zone is many pixels wide and the dot looks blurry. Fix: `float fw = fwidth(dist); smoothstep(1.0 - fw, 1.0 + fw, dist)`. `fwidth` returns the screen-space derivative of `dist` — exactly one pixel wide at the current zoom level. Result: crisp edges when zoomed in, still smooth at distance. Rule: for resolution-independent anti-aliasing in a fragment shader, use `fwidth` to measure one pixel's worth of the varying rather than a hardcoded smoothstep range.
 
+- **2026-05-26 — Session 34: Pass visibility uses Meeus solar position + cylindrical shadow model at pass midpoint.** Solar position via Meeus simplified: mean longitude L0, mean anomaly M, equation of center C, ecliptic obliquity eps → sun ECI unit vector; ±0.01° for near-future dates, accurate enough for sky condition bucketing. Shadow check: `proj = dot(satPos, sunHat)`; satellite in shadow if `proj < 0` AND `|satPos|² - proj² < R_earth²`. Sky condition from sun elevation at observer (via GMST rotation): Day >0°, Civil −6–0°, Nautical −12–−6°, Astronomical −18–−12°, Night <−18°. Visibility score: `skyFactor × elevFactor × 100` where skyFactor ∈ {0, 0.08, 0.35, 0.65, 0.90} and elevFactor = 0.5 + 0.5×min(1, maxElev/90). Visibility evaluated at pass midpoint — orbital service returns start/end but not peak time; midpoint is within ~60s of max elevation for a 3–5 min pass. Rule: compute all visibility data server-side; never ask the AI to infer day/night or illumination.
+
+- **2026-05-26 — Session 34: Solar helpers duplicated between `api/pass.ts` and `api/chat.ts` — Vercel function isolation.** Vercel serverless functions cannot import from sibling `api/` files at runtime (established in S32 ADR). The solar helpers (`toJd`, `sunEciUnit`, `sunElevationDeg`, `inEarthShadow`, `skyCondition`, `computeVisibilityScore`) total ~50 lines. Duplicated with `_` prefix in `api/chat.ts`. The correct long-term fix if the logic grows: move helpers into `apps/web/src/lib/` or a shared package that each function bundles independently. Rule: accept the duplication rather than fighting Vercel's isolation model — cross-`api/` imports always fail at runtime.
+
+- **2026-05-26 — Session 34: DevNotes "i" button replaces static banner; `hidden={chatOpen}` prevents overlap.** The old banner used `useState` initialised from `localStorage` — dismissed once, gone forever; no way to resurface. New pattern: stateless toggle (opens each session); `DEV_NOTES: DevNote[]` array in `DevNotes.tsx` is the single edit point for developer messages; adding a new note just requires pushing to the array. Panel positioned `right-20` (80px from right) to clear the 48px button column at `right-4`. `hidden={chatOpen}` passed from App.tsx — hides the entire component when chat is open rather than z-index fighting. Rule: for developer messages that may need to grow over time, use a data-driven component (`DEV_NOTES` array) rather than hardcoded JSX; keep the toggle stateless so notes are always reachable.
+
+- **2026-05-26 — Session 34: Overhead `.slice(0, 25)` cap removed — elevation filter is the right gate, not an arbitrary count.** `computeOverhead` filters by elevation angle (default ≥0°; typically ≥10° in UI) before sorting — only satellites geometrically above the observer are returned. The `.slice(0, 25)` in `getOverheadSatellites` was added as a defensive UI guard but hides real data (Australia can have 60–80+ simultaneous overhead satellites). Removed the cap; `Globe.test.ts` test updated from `toHaveLength(25)` to `toHaveLength(30)`. Rule: let the physics (elevation filter) determine the result set; don't add an arbitrary count cap on top of a correctly-filtered query.
+
 ---
 
 ## Out of scope (so we don't drift)
@@ -257,7 +273,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-32-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-34-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -290,6 +306,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/session-30-bootstrap.md` | Session 30 bootstrap (historical). |
 | `docs/session-31-bootstrap.md` | Session 31 bootstrap (historical). |
 | `docs/session-32-bootstrap.md` | Session 32 bootstrap (historical). |
+| `docs/session-33-bootstrap.md` | Session 33 bootstrap (historical). |
+| `docs/session-34-bootstrap.md` | Session 34 bootstrap — pass visibility, DevNotes, overhead uncap. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |

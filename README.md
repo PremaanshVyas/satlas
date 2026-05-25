@@ -119,7 +119,9 @@ Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming s
 - [x] Look up any satellite by name or NORAD ID — live orbital snapshot + globe highlight
 - [x] Melbourne-accurate timestamps (computed server-side, never guessed by the AI)
 - [x] Mobile-friendly layout — 100dvh + safe-area insets so overlays clear browser chrome on iOS/Android
-- [x] Pass prediction panel — geolocate or search any location; next 24h passes with time, duration, max elevation, direction
+- [x] Pass prediction panel — geolocate or search any location; next 24h passes with time, duration, max elevation, direction, sky condition (Day/Twilight/Night), satellite illumination status, and visibility score (0–100%)
+- [x] Search dropdown always shows a catalog-name tip — some satellites appear under catalog IDs; try NORAD ID if a name search misses
+- [x] Developer notes panel — "i" button (bottom-right) opens a toggleable panel with notes from the developer; hides when chat is open
 - [x] Public API with docs at satlas.app/docs — 6 endpoints, curl-ready examples
 - [x] Custom domain satlas.app with HTTPS (ACM cert, ALB HTTPS listener, HTTP→HTTPS redirect)
 
