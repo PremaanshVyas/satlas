@@ -1039,7 +1039,8 @@ export class Globe {
       const screenDist = Math.hypot(sx - clickX, sy - clickY)
 
       const depth = -(me[2]*satX + me[6]*satY + me[10]*satZ + me[14])
-      const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
+      const scale = this.satScales ? this.satScales[i] : 1.0
+      const dotRadiusPx = (SPHERE_RADIUS * scale / depth) * fovFactor
 
       if (screenDist <= dotRadiusPx && depth < bestDepth) {
         bestDepth = depth
@@ -1149,7 +1150,8 @@ export class Globe {
       const screenDist = Math.hypot(sx - mouseX, sy - mouseY)
 
       const depth = -(me[2]*satX + me[6]*satY + me[10]*satZ + me[14])
-      const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
+      const scale = this.satScales ? this.satScales[i] : 1.0
+      const dotRadiusPx = (SPHERE_RADIUS * scale / depth) * fovFactor
 
       if (screenDist <= dotRadiusPx + HOVER_EXTRA_PX && depth < bestDepth) {
         bestDepth = depth
