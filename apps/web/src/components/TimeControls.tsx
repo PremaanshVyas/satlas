@@ -3,6 +3,7 @@ import type { FC } from 'react'
 interface TimeControlsProps {
   timeScale: number
   onSetScale: (scale: number) => void
+  clock?: string
 }
 
 const SPEEDS = [2, 10, 50, 100] as const
@@ -69,21 +70,32 @@ function Btn({ active, title, label, onClick }: BtnProps) {
   )
 }
 
-const TimeControls: FC<TimeControlsProps> = ({ timeScale, onSetScale }) => {
+const TimeControls: FC<TimeControlsProps> = ({ timeScale, onSetScale, clock }) => {
   function handleSpeed(scale: number) {
     if (timeScale === scale) onSetScale(0)
     else onSetScale(scale)
   }
 
   return (
-    <div className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 shadow-lg">
-      {/* Speed indicator */}
-      <div className="flex justify-end mb-1">
-        <SpeedBadge timeScale={timeScale} />
-      </div>
+    <div className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 shadow-lg w-56 overflow-hidden">
+
+      {/* Clock row — shown when embedded in the top-left card */}
+      {clock ? (
+        <>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-mono text-[13px] text-secondary">{clock}</span>
+            <SpeedBadge timeScale={timeScale} />
+          </div>
+          <div className="border-t border-[rgba(255,255,255,0.04)] mb-1.5" />
+        </>
+      ) : (
+        <div className="flex justify-end mb-1">
+          <SpeedBadge timeScale={timeScale} />
+        </div>
+      )}
 
       {/* Transport buttons */}
-      <div className="flex gap-px">
+      <div className="flex gap-px overflow-hidden">
         {[...SPEEDS].reverse().map(s => (
           <Btn
             key={`rev-${s}`}

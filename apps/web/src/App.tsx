@@ -7,7 +7,6 @@ import SatInfoCard from './components/SatInfoCard'
 import PassPanel from './components/PassPanel'
 import CountryPanel from './components/CountryPanel'
 import DevNotes from './components/DevNotes'
-import TimeControls from './components/TimeControls'
 import type { OverheadSat } from './components/GlobeView'
 import { useChat } from './hooks/useChat'
 import { ALL_CATEGORIES } from './globe/Globe'
@@ -53,14 +52,6 @@ export default function App() {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
-
-  const [timeScale, setTimeScaleState] = useState(1)
-  const setTimeScaleRef = useRef<((scale: number) => void) | null>(null)
-
-  function handleSetScale(scale: number) {
-    setTimeScaleRef.current?.(scale)
-    setTimeScaleState(scale)
-  }
 
   const removeFromSelectionRef = useRef<((noradId: string) => void) | null>(null)
   const selectSatRef = useRef<((noradId: string) => void) | null>(null)
@@ -155,7 +146,6 @@ export default function App() {
         onSelectReady={(fn) => { selectSatRef.current = fn }}
         onClearHighlightReady={(fn) => { clearCountryHighlightRef.current = fn }}
         onCountryClick={(name, continent, overheadSats) => setSelectedCountry({ name, continent, overheadSats })}
-        onTimeReady={({ setTimeScale }) => { setTimeScaleRef.current = setTimeScale }}
       />
 
       {/* Bottom-left cluster: satellite tray above, time controls below */}
@@ -229,13 +219,6 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Time controls — hidden on mobile, always visible on desktop */}
-        <div className="hidden sm:block">
-          <TimeControls
-            timeScale={timeScale}
-            onSetScale={handleSetScale}
-          />
-        </div>
       </div>
 
       {/* Desktop left column — SatInfoCard / PassPanel stacked above CountryPanel */}

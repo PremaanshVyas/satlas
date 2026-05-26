@@ -7,6 +7,7 @@ import type { HighlightDirective, SetFilterDirective, SpotlightDirective } from 
 import type { SatCategory } from '../globe/Globe'
 import { ALL_CATEGORIES } from '../globe/Globe'
 import SearchBar from './SearchBar'
+import TimeControls from './TimeControls'
 
 export type { OrbitalParams, LivePosition, SatcatEntry }
 
@@ -185,20 +186,12 @@ export default function GlobeView({
           </Link>
         </div>
 
-        {/* UTC clock — top-left */}
+        {/* UTC clock + time controls — top-left, desktop only */}
         <div
-          className="absolute left-3 flex items-center gap-2 select-none"
+          className="absolute left-3 hidden sm:block pointer-events-auto"
           style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
         >
-          <span className="font-mono text-[13px] text-secondary">{utcClock}</span>
-          {timeScale === 0 && (
-            <span className="font-mono text-[9px] text-secondary bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.15)] rounded-[2px] px-1.5 py-px">⏸</span>
-          )}
-          {timeScale !== 0 && timeScale !== 1 && (
-            <span className="font-mono text-[9px] text-amber-400 bg-[rgba(245,158,11,0.08)] border border-[rgba(245,158,11,0.25)] rounded-[2px] px-1.5 py-px">
-              {timeScale > 0 ? `${timeScale}×►` : `◄${Math.abs(timeScale)}×`}
-            </span>
-          )}
+          <TimeControls clock={utcClock} timeScale={timeScale} onSetScale={setTimeScale} />
         </div>
 
         {/* Satellite count — top-right */}
