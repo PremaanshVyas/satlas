@@ -994,7 +994,7 @@ export class Globe {
         const dx = issPos.x - camX, dy = issPos.y - camY, dz = issPos.z - camZ
         const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
         const dotRadiusPx = (0.008 / depth) * fovFactor
-        if (screenDist <= dotRadiusPx + 2) {
+        if (screenDist <= dotRadiusPx) {
           this._addIssToSelection()
           this.onSatelliteClick?.(this.issName, ISS_NORAD)
           return
@@ -1040,7 +1040,7 @@ export class Globe {
       const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
       const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
 
-      if (screenDist <= dotRadiusPx + 1 && depth < bestDepth) {
+      if (screenDist <= dotRadiusPx && depth < bestDepth) {
         bestDepth = depth
         bestIdx = i
       }
@@ -1095,7 +1095,7 @@ export class Globe {
     const camX = this.camera.position.x
     const camY = this.camera.position.y
     const camZ = this.camera.position.z
-    const HOVER_EXTRA_PX = 6
+    const HOVER_EXTRA_PX = 0
 
     const issPos = this.iss.getCurrentPosition()
     if (issPos) {
