@@ -76,7 +76,10 @@ async function fetchTle(query: string): Promise<TleRecord | null> {
     _catalogFetchedAt = now
   }
   const isNorad = /^\d+$/.test(query.trim())
-  if (isNorad) return _catalogCache.find(r => r.noradId === query.trim()) ?? null
+  if (isNorad) {
+    const queryInt = parseInt(query.trim(), 10)
+    return _catalogCache.find(r => parseInt(r.noradId, 10) === queryInt) ?? null
+  }
   const q = query.trim().toUpperCase()
   return _catalogCache.find(r => r.name.toUpperCase().includes(q)) ?? null
 }
@@ -226,7 +229,7 @@ function computePasses(rec: TleRecord, latDeg: number, lonDeg: number, hoursAhea
 
 async function toolGetSatelliteInfo(query: string): Promise<unknown> {
   const rec = await fetchTle(query)
-  if (!rec) return { not_found: true, message: `No satellite matching "${query}" in the catalog. Try searching by NORAD ID if you have it.` }
+  if (!rec) return { error: `Satellite not found: ${query}` }
   const satrec = satellite.twoline2satrec(rec.tle1, rec.tle2)
   const now = new Date()
   const posVel = satellite.propagate(satrec, now)
@@ -257,7 +260,7 @@ async function toolPredictPasses(
   hoursAhead: number,
 ): Promise<unknown> {
   const rec = await fetchTle(noradOrName)
-  if (!rec) return { not_found: true, message: `No satellite matching "${noradOrName}" in the catalog. Try searching by NORAD ID if you have it.` }
+  if (!rec) return { error: `Satellite not found: ${noradOrName}` }
   const passes = computePasses(rec, lat, lon, hoursAhead)
   if (passes.length === 0) return { message: `No passes above 10° in the next ${hoursAhead} hours for this location.` }
   return { satellite: rec.name, norad_id: rec.noradId, passes }
@@ -417,8 +420,7 @@ TOOL USAGE RULES:\
 \n  For any named satellite + hide-everything request: spotlight, not category filter.\
 \n- find_satellites_overhead: call when the user asks what satellites are currently overhead, above, or passing over a location right now. Infer lat/lon from well-known cities (Sydney: -33.87, 151.21; Melbourne: -37.81, 144.96; London: 51.51, -0.13; New York: 40.71, -74.01; Tokyo: 35.68, 139.69). Ask if the location is ambiguous.\
 \n\nIMPORTANT — you are the PRESENTER, not the calculator. Every value you show must come from a tool result. Never compute or guess position, altitude, pass times, or any data value.\
-\n\nIF A TOOL RETURNS { not_found: true }: tell the user that satellite isn't in our catalog — suggest they try the NORAD ID if they have it, or check the search bar. Do NOT say the service is unavailable.\
-\nIF ANY OTHER TOOL RETURNS AN ERROR: respond with exactly "The live data service is temporarily unavailable — please try again in a moment." Do NOT use training knowledge.\
+\n\nIF ANY TOOL RETURNS AN ERROR: respond with exactly "The live data service is temporarily unavailable — please try again in a moment." Do NOT use training knowledge.\
 \n\nCurrent time (pre-computed): UTC: ${utcTime} | Melbourne (AEST/AEDT): ${melbourneTime}\
 \n\nLive catalog counts (from the tracking globe — use these directly when asked about how many of each type):\
 \n${countLines}\
