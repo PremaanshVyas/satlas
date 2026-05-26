@@ -8,6 +8,7 @@ import type { SatCategory } from '../globe/Globe'
 import { ALL_CATEGORIES } from '../globe/Globe'
 import SearchBar from './SearchBar'
 import TimeControls from './TimeControls'
+import MobileControlsSheet from './MobileControlsSheet'
 
 export type { OrbitalParams, LivePosition, SatcatEntry }
 
@@ -186,12 +187,25 @@ export default function GlobeView({
           </Link>
         </div>
 
-        {/* UTC clock + time controls — top-left, desktop only */}
+        {/* Top-left: TimeControls on desktop, hamburger+sheet on mobile */}
         <div
-          className="absolute left-3 hidden sm:block pointer-events-auto"
+          className="absolute left-3 pointer-events-auto"
           style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
         >
-          <TimeControls clock={utcClock} timeScale={timeScale} onSetScale={setTimeScale} />
+          <div className="hidden sm:block">
+            <TimeControls clock={utcClock} timeScale={timeScale} onSetScale={setTimeScale} />
+          </div>
+          <MobileControlsSheet
+            utcClock={utcClock}
+            timeScale={timeScale}
+            onSetScale={setTimeScale}
+            cloudsVisible={cloudsVisible}
+            onToggleClouds={toggleClouds}
+            bordersVisible={bordersVisible}
+            onToggleBorders={toggleBorders}
+            activeCategories={activeCategories}
+            onToggleCategory={toggleCategory}
+          />
         </div>
 
         {/* Satellite count — top-right */}
@@ -227,7 +241,7 @@ export default function GlobeView({
 
         {/* Toggle group — stacked, labels hidden on mobile to keep buttons compact */}
         <div
-          className="absolute right-3 z-20 pointer-events-auto flex flex-col gap-1.5"
+          className="absolute right-3 z-20 pointer-events-auto hidden sm:flex flex-col gap-1.5"
           style={{ top: `max(2.75rem, calc(${safeTop} + 2.25rem))` }}
         >
           <button
@@ -280,7 +294,7 @@ export default function GlobeView({
 
         {/* Category filter pills — full-width scrollable row on mobile, centered wrap on desktop */}
         <div
-          className="absolute left-0 right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 pointer-events-auto px-3 sm:px-0"
+          className="absolute left-0 right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 pointer-events-auto px-3 sm:px-0 hidden sm:block"
           style={{ bottom: `max(1rem, calc(${safeBottom} + 0.5rem))` }}
         >
           <div className="flex gap-1.5 flex-nowrap sm:flex-wrap sm:justify-center overflow-x-auto sm:overflow-x-visible bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
