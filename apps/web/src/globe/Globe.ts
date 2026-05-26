@@ -104,6 +104,7 @@ const CAMERA_DISTANCE = 3.5
 const FIELD_TICK_MS = 50
 const R_EARTH_KM = 6371.0
 const ARC_POINTS = 180
+const TOUCH_MIN_RADIUS_PX = 18  // finger-friendly minimum hit radius for touch events
 
 export type SatCategory = 'STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER'
 export const ALL_CATEGORIES: SatCategory[] = ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER']
@@ -178,6 +179,7 @@ export class Globe {
   private _projPos = new THREE.Vector3()
   private _mouseDownX = 0
   private _mouseDownY = 0
+  private _lastInputWasTouch = false
 
   // Per-satellite dot scale (GEO → 1.5×, DEBRIS → 0.6×, others → 1.0)
   private satScales: Float32Array | null = null
@@ -320,6 +322,7 @@ export class Globe {
     canvas.addEventListener('mousedown', this.onCanvasMouseDown)
     canvas.addEventListener('click', this.onCanvasClick)
     canvas.addEventListener('mousemove', this.onCanvasMouseMove)
+    canvas.addEventListener('touchstart', this.onCanvasTouchStart, { passive: true })
 
     void fetchSatcat().then(m => {
       if (!this.mounted) return
@@ -962,16 +965,28 @@ export class Globe {
   // ── Click handler ────────────────────────────────────────────────────────────
 
   private onCanvasMouseDown = (e: MouseEvent): void => {
+    this._lastInputWasTouch = false
     this._mouseDownX = e.clientX
     this._mouseDownY = e.clientY
   }
 
+  private onCanvasTouchStart = (e: TouchEvent): void => {
+    const touch = e.touches[0]
+    if (!touch) return
+    this._lastInputWasTouch = true
+    this._mouseDownX = touch.clientX
+    this._mouseDownY = touch.clientY
+  }
+
   private onCanvasClick = (e: MouseEvent): void => {
     if (!this.onSatelliteClick && !this.onCountryClick) return
-    // Ignore if the pointer travelled more than 5px — that was a drag, not a click.
+    const isTouch = this._lastInputWasTouch
+    // Drag threshold: 12 px for touch (fingers aren't pixel-precise), 5 px for mouse.
     const dx = e.clientX - this._mouseDownX
     const dy = e.clientY - this._mouseDownY
-    if (dx * dx + dy * dy > 25) return
+    if (dx * dx + dy * dy > (isTouch ? 144 : 25)) return
+    // On touch, enforce a minimum hit radius so a finger can reliably tap a 2 px dot.
+    const minRadiusPx = isTouch ? TOUCH_MIN_RADIUS_PX : 0
 
     const canvas = e.target as HTMLCanvasElement
     const rect = canvas.getBoundingClientRect()
@@ -995,7 +1010,7 @@ export class Globe {
         const sy = (1 - this._projPos.y) * 0.5 * rect.height
         const screenDist = Math.hypot(sx - clickX, sy - clickY)
         const depth = -(me[2]*issPos.x + me[6]*issPos.y + me[10]*issPos.z + me[14])
-        const dotRadiusPx = (0.008 / depth) * fovFactor
+        const dotRadiusPx = Math.max(minRadiusPx, (0.008 / depth) * fovFactor)
         if (screenDist <= dotRadiusPx) {
           this._addIssToSelection()
           this.onSatelliteClick?.(this.issName, ISS_NORAD)
@@ -1021,7 +1036,9 @@ export class Globe {
     const count = buf.length / 3
     const SPHERE_RADIUS = 0.005
 
-    let bestDepth = Infinity
+    // Touch: pick nearest in screen space so the finger always lands on the closest dot.
+    // Mouse: pick nearest in depth (front-most) — same behaviour as before.
+    let bestScore = Infinity
     let bestIdx = -1
 
     for (let i = 0; i < count; i++) {
@@ -1040,10 +1057,11 @@ export class Globe {
 
       const depth = -(me[2]*satX + me[6]*satY + me[10]*satZ + me[14])
       const scale = this.satScales ? this.satScales[i] : 1.0
-      const dotRadiusPx = (SPHERE_RADIUS * scale / depth) * fovFactor
+      const dotRadiusPx = Math.max(minRadiusPx, (SPHERE_RADIUS * scale / depth) * fovFactor)
+      const score = isTouch ? screenDist : depth
 
-      if (screenDist <= dotRadiusPx && depth < bestDepth) {
-        bestDepth = depth
+      if (screenDist <= dotRadiusPx && score < bestScore) {
+        bestScore = score
         bestIdx = i
       }
     }
@@ -1365,6 +1383,7 @@ export class Globe {
       this.clickCanvas.removeEventListener('mousedown', this.onCanvasMouseDown)
       this.clickCanvas.removeEventListener('click', this.onCanvasClick)
       this.clickCanvas.removeEventListener('mousemove', this.onCanvasMouseMove)
+      this.clickCanvas.removeEventListener('touchstart', this.onCanvasTouchStart)
       this.clickCanvas = null
     }
     this.clearAllSelections()
