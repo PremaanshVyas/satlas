@@ -110,11 +110,20 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 35 complete. Session 36 — V2 direction decision.
+**Current phase:** Session 36 complete. Session 37 — V2 direction decision.
 
-**Next milestone:** V2 direction decision. Options: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. Check r/Starlink post from S33 for accumulated feedback before deciding.
+**Next milestone:** V2 direction decision. Options: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
 
 **Sessions 1–20 (complete, stable):** See `docs/decisions-archive.md` (all ADRs through S30). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
+
+**Session 36 completed tasks:**
+- [x] Zoom-aware orbit controls — `rotateSpeed = 0.15 + sqrt(t)*0.35` (close→far), `zoomSpeed = 0.50 + t*0.50`; updated per-frame in `tick()` based on camera distance; fixes mobile scroll sensitivity
+- [x] Dynamic dot scaling — attempted and reverted; dense LEO constellation fills Earth at far zoom; scroll speed fix via OrbitControls is sufficient
+- [x] Gaussian glow — added and reverted in same session; flat uniform disc looks cleaner and avoids blur at far zoom
+- [x] Time controls merged into top-left UTC clock card — `TimeControls` accepts `clock?: string` prop; single widget replaces separate clock + speed bar; no overlap with other UI elements
+- [x] Satellite dot shader — flat `fwidth`-AA disc (gaussian glow reverted); uniform alpha across the entire circle
+- [x] Hit-test depth — replaced Euclidean `√(dx²+dy²+dz²)` with camera-space z-depth `-(me[2]*x+me[6]*y+me[10]*z+me[14])`; Euclidean > z-depth for off-centre satellites → hit radius was smaller than visual dot
+- [x] Hit-test scale — `satScales[i]` factored into `dotRadiusPx`; GPS/GEO/MEO satellites render at 1.5× but hit radius was using bare `SPHERE_RADIUS` → hover only registered in inner 67% of those dots
 
 **Session 35 completed tasks:**
 - [x] Time controls engine — `Globe.ts` simulated time accumulator (`_simTimeMs`, `_timeScale`); dt capped at 200ms; `lastFieldTickMs` uses real time so worker rate-limiting survives speed/direction changes; reset to 0 in `setTimeScale()` so satellites respond on the very next frame; `onSimulatedTime` callback fires once per simulated second
@@ -234,6 +243,14 @@ Sessions 1–30 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-26 — Session 35: `get_satellite_info` and `/api/satellite-info` moved off the ECS orbital service to avoid cold-start timeout.** Both called `https://api.satlas.app/satellite-info` with `AbortSignal.timeout(8000)`. The ECS Fargate service had slow first-request latency (cold start ~10–15s) — the timeout fired before a response arrived, landing in the outer catch block: "Something went wrong." Diagnosis: `curl --max-time 10` timed out; `curl --max-time 15` succeeded. Fix: both now compute in-process — `fetchTle()` pulls from the CloudFront 2-min TLE cache, satellite.js propagates to current epoch: `eciToGeodetic` for lat/lon/alt, velocity norm for speed, `satrec.no` for period, `satrec.inclo` for inclination. Same response shape as before. ECS is no longer on the critical path for any chat query. Rule: if a Vercel function calls an external service for computation that satellite.js can do in-process, prefer in-process — serverless cold starts compound.
 
+- **2026-05-26 — Session 36: Dynamic dot scaling reverted — dense LEO constellation fills Earth at far zoom.** Attempted to scale satellite dots with zoom level so they're visible when zoomed out and not oversized when close. Multiple iterations (linear → sqrt curve → clamped [1.5px, 4.5px]) all produced the same failure: at the camera's max-out distance (15 globe radii), the ~19k LEO satellites are so numerous that even small dots completely fill the globe silhouette and obscure the Earth texture. The fix for the original complaint (dots hard to see when zoomed out and GPS selected) is the GPS dots having scale=1.5 already, not dynamically growing all dots. Final state: `DOT_SIZE=0.010` unchanged. Rule: dot size must be constant; zoom-dependent sizing for dense fields hides geometry rather than revealing it.
+
+- **2026-05-26 — Session 36: Gaussian glow added and reverted in same session.** Added `exp(-dist²×2.5)` glow for a "lit point source" look. User reported dots look non-uniform (bright centre, dim edges) and blurry at far zoom — the glow was visible as a brightness gradient across the disc. Reverted to flat disc: `alpha = uOpacity * (1.0 - smoothstep(1.0-fw, 1.0+fw, dist))`. Rule: a uniform disc with `fwidth` AA is the right default — glow effects that are visible at the scale of these dots become noise, not enhancement.
+
+- **2026-05-26 — Session 36: Hit-test used Euclidean depth, not camera-space z-depth — hover only worked near screen centre.** The formula `dotRadiusPx = SPHERE_RADIUS / depth * fovFactor` was correct, but `depth = √(dx²+dy²+dz²)` (Euclidean) instead of `-(me[2]*x + me[6]*y + me[10]*z + me[14])` (camera-space z). For satellites on the camera axis these are equal; for off-centre satellites, Euclidean > z-depth → computed radius smaller than visual → hover misses the outer portion of the dot. Fix: cache `camera.matrixWorldInverse.elements` before each hit-test loop and use the z-row dot product at all four sites (ISS click, field click, ISS hover, field hover). Rule: hit-test depth must use the same perspective division the shader uses — camera-space z, not Euclidean distance.
+
+- **2026-05-26 — Session 36: `satScales[i]` missing from hit-test — GPS dots had 1.5× visual radius but 1.0× hit radius.** `buildSatScales()` assigns `scale=1.5` to high-altitude satellites (GPS, GLONASS, BeiDou, GEO — motionRevDay < 1.5) and `scale=0.6` to debris. The shader uses this scale via `mv.xy += position.xy * uSize * scale`, making GPS dots visually 50% larger. But the hit-test always used bare `SPHERE_RADIUS = 0.005` (scale=1.0 equivalent), so hover registered only in the inner 67% of GPS dots. Fix: `const scale = this.satScales ? this.satScales[i] : 1.0; dotRadiusPx = SPHERE_RADIUS * scale / depth * fovFactor`. Applied in both click and hover loops. Rule: every per-instance visual property that affects rendered size must be replicated in the JS hit-test — otherwise hit area diverges from visual area.
+
 - **2026-05-26 — Session 34: Overhead `.slice(0, 25)` cap removed — elevation filter is the right gate, not an arbitrary count.** `computeOverhead` filters by elevation angle (default ≥0°; typically ≥10° in UI) before sorting — only satellites geometrically above the observer are returned. The `.slice(0, 25)` in `getOverheadSatellites` was added as a defensive UI guard but hides real data (Australia can have 60–80+ simultaneous overhead satellites). Removed the cap; `Globe.test.ts` test updated from `toHaveLength(25)` to `toHaveLength(30)`. Rule: let the physics (elevation filter) determine the result set; don't add an arbitrary count cap on top of a correctly-filtered query.
 
 ---
@@ -255,7 +272,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-35-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-37-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -291,6 +308,7 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/session-33-bootstrap.md` | Session 33 bootstrap (historical). |
 | `docs/session-34-bootstrap.md` | Session 34 bootstrap (historical) — pass visibility, DevNotes, overhead uncap. |
 | `docs/session-35-bootstrap.md` | Session 35 bootstrap — time controls, satellite sync fix, in-process satellite info. |
+| `docs/session-37-bootstrap.md` | Session 37 bootstrap — V2 direction decision pending. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
