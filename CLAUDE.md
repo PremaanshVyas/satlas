@@ -110,11 +110,16 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 36 complete. Session 37 — V2 direction decision.
+**Current phase:** Session 37 complete. Session 38 — V2 direction decision pending.
 
 **Next milestone:** V2 direction decision. Options: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
 
 **Sessions 1–20 (complete, stable):** See `docs/decisions-archive.md` (all ADRs through S30). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
+
+**Session 37 completed tasks:**
+- [x] Mobile touch hit-test fix — `TOUCH_MIN_RADIUS_PX = 18`; `_lastInputWasTouch` flag set in `onCanvasTouchStart` and cleared in `onCanvasMouseDown`; touch clicks use looser drag threshold (12px² vs 5px²) and nearest-screen-distance selection; desktop path provably unchanged
+- [x] `MobileControlsSheet.tsx` — new self-contained component; vaul `Drawer` bottom sheet behind `sm:hidden` hamburger button; contains: UTC clock + SpeedBadge row, 10-button time transport, Clouds + Borders layer toggles, 5-category filter pills; 13 vitest tests
+- [x] `GlobeView.tsx` integration — `TimeControls` wrapped in `hidden sm:block`; `MobileControlsSheet` placed alongside; toggle cluster and category pills bar changed to `hidden sm:flex` / `hidden sm:block` so desktop is untouched
 
 **Session 36 completed tasks:**
 - [x] Zoom-aware orbit controls — `rotateSpeed = 0.15 + sqrt(t)*0.35` (close→far), `zoomSpeed = 0.50 + t*0.50`; updated per-frame in `tick()` based on camera distance; fixes mobile scroll sensitivity
@@ -207,15 +212,6 @@ Sessions 1–30 decisions archived in `docs/decisions-archive.md`.
 - **2026-05-13 — Chatbot reliability: haiku for tool-detection, Vercel Hobby 10s hard cap.** `maxDuration: 60` is silently ignored on Hobby tier — 10s is the real limit. Sonnet tool-detection consumed 3–5s. Fix: `claude-haiku-4-5-20251001` for the tool-detection turn (~1s), Sonnet for streaming answer. Rule: use the fastest model capable of the task; tool-detection is routing, not reasoning. Always budget total latency (detect + execute + stream) against the hard platform limit.
 
 
-- **2026-05-25 — Session 31: Scroll clip fix — `flex flex-col` on outer wrapper + `flex-1` on scroll container; `max-h-[50dvh]` inside `maxHeight: calc(50dvh - 2rem)` clips the last row.** The S22 fix set `max-h-[50dvh]` on results — correct for `flex-1` not resolving, but created a new bug: the outer wrapper clips at `50dvh - 2rem`, so the bottom `2rem` of the `max-h-[50dvh]` scroll container is always in the clipped zone. When scrolled to bottom, the last row lands exactly there. Fix: add `flex flex-col` to the outer motion.div; PassPanel outer div uses `flex-1` (now resolves because parent is a real flex container); results div uses `flex-1 overflow-y-auto` — scroll area is bounded by the flex chain, not an independent `max-height`. Rule: when a scroll container is nested inside a `maxHeight + overflow-hidden` wrapper, make the wrapper a `flex flex-col` so the child can use `flex-1` to fill exactly the available space.
-
-- **2026-05-25 — Session 31: Country overhead list shows all sats when all categories off — "no filter" is not the same as "empty filter".** `getOverheadSatellites` always passed `activeCategoryMask` to `computeOverhead`. When all category toggles are off, the mask is all-zeros — every satellite is skipped, returning `[]`. The panel showed "Loading catalog…" with no sats. Fix: pass `null` (no mask) when `activeCategories.size === 0`. "All off" maps to "no filter" not "filter to nothing". Rule: a UI "all off" toggle state should be treated as "show everything" — never pass an all-zero mask to a filter function; use null/undefined to signal no filter.
-
-- **2026-05-25 — Session 31: `/api/overhead` computes GMST once outside the loop — same pattern as chat.ts `toolFindSatellitesOverhead`.** Computing `satellite.gstime(now)` inside a 31k-iteration loop re-computes the sidereal time 31k times. Since all satellites are propagated to the same instant, one `gstime` call is enough and the value is passed into `eciToEcf` for every satellite. This was already established in session 18 (`find_satellites_overhead` tool) but bears repeating: any bulk position snapshot must share a single GMST value. The function uses a 2-min in-process TLE cache (same pattern as `pass.ts`) so warm requests skip the CloudFront fetch entirely.
-
-- **2026-05-25 — Session 31: `/api/satellites` uses integer NORAD ID comparison — same fix as the S23 satcat leading-zero bug.** TLE catalog stores NORAD IDs zero-padded to 5 digits (`'06707'`). A query of `q=6707` (no leading zero) would fail a string equality check. Fix: if the query is all digits, parse both sides with `parseInt` before comparing — `parseInt('06707') === parseInt('6707')` is true. Rule: NORAD ID comparisons are always integer equality, never string equality.
-
-
 
 - **2026-05-25 — Session 32: `/api/catalog` matches uBlock Origin ad-tracker filter rules — use `/api/tles` for the frontend fetch.** Firefox users with uBlock enabled saw `NS_BINDING_ABORTED` at 0ms on the `/api/catalog` fetch — the request was killed before it hit the network. Root cause: the word "catalog" appears in uBlock's filter lists targeting product-catalog trackers. Fix: `vercel.json` rewrite routes `/api/tles` → `/api/catalog` at the Vercel edge layer; `celestrak.ts` fetches `/api/tles` by default. `/api/catalog` stays live for public API consumers. **Two failed attempts before the working fix:** (1) `api/tles.ts` with `export { default, config } from './catalog'` — re-export didn't surface `config` to Vercel bundler. (2) `api/tles.ts` with explicit `import catalogHandler from './catalog'` — Vercel serverless functions cannot import from sibling function files at runtime (500 error). Correct approach: `vercel.json` rewrite is processed at the edge router before any function code runs, so no import resolution is needed. Rule: to alias a Vercel serverless function URL, use a `vercel.json` rewrite — never import between files in `api/` as cross-function imports fail at runtime.
 
@@ -251,6 +247,10 @@ Sessions 1–30 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-26 — Session 36: `satScales[i]` missing from hit-test — GPS dots had 1.5× visual radius but 1.0× hit radius.** `buildSatScales()` assigns `scale=1.5` to high-altitude satellites (GPS, GLONASS, BeiDou, GEO — motionRevDay < 1.5) and `scale=0.6` to debris. The shader uses this scale via `mv.xy += position.xy * uSize * scale`, making GPS dots visually 50% larger. But the hit-test always used bare `SPHERE_RADIUS = 0.005` (scale=1.0 equivalent), so hover registered only in the inner 67% of GPS dots. Fix: `const scale = this.satScales ? this.satScales[i] : 1.0; dotRadiusPx = SPHERE_RADIUS * scale / depth * fovFactor`. Applied in both click and hover loops. Rule: every per-instance visual property that affects rendered size must be replicated in the JS hit-test — otherwise hit area diverges from visual area.
 
+- **2026-05-26 — Session 37: Mobile touch hit-test requires a minimum 18px radius and nearest-screen-distance selection.** A touch finger covers 40–60px on screen; the computed dot radius for a typical LEO satellite (~2–3px) was far below fingertip size. Two changes: (1) `Math.max(TOUCH_MIN_RADIUS_PX=18, dotRadiusPx)` makes any dot hittable with a finger. (2) For touch, selection picks the nearest satellite in screen-distance (not camera-space depth) so the dot closest to where the finger landed wins instead of the dot closest to the camera behind it. Desktop click path: unchanged — radius is unbounded from below, depth is the tiebreaker, drag threshold is 5px². Touch drag threshold raised to 12px² (finger jitter > mouse jitter). Detection: `_lastInputWasTouch` flag set in `touchstart` (passive listener), cleared in `mousedown` (which always precedes `click` on mouse devices). Rule: touch and mouse hit-testing need separate thresholds and selection strategies — a pixel-perfect radius that works for mouse is unusable for touch.
+
+- **2026-05-26 — Session 37: `MobileControlsSheet` uses `sm:hidden` hamburger + vaul Drawer — same pattern as existing sheets.** Desktop controls (TimeControls, toggle cluster, category pills) were invisible on mobile due to `hidden sm:block` / `hidden sm:flex` wrappers. Mobile had no way to reach time speed, clouds, borders, or category filters. Fix: self-contained `MobileControlsSheet` component, `sm:hidden` hamburger in the top-left slot; vaul `Drawer` with all secondary controls. The hamburger sits alongside the (desktop-only) TimeControls wrapper — no z-index fighting. Desktop layout untouched. `SpeedBadge` reproduced inline (not exported from TimeControls) to avoid premature abstraction. Rule: when a desktop-only control cluster becomes inaccessible on mobile, a bottom sheet behind a hamburger is the right abstraction — it leaves the globe clean and surfaces all controls in one place.
+
 - **2026-05-26 — Session 34: Overhead `.slice(0, 25)` cap removed — elevation filter is the right gate, not an arbitrary count.** `computeOverhead` filters by elevation angle (default ≥0°; typically ≥10° in UI) before sorting — only satellites geometrically above the observer are returned. The `.slice(0, 25)` in `getOverheadSatellites` was added as a defensive UI guard but hides real data (Australia can have 60–80+ simultaneous overhead satellites). Removed the cap; `Globe.test.ts` test updated from `toHaveLength(25)` to `toHaveLength(30)`. Rule: let the physics (elevation filter) determine the result set; don't add an arbitrary count cap on top of a correctly-filtered query.
 
 ---
@@ -272,7 +272,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-37-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-38-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -308,7 +308,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/session-33-bootstrap.md` | Session 33 bootstrap (historical). |
 | `docs/session-34-bootstrap.md` | Session 34 bootstrap (historical) — pass visibility, DevNotes, overhead uncap. |
 | `docs/session-35-bootstrap.md` | Session 35 bootstrap — time controls, satellite sync fix, in-process satellite info. |
-| `docs/session-37-bootstrap.md` | Session 37 bootstrap — V2 direction decision pending. |
+| `docs/session-37-bootstrap.md` | Session 37 bootstrap (historical) — mobile touch hit-test fix + hamburger bottom sheet. |
+| `docs/session-38-bootstrap.md` | Session 38 bootstrap — V2 direction decision pending. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |

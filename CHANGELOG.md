@@ -4,6 +4,42 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 37] — Mobile UX: touch hit-test + hamburger bottom sheet (2026-05-26)
+
+### What shipped
+
+**Mobile satellite selection fixed.** Tapping a satellite on mobile required near-pixel-perfect accuracy — the computed hit radius for a typical LEO satellite is ~2–3px, far smaller than any fingertip. Three changes: (1) `TOUCH_MIN_RADIUS_PX = 18` enforces a minimum finger-sized hit area. (2) Touch selection picks the dot nearest to the tap point in screen distance rather than nearest in camera depth — more intuitive when dots overlap. (3) Drag threshold raised to 12px² (vs 5px² for mouse) to tolerate natural finger jitter on a press. The `_lastInputWasTouch` flag (set in `touchstart`, cleared in `mousedown`) distinguishes the two input types in the shared `click` handler without duplicating any logic. Desktop path provably unchanged — `mousedown` always fires before `click` on mouse devices, resetting the flag.
+
+**Mobile controls bottom sheet.** On a phone the globe was cluttered: category pills sat permanently at the bottom; the UTC clock and time transport bar were hidden (`hidden sm:block`); cloud/border toggles occupied the top-right corner. A hamburger button (`sm:hidden`, top-left) opens a vaul `Drawer` bottom sheet with all secondary controls: UTC clock + speed badge, a 10-button time transport row (◄100 ◄50 ◄10 ◄2 ⏸ LIVE 2► 10► 50► 100►), Clouds/Borders layer toggles with sliding pill indicators, and the 5-category filter pills. When the sheet is closed the globe is completely clean. Desktop layout is untouched — `TimeControls` is wrapped in `hidden sm:block`, the toggle cluster and pills bar use `hidden sm:flex` / `hidden sm:block`.
+
+### Technical decisions
+
+**`_lastInputWasTouch` flag over separate touch click handler.** Touch devices synthesise a `click` event after `touchend`, so there is no need for a separate touch-specific click handler. The flag in `touchstart` (passive, no delay) marks the next `click` as touch-originated. `mousedown` clears it so a mouse click after a touch doesn't pick up the wrong thresholds. This keeps the hit-test logic in one place — easier to verify that desktop behaviour is unchanged.
+
+**`SpeedBadge` reproduced inline rather than exported from `TimeControls`.** The badge component is ~10 lines. Exporting it from `TimeControls.tsx` would introduce a coupling between two independent components for a trivial amount of code. The CLAUDE.md YAGNI rule: three similar lines is better than a premature abstraction. Reproduced inline in `MobileControlsSheet.tsx`.
+
+---
+
+## [Session 36] — Orbit controls + hit-test + shader polish (2026-05-26)
+
+### What shipped
+
+**Zoom-aware orbit controls.** `rotateSpeed` and `zoomSpeed` now scale with camera distance — precise and slow up close, fast and responsive when zoomed out. Formula: `rotateSpeed = 0.15 + √t × 0.35`, `zoomSpeed = 0.50 + t × 0.50` where `t ∈ [0, 1]` is the normalised camera distance. Updated per-frame in `tick()` based on current camera distance.
+
+**Time controls merged into the UTC clock card.** The standalone `TimeControls` component and the UTC clock chip were separate widgets with no visual connection. `TimeControls` now accepts an optional `clock?: string` prop; when provided, it renders the clock string as a header above the transport buttons, replacing the need for a separate clock widget. Single cohesive widget in the top-left, no overlap with other UI elements.
+
+**Hit-test depth fixed — Euclidean distance replaced with camera-space z.** `dotRadiusPx = SPHERE_RADIUS / depth * fovFactor` was correct, but `depth = √(dx²+dy²+dz²)` (Euclidean) overestimates depth for off-centre satellites. Camera-space z `-(me[2]×x + me[6]×y + me[10]×z + me[14])` matches the perspective division the shader uses. For satellites near the camera axis the values are nearly identical; for edge-of-screen satellites the Euclidean depth is 5–15% larger, making the computed hit radius smaller than the visual dot.
+
+**Hit-test scale fixed — `satScales[i]` factored into radius.** GPS/GEO/MEO satellites render at 1.5× and debris at 0.6× via `satScales[i]`. The hit-test always used bare `SPHERE_RADIUS` (effectively scale=1.0), so hover registered only in the inner 67% of GPS dots. Fix: `dotRadiusPx = SPHERE_RADIUS × scale / depth × fovFactor`.
+
+### Technical decisions
+
+**Gaussian glow added and reverted in the same session.** `exp(-dist²×2.5)` produced a visible brightness gradient across each dot — non-uniform appearance and blur at far zoom. Reverted to flat disc with `fwidth` AA. This is the second time a "softer" dot style was tried and reverted (the first was at S33). Rule recorded: uniform disc with `fwidth` AA is the correct default for satellite dots at this scale; glow effects become noise, not enhancement.
+
+**Dynamic dot scaling attempted and reverted.** Multiple scaling curves (linear, sqrt-clamped) all produced the same failure at max zoom-out: 19k+ LEO satellites fill the globe silhouette regardless of dot size. The GPS 1.5× scale already handles the "GPS hard to see" complaint. Rule recorded: constant dot size is correct; zoom-dependent scaling hides geometry for dense fields.
+
+---
+
 ## [Session 35] — Time controls + agent reliability (2026-05-26)
 
 ### What shipped
