@@ -982,6 +982,9 @@ export class Globe {
     const camX = this.camera.position.x
     const camY = this.camera.position.y
     const camZ = this.camera.position.z
+    // Camera-space z-depth: me is column-major, so row 2 of the view matrix is [me[2], me[6], me[10], me[14]].
+    // depth = -(viewMatrix * worldPos).z — positive value for objects in front of camera.
+    const me = this.camera.matrixWorldInverse.elements
 
     // Check ISS first — it shares a position with docked modules in the catalog.
     const issPos = this.iss.getCurrentPosition()
@@ -991,8 +994,7 @@ export class Globe {
         const sx = (this._projPos.x + 1) * 0.5 * rect.width
         const sy = (1 - this._projPos.y) * 0.5 * rect.height
         const screenDist = Math.hypot(sx - clickX, sy - clickY)
-        const dx = issPos.x - camX, dy = issPos.y - camY, dz = issPos.z - camZ
-        const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        const depth = -(me[2]*issPos.x + me[6]*issPos.y + me[10]*issPos.z + me[14])
         const dotRadiusPx = (0.008 / depth) * fovFactor
         if (screenDist <= dotRadiusPx) {
           this._addIssToSelection()
@@ -1036,8 +1038,7 @@ export class Globe {
       const sy = (1 - this._projPos.y) * 0.5 * rect.height
       const screenDist = Math.hypot(sx - clickX, sy - clickY)
 
-      const dx = satX - camX, dy = satY - camY, dz = satZ - camZ
-      const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
+      const depth = -(me[2]*satX + me[6]*satY + me[10]*satZ + me[14])
       const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
 
       if (screenDist <= dotRadiusPx && depth < bestDepth) {
@@ -1096,6 +1097,7 @@ export class Globe {
     const camY = this.camera.position.y
     const camZ = this.camera.position.z
     const HOVER_EXTRA_PX = 0
+    const me = this.camera.matrixWorldInverse.elements
 
     const issPos = this.iss.getCurrentPosition()
     if (issPos) {
@@ -1104,8 +1106,7 @@ export class Globe {
         const sx = (this._projPos.x + 1) * 0.5 * rect.width
         const sy = (1 - this._projPos.y) * 0.5 * rect.height
         const screenDist = Math.hypot(sx - mouseX, sy - mouseY)
-        const dx = issPos.x - camX, dy = issPos.y - camY, dz = issPos.z - camZ
-        const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        const depth = -(me[2]*issPos.x + me[6]*issPos.y + me[10]*issPos.z + me[14])
         const dotRadiusPx = (0.008 / depth) * fovFactor
         if (screenDist <= dotRadiusPx + HOVER_EXTRA_PX) {
           const r = issPos.length()
@@ -1147,8 +1148,7 @@ export class Globe {
       const sy = (1 - this._projPos.y) * 0.5 * rect.height
       const screenDist = Math.hypot(sx - mouseX, sy - mouseY)
 
-      const dx = satX - camX, dy = satY - camY, dz = satZ - camZ
-      const depth = Math.sqrt(dx * dx + dy * dy + dz * dz)
+      const depth = -(me[2]*satX + me[6]*satY + me[10]*satZ + me[14])
       const dotRadiusPx = (SPHERE_RADIUS / depth) * fovFactor
 
       if (screenDist <= dotRadiusPx + HOVER_EXTRA_PX && depth < bestDepth) {
