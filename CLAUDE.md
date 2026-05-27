@@ -110,13 +110,23 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 38 complete. Session 39 — V2 direction decision pending.
+**Current phase:** Session 39 complete. V1 codebase cleaned and hardened. V2 direction decision still pending.
 
-**Next milestone:** V2 direction decision. Options: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
+**Next milestone:** V2 direction decision. Options: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship. Sessions 40 and 41 reserved for security hardening and frontend/UX polish before V2.
 
 **Sessions 1–20 (complete, stable):** See `docs/decisions-archive.md` (all ADRs through S30). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
 
-**Session 38 completed tasks:**
+**Session 39 completed tasks (V1 cleanup):**
+- [x] NORAD integer comparison fixed in `api/satellite-info.ts` and `api/pass.ts` (string equality missed leading-zero IDs; same bug fixed in `api/chat.ts` in S37 but missed in the two public API files)
+- [x] Dead props `onSimulatedTime`/`onTimeReady` removed from `GlobeView` interface and effects
+- [x] `CATALOG_BASE` fallback updated from `getsatlas.vercel.app` → `satlas.app` in `api/chat.ts` and `api/pass.ts`
+- [x] Session bootstrap docs S10–S38 removed; replaced with `docs/v1-synopsis.md` compressed history
+- [x] `docs/superpowers/` plans and specs directories removed (historical, no longer needed)
+- [x] `.superpowers/brainstorm/` artifacts and `.DS_Store` files removed
+- [x] README test count updated (126 → 166); dead `docs/architecture.md` reference removed
+- [x] CHANGELOG session 38 entry added; CLAUDE.md docs map updated
+
+**Session 38 completed tasks (search overhaul):**
 - [x] `matchSatelliteQuery` hardened — token AND-logic (all tokens must match), delimiter normalization (strip spaces/hyphens/parens/dots/slashes on both sides), leading-zero NORAD prefix comparison; 166 tests passing
 - [x] ISS search bug fixed — `Globe.searchCatalog` checked ISS with raw `includes(q)` bypassing all token logic; extracted `matchesSatellite()` from `searchUtils.ts` so ISS uses the same code path as the main catalog
 - [x] `satelliteNames.ts` — `DISPLAY_NAMES` (HST → Hubble Space Telescope, JWST → James Webb Space Telescope); `getDisplayName()` applied at every render site (search dropdown, info card, hover tooltip, pass panel, country panel, satellite tray, chat prefill)
@@ -188,6 +198,12 @@ Sessions 1–30 decisions archived in `docs/decisions-archive.md`.
 - **2026-05-27 — Session 38: `matchSatelliteQuery` overhaul — token AND-logic, delimiter normalization, leading-zero NORAD; ISS path bug fixed.** Previous implementation: raw `name.toLowerCase().includes(q)` — failed when query delimiters differed from catalog name (`"starlink 1001"` vs `"STARLINK-1001"`). Fix: normalize both sides (strip spaces, hyphens, parens, dots, slashes), split query into tokens, require ALL tokens present in normalized name (Google AND-logic). NORAD prefix: `stripLeadingZeros` on both sides so `"6707"` finds `"06707"`. Separate bug: `Globe.searchCatalog` checked ISS with the old raw `includes(q)` — ISS is filtered from `satNames` before `matchSatelliteQuery` runs, so it had its own stale code path. Fix: extracted `matchesSatellite(query, name, noradId)` from `searchUtils.ts`; `searchCatalog` calls it for ISS. Rule: every name-matching code path must use the same normalized token logic — parallel implementations diverge silently.
 
 - **2026-05-27 — Session 38: PHRASE_ALIASES regex failed for partial typing — replaced with NORMALIZED_ALIASES token-level prefix matching.** Initial alias implementation used `PHRASE_ALIASES: [RegExp, string][]` with `\bhubble\b` applied before tokenization. Word boundary `\b` only fires on complete words — `"hubbl"` has no boundary after it so nothing triggered. Fix: `NORMALIZED_ALIASES: [string, string][]` with normalized keys. Per-token path: `key.startsWith(token)` — `"hubbl"` is a prefix of `"hubblespacetelescope"` → resolves to `"hst"`. Joined-token path: `normTokens.join('')` checked as a prefix of alias keys — handles mid-phrase typing (`"hubble sp"` → `"hubblesp"` → prefix of `"hubblespacetelescope"`). `satelliteNames.ts` is the single edit point for both display names and aliases. Rule: alias matching for live search must use prefix not word-boundary matching — the word is always incomplete until the user stops typing.
+
+- **2026-05-27 — Session 39: NORAD string equality in public API endpoints never received S23/S37 integer comparison fix.** `api/satellite-info.ts` and `api/pass.ts` both had `r.noradId === query.trim()` for NORAD lookups. The S37 ADR documented the fix for `api/chat.ts` but the two public API files were missed. Satellites with NORAD IDs below 10,000 (leading zero in TLE catalog, e.g. `"06707"`) would silently 404 when queried as bare integers. Fix: `parseInt` both sides in both files, matching the pattern in `api/chat.ts`. Rule: any new NORAD lookup anywhere in the codebase must use integer comparison — grep for `noradId ===` before shipping.
+
+- **2026-05-27 — Session 39: Dead props `onSimulatedTime`/`onTimeReady` on GlobeView interface.** Both props were defined in the interface, wired to refs, and fired in `useEffect` chains — but neither was ever passed from `App.tsx`. The effects ran on every `simulatedTime`/`setTimeScale` change and called `undefined?.()` — harmless but noisy. Removed both props and their associated refs/effects entirely. Rule: when a prop is added in an exploratory session but never connected from the parent, delete it in the same session — partial wiring creates dead paths that rot in silence.
+
+- **2026-05-27 — Session 39: `CATALOG_BASE` fallback pointed to `getsatlas.vercel.app` in three API files.** `api/chat.ts`, `api/pass.ts` all defaulted `CATALOG_BASE` to `https://getsatlas.vercel.app` (the pre-domain Vercel URL). `satlas.app` has been the primary domain since Session 20. The old URL still resolves (same deployment) but is stale in source. Updated to `https://satlas.app`. Rule: update hardcoded fallback URLs when the primary domain changes — stale URLs in source are confusing and will break if the old deployment is ever decommissioned.
 
 - **2026-05-27 — Session 38: "/" not stripped from normalize — "rb" missed rocket bodies; category aliases added for debris and rocket bodies.** `normalize()` stripped spaces, hyphens, parens, dots but not `/`. `normName("ATLAS V R/B")` = `"atlasvr/b"` — `"rb"` not in `"atlasvr/b"` → miss. Fix: add `"/"` to the normalize character class. `"debris"` ≠ `"deb"` (TLE uses abbreviation) and `"rocket body"` has no tokens in `"r/b"` catalog names. Fix: NORMALIZED_ALIASES entries `["debris","deb"]` and `["rocketbody","rb"]`; joined-token path handles `"rocket body"` → `"rocketbody"` → prefix match → `"rb"`. Rule: audit `normName` output against real catalog name formats when adding normalization — string intuition is often wrong about what the catalog contains.
 
@@ -268,23 +284,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | File | What it contains |
 |------|-----------------|
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
-| `docs/session-21-bootstrap.md` | Session 21 bootstrap (historical). |
-| `docs/session-22-bootstrap.md` | Session 22 bootstrap (historical). |
-| `docs/session-23-bootstrap.md` | Session 23 bootstrap (historical). |
-| `docs/session-24-bootstrap.md` | Session 24 bootstrap (historical). |
-| `docs/session-25-bootstrap.md` | Session 25 bootstrap (historical). |
-| `docs/session-29-bootstrap.md` | Session 29 bootstrap (historical) — spherical triangulation blocker analysis. |
-| `docs/session-30-bootstrap.md` | Session 30 bootstrap (historical). |
-| `docs/session-31-bootstrap.md` | Session 31 bootstrap (historical). |
-| `docs/session-32-bootstrap.md` | Session 32 bootstrap (historical). |
-| `docs/session-33-bootstrap.md` | Session 33 bootstrap (historical). |
-| `docs/session-34-bootstrap.md` | Session 34 bootstrap (historical) — pass visibility, DevNotes, overhead uncap. |
-| `docs/session-35-bootstrap.md` | Session 35 bootstrap — time controls, satellite sync fix, in-process satellite info. |
-| `docs/session-37-bootstrap.md` | Session 37 bootstrap (historical) — mobile touch hit-test fix + hamburger bottom sheet. |
-| `docs/session-38-bootstrap.md` | Session 38 bootstrap (historical) — search overhaul, display names, partial-typing aliases. |
-| `docs/session-39-bootstrap.md` | Session 39 bootstrap — V2 direction decision pending. |
-| `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
-| `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
-| `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
-| `CHANGELOG.md` | User-facing change log. Updated when a session ships something visible. |
+| `docs/v1-synopsis.md` | Compressed history of Sessions 1–38: what was built, key decisions, bugs fixed. |
+| `docs/session-39-bootstrap.md` | Session 39 bootstrap — V1 cleanup complete, V2 direction pending. |
+| `docs/decisions-archive.md` | Full ADR entries from Sessions 1–17. |
+| `CHANGELOG.md` | Engineering change log — significant problems, diagnosis, and fixes per session. |
 | `README.md` | Public-facing project overview. What it does, how to run it locally, deploy notes. |

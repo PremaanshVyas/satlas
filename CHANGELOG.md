@@ -4,6 +4,28 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 38] — Search overhaul: token AND-logic, display names, partial-typing aliases (2026-05-27)
+
+### What shipped
+
+**`matchSatelliteQuery` hardened.** Previous implementation used raw `name.toLowerCase().includes(q)` — failed when the user's delimiter differed from the catalog (e.g. `"starlink 1001"` vs `"STARLINK-1001"`). Full overhaul: normalize both sides (strip spaces, hyphens, parens, dots, slashes), split query into tokens, require ALL tokens present in the normalized name (Google AND-logic). Leading-zero NORAD comparison: `stripLeadingZeros` on both sides so `"6707"` finds catalog entry `"06707"`. 166 tests passing (up from 130).
+
+**ISS search bug fixed.** `Globe.searchCatalog` filtered ISS out of `satNames` before `matchSatelliteQuery` ran, then fell through to a raw `includes(q)` check — a parallel implementation that didn't receive any of the S38 normalization. Extracted `matchesSatellite(query, name, noradId)` from `searchUtils.ts`; ISS now uses the same code path as every other satellite.
+
+**Display names.** `DISPLAY_NAMES` map in `satelliteNames.ts`: HST → "Hubble Space Telescope", JWST → "James Webb Space Telescope". `getDisplayName()` applied at every render site (search dropdown, info card, hover tooltip, pass panel, country panel, satellite tray, chat prefill). Internal lookups and NORAD IDs still use catalog names.
+
+**Partial-typing aliases.** Initial approach used `PHRASE_ALIASES: [RegExp, string][]` with `\bhubble\b` — word boundary never fires on incomplete words so `"hubbl"` never matched. Replaced with `NORMALIZED_ALIASES: [string, string][]` and token-level prefix matching: `key.startsWith(token)`. `"hubbl"` is a prefix of `"hubblespacetelescope"` → resolves to `"hst"`. Joined-token path: `normTokens.join('')` checked as alias key prefix handles mid-phrase multi-word typing (`"hubble sp"` → `"hubblesp"` → prefix of `"hubblespacetelescope"`). Current aliases: hubble→hst, james webb/webb→jwst, tiangong→tianhe, debris→deb, rocket body→rb.
+
+**Slash normalization + category aliases.** `/` was not stripped from normalize — `"rb"` didn't match `"ATLAS V R/B"` because `normName` still contained `"/"`. Added `"/"` to the normalize character class. Added `["debris","deb"]` and `["rocketbody","rb"]` to `NORMALIZED_ALIASES`; the joined-token path handles `"rocket body"` → `"rocketbody"`.
+
+### Technical decisions
+
+**PHRASE_ALIASES (regex) → NORMALIZED_ALIASES (prefix string).** Word boundary `\b` only fires when the character after the word is non-word — the user's cursor is always at a non-word boundary mid-type, but `"hubbl"` has no boundary after the `l`. Prefix string matching naturally handles partial input. `satelliteNames.ts` is the single edit point for both display names and aliases.
+
+**ISS special-case path removed.** The Globe had two name-matching implementations for years: `matchSatelliteQuery` for the catalog, raw `includes` for ISS. Both had to be kept in sync across every normalization change. Extracted `matchesSatellite()` makes ISS a consumer of the same logic rather than a parallel implementation.
+
+---
+
 ## [Session 37] — Mobile UX: touch hit-test + hamburger bottom sheet (2026-05-26)
 
 ### What shipped

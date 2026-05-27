@@ -34,7 +34,10 @@ async function fetchTle(query: string): Promise<TleRecord | null> {
     _cacheAt = now
   }
   const isNorad = /^\d+$/.test(query.trim())
-  if (isNorad) return _cache.find(r => r.noradId === query.trim()) ?? null
+  if (isNorad) {
+    const queryInt = parseInt(query.trim(), 10)
+    return _cache.find(r => parseInt(r.noradId, 10) === queryInt) ?? null
+  }
   const q = query.trim().toUpperCase()
   return _cache.find(r => r.name.toUpperCase().includes(q)) ?? null
 }

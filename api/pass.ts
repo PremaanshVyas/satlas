@@ -80,7 +80,7 @@ const ORBITAL_SERVICE_URL =
 const CLOUDFRONT_CATALOG =
   process.env.CLOUDFRONT_CATALOG ?? 'https://dgsll6twimcwl.cloudfront.net/catalog.tle'
 
-const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://getsatlas.vercel.app'
+const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://satlas.app'
 
 const ALLOWED_ORIGINS = [
   'https://satlas.app',
@@ -122,7 +122,8 @@ async function resolveTle(noradId: string): Promise<TleRecord | null> {
     _catalog = parseTleText(text)
     _fetchedAt = now
   }
-  return _catalog.find(r => r.noradId === noradId.trim()) ?? null
+  const targetId = parseInt(noradId.trim(), 10)
+  return _catalog.find(r => parseInt(r.noradId, 10) === targetId) ?? null
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────

@@ -36,8 +36,6 @@ interface GlobeViewProps {
   onSelectReady?: (select: (noradId: string) => void) => void
   onCountryClick?: (name: string, continent: string, overheadSats: OverheadSat[]) => void
   onClearHighlightReady?: (fn: () => void) => void
-  onSimulatedTime?: (date: Date) => void
-  onTimeReady?: (controls: { setTimeScale: (scale: number) => void }) => void
 }
 
 export default function GlobeView({
@@ -54,8 +52,6 @@ export default function GlobeView({
   onSelectReady,
   onCountryClick,
   onClearHighlightReady,
-  onSimulatedTime,
-  onTimeReady,
 }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // Debris off by default — too numerous to show on landing (12k+ objects)
@@ -82,18 +78,6 @@ export default function GlobeView({
   const onClearHighlightReadyRef = useRef(onClearHighlightReady)
   useEffect(() => { onClearHighlightReadyRef.current = onClearHighlightReady })
   useEffect(() => { onClearHighlightReadyRef.current?.(clearCountryHighlight) }, [clearCountryHighlight])
-
-  const onTimeReadyRef = useRef(onTimeReady)
-  useEffect(() => { onTimeReadyRef.current = onTimeReady })
-  useEffect(() => {
-    onTimeReadyRef.current?.({ setTimeScale })
-  }, [setTimeScale])
-
-  const onSimulatedTimeRef = useRef(onSimulatedTime)
-  useEffect(() => { onSimulatedTimeRef.current = onSimulatedTime })
-  useEffect(() => {
-    onSimulatedTimeRef.current?.(simulatedTime)
-  }, [simulatedTime])
 
   // Apply debris-off default to Globe engine on mount
   useEffect(() => {

@@ -63,8 +63,6 @@ Everything is open source. Public API. Free for non-commercial use.
 
 The AI agent doesn't generate orbital math. It calls tools that do. Every user query becomes one or more typed tool calls, and the agent composes the results.
 
-Full architecture doc: [`docs/architecture.md`](docs/architecture.md) _(coming soon)_
-
 ---
 
 ## Tech stack
@@ -228,7 +226,7 @@ Then add `VITE_CHAT_URL=http://localhost:3000/api/chat` to `apps/web/.env.local`
 
 ```bash
 cd apps/web
-npx vitest run               # 126 frontend unit tests
+npx vitest run               # 166 frontend unit tests
 npx tsc -b --noEmit          # TypeScript type check
 npx eslint .                 # lint
 
