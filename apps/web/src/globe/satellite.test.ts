@@ -1,6 +1,6 @@
 import { describe, test, expect, it } from 'vitest'
 import * as satellite from 'satellite.js'
-import { matchSatelliteQuery } from './searchUtils'
+import { matchSatelliteQuery, matchesSatellite } from './searchUtils'
 
 const TLE1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
 const TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
@@ -148,5 +148,27 @@ describe('matchSatelliteQuery', () => {
     const { results: r1 } = matchSatelliteQuery('starlink', names, noradIds, 10)
     const { results: r2 } = matchSatelliteQuery('starlink starlink', names, noradIds, 10)
     expect(r2).toEqual(r1)
+  })
+})
+
+describe('matchesSatellite (ISS special-case path in Globe.searchCatalog)', () => {
+  it('"iss zarya" matches "ISS (ZARYA)" — the bug that prompted this fix', () => {
+    expect(matchesSatellite('iss zarya', 'ISS (ZARYA)', '25544')).toBe(true)
+  })
+
+  it('"iss" matches "ISS (ZARYA)"', () => {
+    expect(matchesSatellite('iss', 'ISS (ZARYA)', '25544')).toBe(true)
+  })
+
+  it('"25544" matches by NORAD', () => {
+    expect(matchesSatellite('25544', 'ISS (ZARYA)', '25544')).toBe(true)
+  })
+
+  it('"255" matches as NORAD prefix', () => {
+    expect(matchesSatellite('255', 'ISS (ZARYA)', '25544')).toBe(true)
+  })
+
+  it('unrelated query does not match', () => {
+    expect(matchesSatellite('starlink', 'ISS (ZARYA)', '25544')).toBe(false)
   })
 })

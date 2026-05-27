@@ -56,3 +56,9 @@ export function matchSatelliteQuery(
 
   return { results, total }
 }
+
+// Single-satellite check using the same logic as matchSatelliteQuery.
+// Used by Globe.searchCatalog for the ISS special case (ISS is not in satNames).
+export function matchesSatellite(query: string, name: string, noradId: string): boolean {
+  return matchSatelliteQuery(query, [name], [noradId], 1).total > 0
+}

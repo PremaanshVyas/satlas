@@ -14,7 +14,7 @@ import { fetchSatelliteCatalog, fetchIssTle } from '../lib/celestrak'
 import type { TLERecord } from '../lib/celestrak'
 import { fetchSatcat } from '../lib/satcat'
 import type { SatcatEntry } from '../lib/satcat'
-import { matchSatelliteQuery } from './searchUtils'
+import { matchSatelliteQuery, matchesSatellite } from './searchUtils'
 import type { SearchResults } from './searchUtils'
 import type { SearchResult } from './searchUtils'
 import { geoContains } from 'd3-geo'
@@ -891,10 +891,9 @@ export class Globe {
   }
 
   searchCatalog(query: string, maxResults = 8): SearchResults {
+    if (!query.trim()) return { results: [], total: 0 }
     const results: SearchResult[] = []
-    const q = query.trim().toLowerCase()
-    if (!q) return { results: [], total: 0 }
-    const issMatch = this.issName.toLowerCase().includes(q) || ISS_NORAD.startsWith(q)
+    const issMatch = matchesSatellite(query, this.issName, ISS_NORAD)
     if (issMatch) results.push({ name: this.issName, noradId: ISS_NORAD })
     const { results: rest, total: restTotal } = matchSatelliteQuery(
       query, this.satNames, this.satNoradIds, maxResults - results.length,
