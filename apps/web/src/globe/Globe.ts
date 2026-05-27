@@ -154,6 +154,7 @@ export class Globe {
   private field: SatelliteField | null = null
   private worker: Worker | null = null
   private lastFieldTickMs = 0
+  private workerBusy = false
   private mounted = false
   private rafId: number | null = null
   private catalogRefreshInterval: ReturnType<typeof setInterval> | null = null
@@ -246,8 +247,9 @@ export class Globe {
   setTimeScale(scale: number): void {
     this._timeScale = scale
     if (scale === 1) this._simTimeMs = Date.now()
-    // Reset so the worker gets a tick on the very next frame regardless of direction change
+    // Reset rate-limiter and busy flag so the next RAF frame immediately sends a fresh tick
     this.lastFieldTickMs = 0
+    this.workerBusy = false
   }
 
   getSimulatedTime(): Date {
@@ -559,6 +561,7 @@ export class Globe {
         { type: 'module' },
       )
       this.worker.onmessage = (e: MessageEvent) => {
+        this.workerBusy = false
         const msg = e.data as { type: string; buffer?: Float32Array }
         if (msg.type === 'positions' && msg.buffer && this.field) {
           this.lastPositionBuffer = msg.buffer
@@ -566,6 +569,7 @@ export class Globe {
         }
       }
       this.worker.onerror = (e: ErrorEvent) => {
+        this.workerBusy = false
         console.warn('[Globe] Propagator worker error, running ISS-only:', e.message)
       }
       this.worker.postMessage({ type: 'init', tles: others })
@@ -1337,8 +1341,9 @@ export class Globe {
     const dynamicTickMs = this._timeScale === 1
       ? FIELD_TICK_MS
       : Math.max(16, Math.floor(FIELD_TICK_MS / Math.min(Math.abs(this._timeScale), 3)))
-    if (this.worker && realNow - this.lastFieldTickMs >= dynamicTickMs) {
-      this.lastFieldTickMs = realNow  // real-time rate limiting; timestamp is simulated
+    if (this.worker && !this.workerBusy && realNow - this.lastFieldTickMs >= dynamicTickMs) {
+      this.workerBusy = true
+      this.lastFieldTickMs = realNow
       this.worker.postMessage({ type: 'tick', timestamp: nowMs })
     }
 
