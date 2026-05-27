@@ -9,7 +9,7 @@ export interface SearchResults {
 }
 
 // Strip spaces, hyphens, underscores, brackets, dots so "starlink 1001" matches "STARLINK-1001"
-const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_()\[\].]/g, '')
+const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_()[\].]/g, '')
 
 // Strip leading zeros for NORAD comparison so "6707" matches catalog entry "06707"
 const stripLeadingZeros = (s: string) => s.replace(/^0+/, '') || '0'
@@ -24,7 +24,7 @@ export function matchSatelliteQuery(
   if (!q) return { results: [], total: 0 }
 
   // Split on any delimiter; filter empties so "---" or "()" return nothing
-  const rawTokens = q.split(/[\s\-_()\[\].]+/).filter(Boolean)
+  const rawTokens = q.split(/[\s\-_()[\].]+/).filter(Boolean)
   if (rawTokens.length === 0) return { results: [], total: 0 }
 
   // Deduplicate so "starlink starlink" costs the same as "starlink"
