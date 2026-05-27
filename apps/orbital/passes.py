@@ -67,4 +67,4 @@ def predict_passes(
         current['end_utc'] = t1.utc_iso()
         passes.append(current)
 
-    return passes
+    return [p for p in passes if p['start_utc'] < p['end_utc']]
