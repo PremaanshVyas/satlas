@@ -110,9 +110,17 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 41 complete (+ post-session hotfixes). Frontend/UX polish done. V2 direction decision pending.
+**Current phase:** Session 42 complete. Post-S41 hotfixes applied. V2 direction decision pending.
 
-**Next milestone:** Session 42 = V2 direction decision: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
+**Next milestone:** Session 43 = V2 direction decision: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
+
+**Session 42 completed tasks (post-S41 hotfixes):**
+- [x] `TimeControls.tsx` + `MobileControlsSheet.tsx` — removed toggle-to-pause from `handleSpeed`; clicking an active speed button kept pausing the simulation; ⏸ is the explicit pause control
+- [x] `GlobeView.tsx` + `MobileControlsSheet.tsx` — toggle switch dot overflow fixed: dot shrunk from `w-3 h-3` (12px) to `w-2.5 h-2.5` (10px), on-position shifted `left-[12px]`→`left-[14px]`, `overflow-hidden` added to pill containers; dot no longer escapes the rounded boundary
+- [x] `Globe.ts` — `workerBusy` flag added: tick dispatch gated on `!workerBusy`; satellite positions now update immediately on speed change instead of lagging 2-3s behind the Earth rotation
+- [x] `App.tsx` — Toaster moved from `position="bottom-right"` → `"bottom-left"`; Sonner's z-index (2147483647) was covering the DevNotes panel (also bottom-right); both are now visible simultaneously
+- [x] `apps/orbital/passes.py` — filter zero-duration passes: grazing transits where rise and set fall in the same UTC second produced `start_utc == end_utc`; filtered out before return; CI test `test_start_before_end` now passes
+- [x] Tests: 166/166 web (vitest) + 93/93 orbital (pytest) passing
 
 **Session 41 completed tasks (frontend/UX polish):**
 - [x] `Globe.ts` — adaptive `FIELD_TICK_MS`: at timeScale>1 ticks at up to 60Hz so fast-forward/reverse is smooth instead of jittery; `TOUCH_MIN_RADIUS_PX` raised 18→24 for better mobile satellite tap targets
@@ -285,7 +293,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-41-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-43-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -313,6 +321,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/session-39-bootstrap.md` | Session 39 bootstrap — V1 cleanup complete, V2 direction pending. |
 | `docs/session-40-bootstrap.md` | Session 40 bootstrap — security hardening. |
 | `docs/session-41-bootstrap.md` | Session 41 bootstrap — frontend/UX polish. |
+| `docs/session-42-bootstrap.md` | Session 42 bootstrap — post-S41 hotfixes (completed). |
+| `docs/session-43-bootstrap.md` | Session 43 bootstrap — V2 direction decision. |
 | `docs/decisions-archive.md` | Full ADR entries from Sessions 1–17. |
 | `CHANGELOG.md` | Engineering change log — significant problems, diagnosis, and fixes per session. |
 | `README.md` | Public-facing project overview. What it does, how to run it locally, deploy notes. |
