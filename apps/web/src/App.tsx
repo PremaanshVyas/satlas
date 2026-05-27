@@ -149,10 +149,10 @@ export default function App() {
 
   return (
     <div className="relative w-screen overflow-hidden bg-[#080808]" style={{ height: '100dvh' }}>
-      {/* Toaster — dark theme, bottom-right */}
+      {/* Toaster — dark theme, bottom-left (bottom-right is occupied by DevNotes + chat button) */}
       <Toaster
         theme="dark"
-        position="bottom-right"
+        position="bottom-left"
         toastOptions={{
           style: {
             background: 'rgba(9,9,9,0.95)',
