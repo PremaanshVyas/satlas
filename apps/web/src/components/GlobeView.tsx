@@ -1,5 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { Cloud, Layers, LayoutGrid, RefreshCw } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { getDisplayName } from '../lib/satelliteNames'
 import { useGlobe } from '../hooks/useGlobe'
 import type { OrbitalParams, LivePosition, SatcatEntry, OverheadSat } from '../hooks/useGlobe'
@@ -147,6 +149,8 @@ export default function GlobeView({
   const safeTop = 'env(safe-area-inset-top, 0px)'
   const safeBottom = 'env(safe-area-inset-bottom, 0px)'
 
+  const toggleBtnBase = 'flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-all duration-75 active:scale-[0.97] touch-manipulation select-none'
+
   return (
     <div className="w-full h-full relative">
       {/* Canvas — full bleed, behind everything */}
@@ -166,7 +170,7 @@ export default function GlobeView({
           />
           <Link
             to="/docs"
-            className="hidden sm:flex items-center bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg font-mono text-[11px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors whitespace-nowrap"
+            className="hidden sm:flex items-center bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg font-mono text-[11px] uppercase tracking-[0.1em] text-label hover:text-secondary transition-colors whitespace-nowrap active:scale-[0.97]"
           >
             API Docs
           </Link>
@@ -198,7 +202,7 @@ export default function GlobeView({
           catalogError ? (
             <button
               onClick={() => window.location.reload()}
-              className="absolute right-3 font-mono text-[13px] text-label hover:text-secondary transition-colors select-none cursor-pointer"
+              className="absolute right-3 font-mono text-[13px] text-label hover:text-secondary transition-colors select-none cursor-pointer active:scale-95"
               style={{ top: `max(0.75rem, calc(${safeTop} + 0.25rem))` }}
             >
               <span className="sm:hidden">Catalog error — tap to retry</span>
@@ -232,11 +236,9 @@ export default function GlobeView({
           <button
             onClick={toggleClouds}
             title={cloudsVisible ? 'Hide clouds' : 'Show clouds'}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
+            className={toggleBtnBase}
           >
-            <svg width="13" height="9" viewBox="0 0 24 16" fill="none" className="flex-shrink-0">
-              <path d="M19 12a5 5 0 0 0-9.9-1A3.5 3.5 0 1 0 4 14.5h15a3.5 3.5 0 0 0 0-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <Cloud size={13} className="flex-shrink-0" />
             <span className="hidden sm:inline">Clouds</span>
             <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
               <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
@@ -246,15 +248,9 @@ export default function GlobeView({
           <button
             onClick={() => toggleCategory('DEBRIS')}
             title={activeCategories.has('DEBRIS') ? 'Hide debris' : 'Show debris'}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
+            className={toggleBtnBase}
           >
-            <svg width="13" height="9" viewBox="0 0 14 10" fill="currentColor" className="flex-shrink-0">
-              <circle cx="2" cy="2" r="1.3" opacity="0.6"/>
-              <circle cx="7" cy="5" r="1.3" opacity="0.6"/>
-              <circle cx="12" cy="2" r="1.3" opacity="0.6"/>
-              <circle cx="10" cy="8.5" r="1.3" opacity="0.6"/>
-              <circle cx="4" cy="8.5" r="1.3" opacity="0.6"/>
-            </svg>
+            <Layers size={13} className="flex-shrink-0" />
             <span className="hidden sm:inline">Debris</span>
             <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${activeCategories.has('DEBRIS') ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
               <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${activeCategories.has('DEBRIS') ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
@@ -264,12 +260,9 @@ export default function GlobeView({
           <button
             onClick={toggleBorders}
             title={bordersVisible ? 'Hide map mode' : 'Show map mode'}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border border-[rgba(255,255,255,0.07)] text-label hover:text-secondary transition-colors touch-manipulation select-none"
+            className={toggleBtnBase}
           >
-            <svg width="13" height="9" viewBox="0 0 14 10" fill="none" stroke="currentColor" strokeWidth="1.4" className="flex-shrink-0">
-              <rect x="0.7" y="0.7" width="12.6" height="8.6" rx="0.8"/>
-              <path d="M4.7 0.7v8.6M9.3 0.7v8.6"/>
-            </svg>
+            <LayoutGrid size={13} className="flex-shrink-0" />
             <span className="hidden sm:inline">Borders</span>
             <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${bordersVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
               <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${bordersVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
@@ -277,7 +270,7 @@ export default function GlobeView({
           </button>
         </div>
 
-        {/* Category filter pills — full-width scrollable row on mobile, centered wrap on desktop */}
+        {/* Category filter pills — desktop only, bottom-center */}
         <div
           className="absolute left-0 right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 pointer-events-auto px-3 sm:px-0 hidden sm:block"
           style={{ bottom: `max(1rem, calc(${safeBottom} + 0.5rem))` }}
@@ -288,7 +281,7 @@ export default function GlobeView({
                 key={cat}
                 data-active={activeCategories.has(cat)}
                 onClick={() => toggleCategory(cat)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
+                className={`flex-shrink-0 px-3 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border transition-all duration-75 active:scale-95 touch-manipulation select-none ${
                   activeCategories.has(cat)
                     ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
                     : 'border-[rgba(255,255,255,0.07)] text-label hover:text-secondary hover:border-[rgba(255,255,255,0.12)]'
@@ -300,29 +293,65 @@ export default function GlobeView({
           </div>
         </div>
 
-        {/* Hover tooltip — screen-space positioned, pointer-events-none */}
-        {hoverInfo && (
-          <div
-            className="absolute z-10 bg-[rgba(9,9,9,0.9)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2.5 py-1.5 whitespace-nowrap shadow-lg"
-            style={{
-              left: hoverInfo.screenX + tooltipOffset,
-              top: hoverInfo.screenY - tooltipOffset,
-              transform: 'translateY(-100%)',
-            }}
-          >
-            <div className="font-mono text-[12px] text-secondary">{getDisplayName(hoverInfo.name)}</div>
-            {hoverInfo.altKm !== null && (
-              <div className="font-mono text-[10px] text-label">{hoverInfo.altKm.toLocaleString()} km</div>
-            )}
-          </div>
-        )}
+        {/* Hover tooltip — screen-space positioned, animated */}
+        <AnimatePresence>
+          {hoverInfo && (
+            <motion.div
+              key={hoverInfo.name}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.1, ease: 'easeOut' }}
+              className="absolute z-10 bg-[rgba(9,9,9,0.9)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2.5 py-1.5 whitespace-nowrap shadow-lg pointer-events-none"
+              style={{
+                left: hoverInfo.screenX + tooltipOffset,
+                top: hoverInfo.screenY - tooltipOffset,
+                transform: 'translateY(-100%)',
+              }}
+            >
+              <div className="font-mono text-[12px] text-secondary">{getDisplayName(hoverInfo.name)}</div>
+              {hoverInfo.altKm !== null && (
+                <div className="font-mono text-[10px] text-label">{hoverInfo.altKm.toLocaleString()} km</div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>{/* /overlay layer */}
 
-      {/* Loading overlay — full bleed, outside the safe-area wrapper */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#080808] font-mono text-[11px] text-label tracking-[0.1em] uppercase">
-          Initializing…
+      {/* Loading overlay — animated spinner */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="absolute inset-0 flex flex-col items-center justify-center bg-[#080808] gap-4"
+          >
+            <div className="relative w-10 h-10">
+              <svg className="animate-spin w-10 h-10" viewBox="0 0 40 40" fill="none">
+                <circle cx="20" cy="20" r="16" stroke="rgba(255,255,255,0.06)" strokeWidth="2" />
+                <path d="M20 4 A16 16 0 0 1 36 20" stroke="#00d4ff" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              </div>
+            </div>
+            <span className="font-mono text-[10px] text-label tracking-[0.15em] uppercase">Initializing</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Catalog error retry — shown outside loading state if catalog fails after init */}
+      {!isLoading && catalogError && (
+        <div className="absolute top-0 left-0 right-0 flex justify-center pt-2 pointer-events-none z-30">
+          <button
+            onClick={() => window.location.reload()}
+            className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 bg-[rgba(9,9,9,0.9)] border border-[rgba(255,68,68,0.2)] rounded-[3px] font-mono text-[10px] text-danger hover:border-[rgba(255,68,68,0.4)] transition-colors active:scale-95"
+          >
+            <RefreshCw size={11} />
+            Retry catalog
+          </button>
         </div>
       )}
     </div>

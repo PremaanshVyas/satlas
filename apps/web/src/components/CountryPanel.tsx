@@ -48,7 +48,7 @@ export default function CountryPanel({
               <button
                 key={sat.noradId}
                 onClick={() => onSelectSatellite(sat.noradId)}
-                className="flex items-center justify-between px-1.5 py-1 rounded-[2px] bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)] transition-colors text-left w-full"
+                className="flex items-center justify-between px-1.5 py-1 rounded-[2px] bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)] transition-all duration-75 active:scale-[0.98] text-left w-full touch-manipulation"
               >
                 <span className="text-[10px] text-accent truncate">{getDisplayName(sat.name)}</span>
                 <span className="text-[10px] text-accent flex-shrink-0 ml-2">↑ {sat.elevDeg}°</span>
@@ -58,7 +58,7 @@ export default function CountryPanel({
               <button
                 key={sat.noradId}
                 onClick={() => onSelectSatellite(sat.noradId)}
-                className="flex items-center justify-between px-1.5 py-1 rounded-[2px] hover:bg-[rgba(255,255,255,0.03)] transition-colors text-left w-full"
+                className="flex items-center justify-between px-1.5 py-1 rounded-[2px] hover:bg-[rgba(255,255,255,0.03)] transition-all duration-75 active:scale-[0.98] text-left w-full touch-manipulation"
               >
                 <span className="text-[10px] text-secondary truncate">{getDisplayName(sat.name)}</span>
                 <span className="text-[10px] text-label flex-shrink-0 ml-2">↑ {sat.elevDeg}°</span>
@@ -71,7 +71,7 @@ export default function CountryPanel({
       <div className="border-t border-[rgba(255,255,255,0.05)] mt-3 pt-3">
         <button
           onClick={onAskAI}
-          className="w-full py-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-label bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.07)] rounded-[2px] hover:text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors"
+          className="w-full py-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-label bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.07)] rounded-[2px] hover:text-secondary hover:border-[rgba(255,255,255,0.12)] transition-all duration-75 active:scale-[0.98] touch-manipulation"
         >
           Ask AI about this country
         </button>

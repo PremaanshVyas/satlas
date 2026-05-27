@@ -110,9 +110,22 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 40 complete. Security hardening done. Session 41 = frontend/UX polish before V2.
+**Current phase:** Session 41 complete. Frontend/UX polish done. V2 direction decision pending.
 
-**Next milestone:** Session 41 (frontend/UX polish). Then V2 direction decision: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
+**Next milestone:** Session 42 = V2 direction decision: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
+
+**Session 41 completed tasks (frontend/UX polish):**
+- [x] `Globe.ts` — adaptive `FIELD_TICK_MS`: at timeScale>1 ticks at up to 60Hz so fast-forward/reverse is smooth instead of jittery; `TOUCH_MIN_RADIUS_PX` raised 18→24 for better mobile satellite tap targets
+- [x] `TimeControls.tsx` — fixed button overflow: removed `w-56`/`overflow-hidden`, switched `Btn` from `flex-1 min-w-0` to `flex-none min-w-[28px] px-1.5 text-center`; arrows no longer clip outside their boxes
+- [x] `MobileControlsSheet.tsx` — same overflow fix; buttons now `flex-none min-w-[36px] flex-wrap`; `active:scale-[0.96]` on all interactive buttons
+- [x] `App.tsx` — desktop panel column moved from `top-10 mt-2` → `top-[76px]` to stop overlapping the TimeControls widget; `sonner` Toaster added; catalog-load toast fires once on first catalog count; `MessageCircle` from lucide-react replaces inline SVG
+- [x] `GlobeView.tsx` — loading state replaced with animated SVG spinner + pulse dot; hover tooltip wrapped in framer-motion `AnimatePresence` for smooth fade; toggle buttons use `lucide-react` (Cloud, Layers, LayoutGrid); `active:scale-[0.97]` on all toggle/pill buttons; mobile search bar `w-36`→`w-44`
+- [x] `AgentPanel.tsx` — suggested prompts shown on empty state (4 clickable chips); `timestamp` field shown as HH:MM under each bubble; character counter appears when input >80% of 200-char limit; `X`/`Send` from lucide-react replace inline SVGs
+- [x] `SatInfoCard.tsx` — orbit type badge (LEO/MEO/GEO/HEO/SSO) computed from inclination + altitude, shown next to NORAD badge; `active:scale-[0.98]` on action buttons
+- [x] `SearchBar.tsx` — dropdown animated with framer-motion enter; "No satellites found" empty state with icon + hint text instead of silent collapse; `Search`/`X` from lucide-react; `focus-within` border highlight on input wrapper
+- [x] `types/chat.ts` + `useChat.ts` — `timestamp: number` added to `ChatMessage`; set on user and assistant messages at creation time
+- [x] `CountryPanel.tsx` — `active:scale-[0.98]` + `touch-manipulation` on all buttons
+- [x] `lucide-react` and `sonner` installed as dependencies
 
 **Session 40 completed tasks (security hardening):**
 - [x] Rate limiting added to all public API endpoints (`/api/overhead`, `/api/pass`, `/api/satellites`, `/api/satellite-info`) — 60 req/min/IP in-process, same pattern as `/api/chat`
@@ -237,6 +250,14 @@ Sessions 1–36 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-27 — Session 40: `vercel.json` had no security headers.** Frontend served without `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, or `Content-Security-Policy`. Fix: added a `headers` block covering all routes. CSP sources derived from actual runtime requirements: Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`), Vercel Analytics (`va.vercel-scripts.com`), Nominatim (`nominatim.openstreetmap.org`), CelesTrak (`celestrak.org`), CloudFront catalog (`dgsll6twimcwl.cloudfront.net`). `worker-src 'self'` covers the Vite-bundled `propagator.worker.ts`. `frame-ancestors 'none'` + `X-Frame-Options: DENY` redundantly protect older browsers. Rule: derive CSP sources from actual fetch/script/font callsites in the codebase — guessing causes breakage; auditing avoids it.
 
+- **2026-05-27 — Session 41: `TimeControls` speed buttons were clipping — `flex-1 min-w-0` + `overflow-hidden` on a `w-56` container.** Ten `flex-1` buttons in a 224px container each got ~22px — not enough for "◄100" (4 monospace chars need ≥24px). The container's `overflow-hidden` then clipped the overflow, making arrows appear outside their borders. Fix: remove `w-56` and `overflow-hidden` from the outer container; change `Btn` from `flex-1 min-w-0` to `flex-none min-w-[28px] px-1.5 text-center`. Container auto-sizes to ~300px. Same pattern applied to `MobileControlsSheet.tsx` buttons. Rule: when transport buttons use `flex-1`, the container must be at least `n_buttons × min_char_width` wide — fixed width + overflow-hidden silently clips text.
+
+- **2026-05-27 — Session 41: Satellite positions updated at fixed 50ms regardless of time scale — visible jitter at high speeds.** `FIELD_TICK_MS = 50` meant the propagator worker received position requests at 20Hz regardless of whether `_timeScale` was 1× or 100×. At 100× speed, 5 real seconds of satellite motion passed between worker ticks, causing discrete jumps visible against the 60fps render loop. Fix: `dynamicTickMs = _timeScale === 1 ? 50 : Math.max(16, floor(50 / min(|_timeScale|, 3)))` — at 2× → 25ms, at 10×+ → 16ms (~60Hz matching RAF). Rule: worker tick rate must scale with time scale or fast-forward will always appear jittery.
+
+- **2026-05-27 — Session 41: SatInfoCard/PassPanel desktop column overlapped TimeControls.** `absolute top-10 left-3 mt-2` (y≈48px) started before the TimeControls widget (y≈12px, ~60px tall) finished. Fix: changed to `top-[76px]` on the left column container. Rule: when two `absolute`-positioned elements share the same `left` coordinate inside a full-screen container, compute the vertical clearance explicitly from the overlapping element's measured height.
+
+- **2026-05-27 — Session 41: `AnimatePresence` exit animation kept dropdown in DOM — SearchBar test broke.** The `exit` prop on `motion.div` causes `AnimatePresence` to hold the element in the DOM until the exit animation completes. In JSDOM (tests), animations never run, so the element stayed mounted indefinitely. Test: `queryByText('ISS (ZARYA)').not.toBeInTheDocument()` failed. Fix: remove the `exit` prop — `AnimatePresence` then unmounts immediately on `open=false`. Enter animation still runs. Rule: only add an `exit` prop if the component will never be tested for DOM absence immediately after hide; otherwise use enter-only animation or mock framer-motion in tests.
+
 ---
 
 ## Out of scope (so we don't drift)
@@ -256,7 +277,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-40-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-41-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -283,6 +304,7 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/v1-synopsis.md` | Compressed history of Sessions 1–38: what was built, key decisions, bugs fixed. |
 | `docs/session-39-bootstrap.md` | Session 39 bootstrap — V1 cleanup complete, V2 direction pending. |
 | `docs/session-40-bootstrap.md` | Session 40 bootstrap — security hardening. |
+| `docs/session-41-bootstrap.md` | Session 41 bootstrap — frontend/UX polish. |
 | `docs/decisions-archive.md` | Full ADR entries from Sessions 1–17. |
 | `CHANGELOG.md` | Engineering change log — significant problems, diagnosis, and fixes per session. |
 | `README.md` | Public-facing project overview. What it does, how to run it locally, deploy notes. |

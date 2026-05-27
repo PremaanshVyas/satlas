@@ -67,7 +67,7 @@ export default function MobileControlsSheet({
     else onSetScale(scale)
   }
 
-  const btnBase = 'flex-1 font-mono text-[9px] py-2.5 rounded-[2px] border transition-colors touch-manipulation select-none'
+  const btnBase = 'flex-none font-mono text-[9px] py-2.5 px-2 min-w-[36px] text-center rounded-[2px] border transition-all duration-75 touch-manipulation select-none active:scale-95'
   const btnInactive = 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.08)] text-label'
   const btnLive = 'bg-[rgba(0,212,255,0.08)] border-[rgba(0,212,255,0.3)] text-accent'
   const btnPause = 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.2)] text-secondary'
@@ -111,7 +111,7 @@ export default function MobileControlsSheet({
                 {/* Time transport */}
                 <div>
                   <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#555555] mb-2">Time Speed</div>
-                  <div className="flex gap-px">
+                  <div className="flex flex-wrap gap-1">
                     {[...SPEEDS].reverse().map(s => (
                       <button
                         key={`rev-${s}`}
@@ -156,7 +156,7 @@ export default function MobileControlsSheet({
                     <button
                       title="Toggle clouds"
                       onClick={onToggleClouds}
-                      className="w-full flex items-center justify-between px-3 py-3 rounded-[2px] border border-[rgba(255,255,255,0.07)] touch-manipulation"
+                      className="w-full flex items-center justify-between px-3 py-3 rounded-[2px] border border-[rgba(255,255,255,0.07)] touch-manipulation active:scale-[0.98] transition-transform duration-75"
                     >
                       <span className={`font-mono text-[11px] ${cloudsVisible ? 'text-secondary' : 'text-label'}`}>Clouds</span>
                       <div className={`relative w-7 h-4 rounded-full border transition-colors ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
@@ -167,7 +167,7 @@ export default function MobileControlsSheet({
                     <button
                       title="Toggle borders"
                       onClick={() => void onToggleBorders()}
-                      className="w-full flex items-center justify-between px-3 py-3 rounded-[2px] border border-[rgba(255,255,255,0.07)] touch-manipulation"
+                      className="w-full flex items-center justify-between px-3 py-3 rounded-[2px] border border-[rgba(255,255,255,0.07)] touch-manipulation active:scale-[0.98] transition-transform duration-75"
                     >
                       <span className={`font-mono text-[11px] ${bordersVisible ? 'text-secondary' : 'text-label'}`}>Borders</span>
                       <div className={`relative w-7 h-4 rounded-full border transition-colors ${bordersVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
@@ -186,7 +186,7 @@ export default function MobileControlsSheet({
                         key={cat}
                         title={`Toggle ${CATEGORY_LABELS[cat]}`}
                         onClick={() => onToggleCategory(cat)}
-                        className={`px-3 py-2.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border transition-colors touch-manipulation select-none ${
+                        className={`px-3 py-2.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.1em] border transition-all duration-75 active:scale-[0.96] touch-manipulation select-none ${
                           activeCategories.has(cat)
                             ? 'border-[rgba(0,212,255,0.4)] text-accent bg-[rgba(0,212,255,0.06)]'
                             : 'border-[rgba(255,255,255,0.07)] text-label'

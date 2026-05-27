@@ -5,6 +5,7 @@ export interface ChatMessage {
   role: MessageRole
   content: string
   streaming: boolean
+  timestamp: number
 }
 
 export interface HighlightDirective {

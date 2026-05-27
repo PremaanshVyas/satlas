@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { MessageCircle } from 'lucide-react'
+import { toast, Toaster } from 'sonner'
 import { getDisplayName } from './lib/satelliteNames'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Drawer } from 'vaul'
@@ -57,6 +59,7 @@ export default function App() {
   const removeFromSelectionRef = useRef<((noradId: string) => void) | null>(null)
   const selectSatRef = useRef<((noradId: string) => void) | null>(null)
   const clearCountryHighlightRef = useRef<(() => void) | null>(null)
+  const catalogToastShown = useRef(false)
 
   function dismissCountry() {
     setSelectedCountry(null)
@@ -130,8 +133,38 @@ export default function App() {
     handleDismissCard()
   }
 
+  function handleCategoryCounts(counts: Record<string, number>) {
+    setCategoryCounts(counts)
+    if (!catalogToastShown.current) {
+      const total = Object.values(counts).reduce((a, b) => a + b, 0)
+      if (total > 0) {
+        catalogToastShown.current = true
+        toast.success(`Tracking ${total.toLocaleString()} objects`, {
+          description: 'Live orbital catalog loaded',
+          duration: 3000,
+        })
+      }
+    }
+  }
+
   return (
     <div className="relative w-screen overflow-hidden bg-[#080808]" style={{ height: '100dvh' }}>
+      {/* Toaster — dark theme, bottom-right */}
+      <Toaster
+        theme="dark"
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: 'rgba(9,9,9,0.95)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            color: '#cccccc',
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '12px',
+            borderRadius: '3px',
+          },
+        }}
+      />
+
       {/* Globe — full screen */}
       <GlobeView
         highlight={highlight}
@@ -142,7 +175,7 @@ export default function App() {
         onLivePosition={handleLivePosition}
         onSatelliteRemove={handleSatelliteRemove}
         onCategoriesChange={setShownCategories}
-        onCategoryCounts={setCategoryCounts}
+        onCategoryCounts={handleCategoryCounts}
         onRemoveReady={(fn) => { removeFromSelectionRef.current = fn }}
         onSelectReady={(fn) => { selectSatRef.current = fn }}
         onClearHighlightReady={(fn) => { clearCountryHighlightRef.current = fn }}
@@ -166,7 +199,7 @@ export default function App() {
             >
               <button
                 onClick={() => setTrayOpen(o => !o)}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] font-mono text-[9px] touch-manipulation"
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] font-mono text-[9px] touch-manipulation active:scale-[0.98] transition-transform duration-75"
               >
                 <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-secondary">{selectedSats.length} Selected</span>
                 <motion.svg
@@ -207,7 +240,7 @@ export default function App() {
                           </button>
                           <button
                             onClick={() => handleRemoveFromTray(sat.noradId)}
-                            className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-label hover:text-secondary rounded-[2px] touch-manipulation transition-colors"
+                            className="flex-shrink-0 w-7 h-7 flex items-center justify-center font-mono text-label hover:text-secondary rounded-[2px] touch-manipulation transition-colors active:scale-90"
                             aria-label={`Remove ${sat.name}`}
                           >×</button>
                         </div>
@@ -222,9 +255,10 @@ export default function App() {
 
       </div>
 
-      {/* Desktop left column — SatInfoCard / PassPanel stacked above CountryPanel */}
+      {/* Desktop left column — SatInfoCard / PassPanel stacked above CountryPanel
+          Starts at top-[76px] to clear the TimeControls widget (~70px tall) */}
       {!isMobile && (
-        <div className="absolute top-10 left-3 mt-2 w-64 z-20 flex flex-col gap-2">
+        <div className="absolute top-[76px] left-3 w-64 z-20 flex flex-col gap-2">
           <AnimatePresence>
             {cardSat && (
               <motion.div
@@ -394,6 +428,7 @@ export default function App() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            whileTap={{ scale: 0.92 }}
             onClick={() => setChatOpen(true)}
             className="absolute right-4 z-30 w-12 h-12 rounded-full bg-[rgba(9,9,9,0.9)] border border-[rgba(0,212,255,0.25)] text-accent shadow-lg flex items-center justify-center touch-manipulation hover:border-[rgba(0,212,255,0.45)] transition-colors"
             style={{ bottom: 'max(4.5rem, calc(env(safe-area-inset-bottom, 0px) + 4rem))' }}
@@ -402,9 +437,7 @@ export default function App() {
             {messages.length > 0 ? (
               <span className="font-mono text-[11px] font-medium text-accent">{messages.filter(m => m.role === 'assistant').length}</span>
             ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <MessageCircle size={20} />
             )}
           </motion.button>
         )}

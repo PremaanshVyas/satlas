@@ -49,7 +49,7 @@ interface BtnProps {
 }
 
 function Btn({ active, title, label, onClick }: BtnProps) {
-  const base = 'flex-1 font-mono text-[9px] py-1.5 rounded-[2px] border transition-colors touch-manipulation select-none min-w-0'
+  const base = 'flex-none font-mono text-[9px] py-1.5 px-1.5 min-w-[28px] text-center rounded-[2px] border transition-all duration-75 touch-manipulation select-none active:scale-95'
   const inactive = 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.08)] text-label hover:text-secondary hover:border-[rgba(255,255,255,0.15)]'
   const liveStyle = 'bg-[rgba(0,212,255,0.08)] border-[rgba(0,212,255,0.3)] text-accent'
   const pauseStyle = 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.2)] text-secondary'
@@ -77,12 +77,12 @@ const TimeControls: FC<TimeControlsProps> = ({ timeScale, onSetScale, clock }) =
   }
 
   return (
-    <div className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 shadow-lg w-56 overflow-hidden">
+    <div className="bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-2 py-1.5 shadow-lg inline-block">
 
       {/* Clock row — shown when embedded in the top-left card */}
       {clock ? (
         <>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between gap-4 mb-1.5">
             <span className="font-mono text-[13px] text-secondary">{clock}</span>
             <SpeedBadge timeScale={timeScale} />
           </div>
@@ -94,8 +94,8 @@ const TimeControls: FC<TimeControlsProps> = ({ timeScale, onSetScale, clock }) =
         </div>
       )}
 
-      {/* Transport buttons */}
-      <div className="flex gap-px overflow-hidden">
+      {/* Transport buttons — flex-none buttons so they never shrink below label width */}
+      <div className="flex gap-px">
         {[...SPEEDS].reverse().map(s => (
           <Btn
             key={`rev-${s}`}

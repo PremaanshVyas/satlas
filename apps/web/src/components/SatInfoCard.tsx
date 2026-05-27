@@ -32,6 +32,15 @@ function badgeClass(objectType: string) {
   return 'border-[rgba(255,255,255,0.06)] text-label'
 }
 
+function orbitType(orbital: OrbitalParams): string {
+  const { period, apogee, inclination } = orbital
+  if (period > 1400) return 'GEO'
+  if (apogee > 35000) return 'HEO'
+  if (apogee > 2000) return 'MEO'
+  if (Math.abs(inclination - 98) < 3) return 'SSO'
+  return 'LEO'
+}
+
 export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, onAskAI, onPredictPasses }: SatInfoCardProps) {
   const isActive = meta?.opsStatus === '+' || meta?.opsStatus === 'tracked'
 
@@ -49,11 +58,16 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
             )}
             <div className="font-mono text-[13px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{getDisplayName(sat.name)}</div>
           </div>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className="font-mono text-[10px] text-label">NORAD ID · {sat.noradId}</span>
             {meta && (
               <span className={`font-mono text-[8px] px-1.5 py-0.5 rounded-[2px] border ${badgeClass(meta.objectType)}`}>
                 {objectTypeLabel(meta.objectType)}
+              </span>
+            )}
+            {orbital && (
+              <span className="font-mono text-[8px] px-1.5 py-0.5 rounded-[2px] border border-[rgba(255,255,255,0.06)] text-[#555]">
+                {orbitType(orbital)}
               </span>
             )}
           </div>
@@ -154,13 +168,13 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
       <div className="px-3 py-2.5 space-y-1.5">
         <button
           onClick={onPredictPasses}
-          className="w-full font-mono text-[10px] uppercase tracking-[0.08em] border border-[rgba(255,255,255,0.09)] text-label rounded-[2px] py-2 sm:py-1.5 hover:text-secondary hover:border-[rgba(255,255,255,0.14)] transition-colors touch-manipulation"
+          className="w-full font-mono text-[10px] uppercase tracking-[0.08em] border border-[rgba(255,255,255,0.09)] text-label rounded-[2px] py-2 sm:py-1.5 hover:text-secondary hover:border-[rgba(255,255,255,0.14)] transition-all duration-75 active:scale-[0.98] touch-manipulation"
         >
           Predict Passes
         </button>
         <button
           onClick={onAskAI}
-          className="w-full font-mono text-[10px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent rounded-[2px] py-2 sm:py-1.5 hover:border-[rgba(0,212,255,0.4)] transition-colors touch-manipulation"
+          className="w-full font-mono text-[10px] uppercase tracking-[0.08em] border border-[rgba(0,212,255,0.2)] text-accent rounded-[2px] py-2 sm:py-1.5 hover:border-[rgba(0,212,255,0.4)] transition-all duration-75 active:scale-[0.98] touch-manipulation"
         >
           Ask AI
         </button>

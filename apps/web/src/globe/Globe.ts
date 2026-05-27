@@ -104,7 +104,7 @@ const CAMERA_DISTANCE = 3.5
 const FIELD_TICK_MS = 50
 const R_EARTH_KM = 6371.0
 const ARC_POINTS = 180
-const TOUCH_MIN_RADIUS_PX = 18  // finger-friendly minimum hit radius for touch events
+const TOUCH_MIN_RADIUS_PX = 24  // finger-friendly minimum hit radius for touch events
 
 export type SatCategory = 'STARLINK' | 'GPS' | 'IRIDIUM' | 'DEBRIS' | 'OTHER'
 export const ALL_CATEGORIES: SatCategory[] = ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER']
@@ -1332,7 +1332,12 @@ export class Globe {
     this.sun.update(this._sunDir)
     this.iss.update(now)
 
-    if (this.worker && realNow - this.lastFieldTickMs >= FIELD_TICK_MS) {
+    // At fast/reverse time scales tick the worker more frequently so satellite positions
+    // update closer to the RAF rate — otherwise visible jumps appear between frames.
+    const dynamicTickMs = this._timeScale === 1
+      ? FIELD_TICK_MS
+      : Math.max(16, Math.floor(FIELD_TICK_MS / Math.min(Math.abs(this._timeScale), 3)))
+    if (this.worker && realNow - this.lastFieldTickMs >= dynamicTickMs) {
       this.lastFieldTickMs = realNow  // real-time rate limiting; timestamp is simulated
       this.worker.postMessage({ type: 'tick', timestamp: nowMs })
     }

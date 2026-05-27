@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { Search, X } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import type { SearchResult, SearchResults } from '../globe/searchUtils'
 import { getDisplayName } from '../lib/satelliteNames'
 
@@ -56,11 +58,8 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
 
   return (
     <div className="relative" onMouseDown={e => e.stopPropagation()}>
-      <div className="flex items-center gap-2 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg w-36 sm:w-64">
-        <svg className="w-3.5 h-3.5 text-label flex-shrink-0" viewBox="0 0 24 24" fill="none">
-          <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="1.8"/>
-          <path d="m21 21-4.35-4.35" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-        </svg>
+      <div className="flex items-center gap-2 bg-[rgba(9,9,9,0.72)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] px-3 py-2 shadow-lg w-44 sm:w-64 transition-colors duration-200 focus-within:border-[rgba(255,255,255,0.12)]">
+        <Search size={14} className="text-label flex-shrink-0" />
         <input
           ref={inputRef}
           type="text"
@@ -77,45 +76,58 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
         {query && (
           <button
             onClick={() => { setQuery(''); setResults([]); setOpen(false) }}
-            className="font-mono text-label hover:text-secondary flex-shrink-0 leading-none transition-colors"
+            className="text-label hover:text-secondary flex-shrink-0 leading-none transition-colors active:scale-90"
             aria-label="Clear search"
-          >×</button>
+          >
+            <X size={12} />
+          </button>
         )}
       </div>
 
-      {open && (
-        <div className="absolute top-full mt-1 w-full bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden z-50">
-          {results.length > 0 ? (
-            <>
-              {results.map((r, i) => (
-                <button
-                  key={r.noradId}
-                  className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-[rgba(255,255,255,0.04)] transition-colors ${
-                    i === activeIdx ? 'bg-[rgba(255,255,255,0.04)]' : ''
-                  }`}
-                  onMouseDown={e => { e.preventDefault(); handleSelect(r) }}
-                  onMouseEnter={() => setActiveIdx(i)}
-                >
-                  <span className="font-mono text-[12px] text-secondary truncate">{getDisplayName(r.name)}</span>
-                  <span className="font-mono text-[10px] text-label flex-shrink-0">{r.noradId}</span>
-                </button>
-              ))}
-              {total > results.length && (
-                <div className="px-3 py-1.5 font-mono text-[10px] text-[rgba(255,255,255,0.25)] select-none border-t border-[rgba(255,255,255,0.04)]">
-                  +{total - results.length} more — refine your search
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            className="absolute top-full mt-1 w-full bg-[rgba(9,9,9,0.95)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.07)] rounded-[3px] shadow-2xl overflow-hidden z-50"
+          >
+            {results.length > 0 ? (
+              <>
+                {results.map((r, i) => (
+                  <button
+                    key={r.noradId}
+                    className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-[rgba(255,255,255,0.04)] transition-colors ${
+                      i === activeIdx ? 'bg-[rgba(255,255,255,0.04)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
+                    }`}
+                    onMouseDown={e => { e.preventDefault(); handleSelect(r) }}
+                    onMouseEnter={() => setActiveIdx(i)}
+                  >
+                    <span className="font-mono text-[12px] text-secondary truncate">{getDisplayName(r.name)}</span>
+                    <span className="font-mono text-[10px] text-label flex-shrink-0">{r.noradId}</span>
+                  </button>
+                ))}
+                {total > results.length && (
+                  <div className="px-3 py-1.5 font-mono text-[10px] text-[rgba(255,255,255,0.25)] select-none border-t border-[rgba(255,255,255,0.04)]">
+                    +{total - results.length} more — refine your search
+                  </div>
+                )}
+              </>
+            ) : noResults ? (
+              <div className="px-3 py-3 flex items-center gap-2.5">
+                <Search size={12} className="text-[#444] flex-shrink-0" />
+                <div>
+                  <div className="font-mono text-[11px] text-label">No satellites found</div>
+                  <div className="font-mono text-[9px] text-[#444] mt-0.5">Try the NORAD ID or a partial name</div>
                 </div>
-              )}
-            </>
-          ) : noResults ? (
-            <div className="px-3 py-2.5">
-              <div className="font-mono text-[11px] text-label">No results for "{query}"</div>
+              </div>
+            ) : null}
+            <div className="px-3 py-2 font-mono text-[9px] text-[rgba(255,255,255,0.18)] select-none border-t border-[rgba(255,255,255,0.04)] leading-relaxed">
+              Some satellites use catalog names — try their NORAD ID if a name search misses.
             </div>
-          ) : null}
-          <div className="px-3 py-2 font-mono text-[9px] text-[rgba(255,255,255,0.18)] select-none border-t border-[rgba(255,255,255,0.04)] leading-relaxed">
-            Some satellites use catalog names — try their NORAD ID if a name search misses.
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

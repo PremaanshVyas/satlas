@@ -65,6 +65,7 @@ export function useChat() {
       role: 'user',
       content,
       streaming: false,
+      timestamp: Date.now(),
     }
     setMessages(prev => [...prev, userMsg])
     setIsLoading(true)
@@ -72,7 +73,7 @@ export function useChat() {
     const assistantId = crypto.randomUUID()
     setMessages(prev => [
       ...prev,
-      { id: assistantId, role: 'assistant', content: '', streaming: true },
+      { id: assistantId, role: 'assistant', content: '', streaming: true, timestamp: Date.now() },
     ])
 
     try {
