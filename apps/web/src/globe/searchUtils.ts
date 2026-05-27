@@ -10,8 +10,10 @@ export interface SearchResults {
   total: number
 }
 
-// Strip spaces, hyphens, underscores, brackets, dots so "starlink 1001" matches "STARLINK-1001"
-const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_()[\].]/g, '')
+// Strip spaces, hyphens, underscores, brackets, dots, slashes so:
+//   "starlink 1001" matches "STARLINK-1001"
+//   "rb" / "r/b" both match "ATLAS V R/B"
+const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_()[\]./]/g, '')
 
 // Strip leading zeros for NORAD comparison so "6707" matches catalog entry "06707"
 const stripLeadingZeros = (s: string) => s.replace(/^0+/, '') || '0'

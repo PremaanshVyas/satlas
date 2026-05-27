@@ -15,6 +15,8 @@ export const NORMALIZED_ALIASES: [string, string][] = [
   ['jameswebbspacetelescope', 'jwst'],  // jam / james / james webb / james webb space telescope
   ['webb', 'jwst'],                     // webb typed standalone (not prefixed by "james")
   ['tiangong', 'tianhe'],               // tiango / tiangong → CSS (TIANHE-1) modules
+  ['rocketbody', 'rb'],                 // rocket / rocket body / rocket bod → R/B entries
+  ['debris', 'deb'],                    // debri / debris → DEB entries
 ]
 
 export function getDisplayName(catalogName: string): string {

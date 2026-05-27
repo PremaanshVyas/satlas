@@ -233,3 +233,41 @@ describe('alias matching — full names, partials, and mid-word typing', () => {
   it('"webb" does not find HST', () =>
     expect(matchSatelliteQuery('webb', hst[0], hst[1], 10).total).toBe(0))
 })
+
+describe('slash normalization and category aliases', () => {
+  const rb  = [['ATLAS V R/B'],   ['36868']] as [string[], string[]]
+  const deb = [['COSMOS 2251 DEB'], ['33791']] as [string[], string[]]
+
+  // Slash in satellite names — "r/b" and "rb" should both find rocket bodies
+  it('"r/b" finds rocket body entries', () =>
+    expect(matchSatelliteQuery('r/b', rb[0], rb[1], 10).total).toBe(1))
+
+  it('"rb" finds rocket body entries (slash stripped in normalize)', () =>
+    expect(matchSatelliteQuery('rb', rb[0], rb[1], 10).total).toBe(1))
+
+  it('"rocket body" finds R/B entries via joined alias', () =>
+    expect(matchSatelliteQuery('rocket body', rb[0], rb[1], 10).total).toBe(1))
+
+  it('"rocket" finds R/B entries via per-token alias prefix', () =>
+    expect(matchSatelliteQuery('rocket', rb[0], rb[1], 10).total).toBe(1))
+
+  it('"rocket bod" finds R/B entries (partial multi-word)', () =>
+    expect(matchSatelliteQuery('rocket bod', rb[0], rb[1], 10).total).toBe(1))
+
+  // Debris alias
+  it('"deb" finds DEB entries (direct substring)', () =>
+    expect(matchSatelliteQuery('deb', deb[0], deb[1], 10).total).toBe(1))
+
+  it('"debris" finds DEB entries via alias', () =>
+    expect(matchSatelliteQuery('debris', deb[0], deb[1], 10).total).toBe(1))
+
+  it('"debri" finds DEB entries (partial alias prefix)', () =>
+    expect(matchSatelliteQuery('debri', deb[0], deb[1], 10).total).toBe(1))
+
+  // Negatives
+  it('"debris" does not find rocket bodies', () =>
+    expect(matchSatelliteQuery('debris', rb[0], rb[1], 10).total).toBe(0))
+
+  it('"rocket" does not find debris', () =>
+    expect(matchSatelliteQuery('rocket', deb[0], deb[1], 10).total).toBe(0))
+})
