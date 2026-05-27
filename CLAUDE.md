@@ -110,16 +110,23 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 37 complete. Session 38 — V2 direction decision pending.
+**Current phase:** Session 38 complete. Session 39 — V2 direction decision pending.
 
 **Next milestone:** V2 direction decision. Options: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
 
 **Sessions 1–20 (complete, stable):** See `docs/decisions-archive.md` (all ADRs through S30). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
 
+**Session 38 completed tasks:**
+- [x] `matchSatelliteQuery` hardened — token AND-logic (all tokens must match), delimiter normalization (strip spaces/hyphens/parens/dots/slashes on both sides), leading-zero NORAD prefix comparison; 166 tests passing
+- [x] ISS search bug fixed — `Globe.searchCatalog` checked ISS with raw `includes(q)` bypassing all token logic; extracted `matchesSatellite()` from `searchUtils.ts` so ISS uses the same code path as the main catalog
+- [x] `satelliteNames.ts` — `DISPLAY_NAMES` (HST → Hubble Space Telescope, JWST → James Webb Space Telescope); `getDisplayName()` applied at every render site (search dropdown, info card, hover tooltip, pass panel, country panel, satellite tray, chat prefill)
+- [x] Partial-typing aliases — `NORMALIZED_ALIASES` with token-level prefix matching replaces regex `PHRASE_ALIASES`; "hubbl" finds HST, "jam"/"james w" finds JWST, "tiango" finds Tiangong; joined-token path handles mid-phrase multi-word typing ("hubble sp")
+- [x] Slash normalization + category aliases — "/" added to normalize; "rb" finds R/B rocket bodies; "debris"/"debri" finds DEB entries; "rocket body"/"rocket" finds R/B entries
+
 **Session 37 completed tasks:**
-- [x] Mobile touch hit-test fix — `TOUCH_MIN_RADIUS_PX = 18`; `_lastInputWasTouch` flag set in `onCanvasTouchStart` and cleared in `onCanvasMouseDown`; touch clicks use looser drag threshold (12px² vs 5px²) and nearest-screen-distance selection; desktop path provably unchanged
-- [x] `MobileControlsSheet.tsx` — new self-contained component; vaul `Drawer` bottom sheet behind `sm:hidden` hamburger button; contains: UTC clock + SpeedBadge row, 10-button time transport, Clouds + Borders layer toggles, 5-category filter pills; 13 vitest tests
-- [x] `GlobeView.tsx` integration — `TimeControls` wrapped in `hidden sm:block`; `MobileControlsSheet` placed alongside; toggle cluster and category pills bar changed to `hidden sm:flex` / `hidden sm:block` so desktop is untouched
+- [x] Mobile touch hit-test fix — `TOUCH_MIN_RADIUS_PX = 18`; `_lastInputWasTouch` flag; nearest-screen-distance selection on touch; desktop path unchanged
+- [x] `MobileControlsSheet.tsx` — vaul `Drawer` behind `sm:hidden` hamburger; UTC clock, time transport, layer toggles, category pills; 13 tests
+- [x] `GlobeView.tsx` integration — desktop controls wrapped `hidden sm:block`/`hidden sm:flex`; mobile sheet alongside
 
 **Session 36 completed tasks:**
 - [x] Zoom-aware orbit controls — `rotateSpeed = 0.15 + sqrt(t)*0.35` (close→far), `zoomSpeed = 0.50 + t*0.50`; updated per-frame in `tick()` based on camera distance; fixes mobile scroll sensitivity
@@ -140,44 +147,7 @@ satlas/
 - [x] `api/chat.ts` — `get_satellite_info` tool now computes in-process via `fetchTle()` + satellite.js; ECS orbital service no longer on the critical path; `ORBITAL_SERVICE_URL` constant removed
 - [x] `api/satellite-info.ts` — rewritten to compute locally from CloudFront TLEs; same response shape as the old ECS proxy
 
-**Session 34 completed tasks:**
-- [x] Pass visibility scoring — sky condition (Day/Civil/Nautical/Astronomical/Night), satellite illumination (cylindrical shadow model), visibility score 0–100%; computed at pass midpoint in both `api/pass.ts` and `api/chat.ts`
-- [x] Pass visibility shown in PassPanel — coloured label (Excellent=cyan, Good=green, Fair=amber, Poor/None=dim); "Daytime" / "In shadow" instead of generic "Not visible"
-- [x] Pass visibility in AI agent — system prompt updated with per-line format; agent formats sky_condition + visibility_label + score in pass answers
-- [x] Overhead list uncapped — removed `.slice(0, 25)` from `getOverheadSatellites`; `Globe.test.ts` updated (30 sats, not 25)
-- [x] Search dropdown catalog-name hint — persistent footer note in dropdown: "Some satellites use catalog names — try their NORAD ID if a name search misses"
-- [x] DevNotes component — toggleable "i" button (bottom-right, below chat button); `DEV_NOTES` array is the single edit point; `hidden={chatOpen}` prevents overlap; replaces old static banner
-
-**Session 33 completed tasks:**
-- [x] README roadmap fixed — country borders moved from V2 TODO to V1 complete; test count 75 → 104; "What's working now" updated with borders/CountryPanel/search fly-to
-- [x] API docs — `/api/tles` alias documented in `/api/catalog` section
-- [x] Satellite tick rate `FIELD_TICK_MS` 100ms → 50ms — positions update at 20Hz instead of 10Hz
-- [x] Camera damping `dampingFactor` 0.05 → 0.07 — globe stops more crisply after a drag
-- [x] `getSunDirection` reuses a `_sunDir` Vector3 instead of allocating one per frame at 60fps
-- [x] Satellite dots: `SphereGeometry(0.005, 6, 6)` → `PlaneGeometry(1,1)` + billboard ShaderMaterial — perfect circles at 2 triangles per instance vs 72; vertex shader extracts position/scale from instanceMatrix, offsets in camera space; fragment shader discards outside circle
-- [x] Dot anti-aliasing: `fwidth(dist)`-based AA — one-pixel soft edge at any zoom level; previous `smoothstep(0.6, 1.0)` was 40% of radius, blurry when zoomed in
-- [x] Dot colour: `DEFAULT_COLOR` `0x60a5fa` (blue-400) → `0x00d4ff` (accent cyan)
-
-**Session 32 completed tasks:**
-- [x] API docs — GitHub/star CTA buttons added to Overview section; text sizes bumped (table headers 7px→9px, nav items 10px→12px, footer links 9px→12px)
-- [x] Vercel domain misconfiguration fixed — `satlas.app` was redirecting to `www` (307); corrected in dashboard: `satlas.app` → Production, `www.satlas.app` → 301 → `satlas.app`
-- [x] `Globe.onCatalogError` callback — fires when `fetchSatelliteCatalog` throws; `useGlobe` exposes `catalogError` state
-- [x] GlobeView error state — "Catalog unavailable — click to retry" (`window.location.reload`) replaces infinite "Loading catalog…" spinner
-- [x] Search overflow indicator — `matchSatelliteQuery` now counts all matches in a single pass and returns `{ results, total }`; SearchBar shows "+N more — refine your search" when total > 8
-- [x] Catalog fetch timeout 10s → 25s — Vercel cold start + Space-Track login + 5MB fetch can take 12–15s; 10s was too tight
-- [x] `/api/tles` alias — re-exports `/api/catalog` handler; frontend now fetches `/api/tles` to avoid uBlock Origin false-positive (`/api/catalog` matches ad-tracker filter rules, causing NS_BINDING_ABORTED at 0ms for affected users); `/api/catalog` stays live for public API consumers
-
-**Session 31 completed tasks:**
-- [x] Vercel Analytics (`@vercel/analytics`) added to `apps/web` — page views, visitors, referrers live on Vercel dashboard
-- [x] Vercel Speed Insights (`@vercel/speed-insights`) added — Core Web Vitals (LCP, FID, CLS) tracking
-- [x] PassPanel scroll clipping — structural fix: `flex flex-col` on outer wrapper + `flex-1 overflow-y-auto` on results; eliminates `max-h-[50dvh]` vs `calc(50dvh - 2rem)` clip mismatch
-- [x] CountryPanel overhead list scroll clipping — `pb-3` + structural fix applied
-- [x] Country overhead filter: all categories off → `null` mask in `getOverheadSatellites` → shows all types; some on → filtered to active categories only
-- [x] CountryPanel empty state: "No satellites overhead (>10°)" replaces misleading "Loading catalog…"
-- [x] `api/satellite-info.ts` Vercel proxy — exposes `GET /api/satellite-info?query=` publicly (proxies to orbital service)
-- [x] `api/satellites.ts` — `GET /api/satellites?q=&category=&limit=` searches catalog by name substring or NORAD ID; classifies by category; 2-min cache
-- [x] `api/overhead.ts` — `GET /api/overhead?latitude=&longitude=&min_elevation=&category=&limit=` propagates full catalog with satellite.js (GMST once) and returns overhead sats sorted by elevation; 15-sec cache
-- [x] API docs page (`/docs`) — full redesign: left nav sidebar, response schema tables, copy buttons, all 6 endpoints documented, pass response fields corrected
+**Sessions 31–34 (complete, stable):** Pass visibility scoring + shadow model (S34); billboard shader + fwidth AA + cyan dot colour (S33); Vercel Analytics/Speed Insights, API docs redesign, public overhead/satellites endpoints (S31); catalog error state, uBlock /api/tles alias (S32). See `docs/decisions-archive.md` and session bootstrap files for detail.
 
 **Session 30 completed tasks:**
 - [x] `CountryHighlightMesh` fill re-enabled: `subdivideRing` + `refineTris` in `sphereUtils.ts` — edges subdivided to ≤4° before earcut, large interior triangles recursively split
@@ -215,11 +185,13 @@ Sessions 1–30 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-25 — Session 32: `/api/catalog` matches uBlock Origin ad-tracker filter rules — use `/api/tles` for the frontend fetch.** Firefox users with uBlock enabled saw `NS_BINDING_ABORTED` at 0ms on the `/api/catalog` fetch — the request was killed before it hit the network. Root cause: the word "catalog" appears in uBlock's filter lists targeting product-catalog trackers. Fix: `vercel.json` rewrite routes `/api/tles` → `/api/catalog` at the Vercel edge layer; `celestrak.ts` fetches `/api/tles` by default. `/api/catalog` stays live for public API consumers. **Two failed attempts before the working fix:** (1) `api/tles.ts` with `export { default, config } from './catalog'` — re-export didn't surface `config` to Vercel bundler. (2) `api/tles.ts` with explicit `import catalogHandler from './catalog'` — Vercel serverless functions cannot import from sibling function files at runtime (500 error). Correct approach: `vercel.json` rewrite is processed at the edge router before any function code runs, so no import resolution is needed. Rule: to alias a Vercel serverless function URL, use a `vercel.json` rewrite — never import between files in `api/` as cross-function imports fail at runtime.
 
-- **2026-05-25 — Session 32: Catalog fetch timeout 10s → 25s.** A Vercel cold start for `/api/catalog` requires: Space-Track login (~2–3s) + TLE fetch (~5MB, 3–8s) = up to 12–15s. The 10s `AbortSignal.timeout` was too tight — first-time visitors (no localStorage cache) on slow connections reliably hit it. 25s matches the Vercel `maxDuration: 30` serverless limit. Warm requests are served from Vercel Edge cache in <100ms so the longer timeout has no UX cost for repeat visitors.
+- **2026-05-27 — Session 38: `matchSatelliteQuery` overhaul — token AND-logic, delimiter normalization, leading-zero NORAD; ISS path bug fixed.** Previous implementation: raw `name.toLowerCase().includes(q)` — failed when query delimiters differed from catalog name (`"starlink 1001"` vs `"STARLINK-1001"`). Fix: normalize both sides (strip spaces, hyphens, parens, dots, slashes), split query into tokens, require ALL tokens present in normalized name (Google AND-logic). NORAD prefix: `stripLeadingZeros` on both sides so `"6707"` finds `"06707"`. Separate bug: `Globe.searchCatalog` checked ISS with the old raw `includes(q)` — ISS is filtered from `satNames` before `matchSatelliteQuery` runs, so it had its own stale code path. Fix: extracted `matchesSatellite(query, name, noradId)` from `searchUtils.ts`; `searchCatalog` calls it for ISS. Rule: every name-matching code path must use the same normalized token logic — parallel implementations diverge silently.
+
+- **2026-05-27 — Session 38: PHRASE_ALIASES regex failed for partial typing — replaced with NORMALIZED_ALIASES token-level prefix matching.** Initial alias implementation used `PHRASE_ALIASES: [RegExp, string][]` with `\bhubble\b` applied before tokenization. Word boundary `\b` only fires on complete words — `"hubbl"` has no boundary after it so nothing triggered. Fix: `NORMALIZED_ALIASES: [string, string][]` with normalized keys. Per-token path: `key.startsWith(token)` — `"hubbl"` is a prefix of `"hubblespacetelescope"` → resolves to `"hst"`. Joined-token path: `normTokens.join('')` checked as a prefix of alias keys — handles mid-phrase typing (`"hubble sp"` → `"hubblesp"` → prefix of `"hubblespacetelescope"`). `satelliteNames.ts` is the single edit point for both display names and aliases. Rule: alias matching for live search must use prefix not word-boundary matching — the word is always incomplete until the user stops typing.
+
+- **2026-05-27 — Session 38: "/" not stripped from normalize — "rb" missed rocket bodies; category aliases added for debris and rocket bodies.** `normalize()` stripped spaces, hyphens, parens, dots but not `/`. `normName("ATLAS V R/B")` = `"atlasvr/b"` — `"rb"` not in `"atlasvr/b"` → miss. Fix: add `"/"` to the normalize character class. `"debris"` ≠ `"deb"` (TLE uses abbreviation) and `"rocket body"` has no tokens in `"r/b"` catalog names. Fix: NORMALIZED_ALIASES entries `["debris","deb"]` and `["rocketbody","rb"]`; joined-token path handles `"rocket body"` → `"rocketbody"` → prefix match → `"rb"`. Rule: audit `normName` output against real catalog name formats when adding normalization — string intuition is often wrong about what the catalog contains.
 
 - **2026-05-25 — Session 32: `onCatalogError` callback prevents infinite "Loading catalog…" spinner.** When both catalog sources fail (`/api/catalog` and CelesTrak GROUP=active), `fetchSatelliteCatalog` throws and `initCatalog` catches it silently — `onCatalogRefresh` is never called, so `isLoading` stays false and `satelliteCount` stays 0, showing "Loading catalog…" forever. Fix: added `onCatalogError: (() => void) | null` to Globe, wired through `useGlobe` as `catalogError: boolean`. GlobeView shows "Catalog unavailable — click to retry" with `window.location.reload`. Rule: any async data source that can fail must surface the failure to the UI — silent error swallowing produces misleading loading states.
-
-- **2026-05-25 — Session 32: `matchSatelliteQuery` counts all matches in a single pass.** The original implementation broke early at `maxResults` — it had no way to tell callers how many total matches existed. Instead of a second pass (another 31k iterations), we continue the loop after the results array is full, incrementing `total` without pushing to `results`. This gives an exact count at zero extra cost. Return type changed from `SearchResult[]` to `{ results: SearchResult[], total: number }`. Rule: when a search function has a result limit, count all matches in the same loop pass — don't run a separate count query.
 
 - **2026-05-25 — Session 32: `vercel.json` redirect conflicted with Vercel dashboard domain config — dashboard wins.** Added a `redirects` rule in `vercel.json` to redirect `www.satlas.app → satlas.app`. This created a redirect loop: the Vercel dashboard already had `satlas.app → www.satlas.app` (misconfigured from original setup), and the `vercel.json` rule sent `www → satlas.app`. Safari showed "can't open page". Fix: reverted `vercel.json` immediately; fixed the Vercel dashboard to set `satlas.app → Production` and `www.satlas.app → 301 → satlas.app`. Rule: never add redirect rules to `vercel.json` for domains also managed in the Vercel dashboard — dashboard rules and `vercel.json` rules interact unpredictably and can create loops.
 
@@ -253,8 +225,6 @@ Sessions 1–30 decisions archived in `docs/decisions-archive.md`.
 
 - **2026-05-27 — Session 37 hotfix: `fetchTle` in `api/chat.ts` used string equality for NORAD IDs — same leading-zero bug as S23.** TLE format zero-pads NORAD IDs to 5 digits (`"06707"`). Haiku strips leading zeros when extracting a numeric ID from the "Ask AI" prefill (`"06707"` → `"6707"`). String equality missed these — `"06707" !== "6707"` → `not found` → "service unavailable" shown to user. Fix: `parseInt` both sides when the query is all digits, identical to the `satinfo.py` fix in S23. Only affects satellites with NORAD IDs below 10,000 (older objects, some debris). All satellites visible on the globe now resolve correctly in the AI agent. Rule: every NORAD ID lookup anywhere in the codebase must use integer comparison, never string equality.
 
-- **2026-05-26 — Session 34: Overhead `.slice(0, 25)` cap removed — elevation filter is the right gate, not an arbitrary count.** `computeOverhead` filters by elevation angle (default ≥0°; typically ≥10° in UI) before sorting — only satellites geometrically above the observer are returned. The `.slice(0, 25)` in `getOverheadSatellites` was added as a defensive UI guard but hides real data (Australia can have 60–80+ simultaneous overhead satellites). Removed the cap; `Globe.test.ts` test updated from `toHaveLength(25)` to `toHaveLength(30)`. Rule: let the physics (elevation filter) determine the result set; don't add an arbitrary count cap on top of a correctly-filtered query.
-
 ---
 
 ## Out of scope (so we don't drift)
@@ -274,7 +244,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-38-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-39-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -311,7 +281,8 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/session-34-bootstrap.md` | Session 34 bootstrap (historical) — pass visibility, DevNotes, overhead uncap. |
 | `docs/session-35-bootstrap.md` | Session 35 bootstrap — time controls, satellite sync fix, in-process satellite info. |
 | `docs/session-37-bootstrap.md` | Session 37 bootstrap (historical) — mobile touch hit-test fix + hamburger bottom sheet. |
-| `docs/session-38-bootstrap.md` | Session 38 bootstrap — V2 direction decision pending. |
+| `docs/session-38-bootstrap.md` | Session 38 bootstrap (historical) — search overhaul, display names, partial-typing aliases. |
+| `docs/session-39-bootstrap.md` | Session 39 bootstrap — V2 direction decision pending. |
 | `docs/decisions-archive.md` | ADR entries from Sessions 1–17, migrated to keep CLAUDE.md under 40k. |
 | `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` | Implementation plans. One file per session/feature. |
 | `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Design specs produced during brainstorming sessions. |
