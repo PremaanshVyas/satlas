@@ -240,8 +240,8 @@ export default function GlobeView({
           >
             <Cloud size={13} className="flex-shrink-0" />
             <span className="hidden sm:inline">Clouds</span>
-            <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
-              <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+            <div className={`relative w-7 h-4 rounded-full border overflow-hidden transition-colors flex-shrink-0 ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+              <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
             </div>
           </button>
 
@@ -252,20 +252,20 @@ export default function GlobeView({
           >
             <Layers size={13} className="flex-shrink-0" />
             <span className="hidden sm:inline">Debris</span>
-            <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${activeCategories.has('DEBRIS') ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
-              <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${activeCategories.has('DEBRIS') ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+            <div className={`relative w-7 h-4 rounded-full border overflow-hidden transition-colors flex-shrink-0 ${activeCategories.has('DEBRIS') ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+              <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all duration-200 ${activeCategories.has('DEBRIS') ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
             </div>
           </button>
 
           <button
-            onClick={toggleBorders}
+            onClick={() => void toggleBorders()}
             title={bordersVisible ? 'Hide map mode' : 'Show map mode'}
             className={toggleBtnBase}
           >
             <LayoutGrid size={13} className="flex-shrink-0" />
             <span className="hidden sm:inline">Borders</span>
-            <div className={`relative w-7 h-4 rounded-full border transition-colors flex-shrink-0 ${bordersVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
-              <div className={`absolute top-[2px] w-3 h-3 rounded-full transition-all duration-200 ${bordersVisible ? 'left-[12px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+            <div className={`relative w-7 h-4 rounded-full border overflow-hidden transition-colors flex-shrink-0 ${bordersVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+              <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all duration-200 ${bordersVisible ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
             </div>
           </button>
         </div>

@@ -110,7 +110,7 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 41 complete. Frontend/UX polish done. V2 direction decision pending.
+**Current phase:** Session 41 complete (+ post-session hotfixes). Frontend/UX polish done. V2 direction decision pending.
 
 **Next milestone:** Session 42 = V2 direction decision: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
 
@@ -257,6 +257,10 @@ Sessions 1–36 decisions archived in `docs/decisions-archive.md`.
 - **2026-05-27 — Session 41: SatInfoCard/PassPanel desktop column overlapped TimeControls.** `absolute top-10 left-3 mt-2` (y≈48px) started before the TimeControls widget (y≈12px, ~60px tall) finished. Fix: changed to `top-[76px]` on the left column container. Rule: when two `absolute`-positioned elements share the same `left` coordinate inside a full-screen container, compute the vertical clearance explicitly from the overlapping element's measured height.
 
 - **2026-05-27 — Session 41: `AnimatePresence` exit animation kept dropdown in DOM — SearchBar test broke.** The `exit` prop on `motion.div` causes `AnimatePresence` to hold the element in the DOM until the exit animation completes. In JSDOM (tests), animations never run, so the element stayed mounted indefinitely. Test: `queryByText('ISS (ZARYA)').not.toBeInTheDocument()` failed. Fix: remove the `exit` prop — `AnimatePresence` then unmounts immediately on `open=false`. Enter animation still runs. Rule: only add an `exit` prop if the component will never be tested for DOM absence immediately after hide; otherwise use enter-only animation or mock framer-motion in tests.
+
+- **2026-05-27 — Post-S41 hotfix: speed strip toggle-to-pause caused unexpected stops.** `handleSpeed` in both `TimeControls.tsx` and `MobileControlsSheet.tsx` called `onSetScale(0)` when the active speed button was clicked again. Users hitting the active button to confirm speed, or double-tapping on mobile, would silently pause the simulation. The ⏸ button is already present for explicit pausing. Fix: `handleSpeed` now always calls `onSetScale(scale)` — clicking an active button keeps the same speed. Tests updated to assert the new behaviour. Rule: toggle-to-pause on a speed button is a hidden trap; explicit controls should have explicit affordances.
+
+- **2026-05-27 — Post-S41 hotfix: toggle switch dot overflowed the pill container.** Dot was `w-3 h-3` (12px) in a `h-4` (16px) container with a 1px border. Inner usable height = 14px. `top-[2px] + 12px = 14px` — dot filled the entire inner height, touching the bottom border and visually leaking outside the rounded pill. Also, no `overflow-hidden` on the container meant the dot was not clipped to the pill shape. Fix: dot changed to `w-2.5 h-2.5` (10px); on-position shifted from `left-[12px]` to `left-[14px]` to keep 2px margin from each border; `overflow-hidden` added to the pill container so the dot is always clipped. Fixed in `GlobeView.tsx` (all three toggles) and `MobileControlsSheet.tsx`. Rule: toggle dot size should be `container_inner_height - 4px` (2px margin top and bottom); always add `overflow-hidden` to the pill so the dot can never escape the rounded boundary.
 
 ---
 

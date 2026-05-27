@@ -73,12 +73,12 @@ describe('MobileControlsSheet', () => {
     expect(onSetScale).toHaveBeenCalledWith(10)
   })
 
-  it('clicking the already-active speed toggles to pause', async () => {
+  it('clicking the already-active speed still calls onSetScale with that speed (no toggle-to-pause)', async () => {
     const onSetScale = vi.fn()
     render(<MobileControlsSheet {...make({ timeScale: 10, onSetScale })} />)
     fireEvent.click(screen.getByTitle('Open controls'))
     fireEvent.click(await screen.findByTitle('10× forward'))
-    expect(onSetScale).toHaveBeenCalledWith(0)
+    expect(onSetScale).toHaveBeenCalledWith(10)
   })
 
   it('clicking Clouds calls onToggleClouds', async () => {

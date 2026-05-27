@@ -53,11 +53,11 @@ describe('TimeControls', () => {
     expect(onSetScale).toHaveBeenCalledWith(1)
   })
 
-  it('clicking the already-active speed button a second time calls onSetScale(0) (toggle-to-pause)', () => {
+  it('clicking the already-active speed button still calls onSetScale with that speed (no toggle-to-pause)', () => {
     const onSetScale = vi.fn()
     render(<TimeControls {...make({ timeScale: 10, onSetScale })} />)
     fireEvent.click(screen.getByTitle('10× forward'))  // already active
-    expect(onSetScale).toHaveBeenCalledWith(0)
+    expect(onSetScale).toHaveBeenCalledWith(10)
   })
 
   it('shows amber speed badge when a forward speed is active', () => {

@@ -72,8 +72,7 @@ function Btn({ active, title, label, onClick }: BtnProps) {
 
 const TimeControls: FC<TimeControlsProps> = ({ timeScale, onSetScale, clock }) => {
   function handleSpeed(scale: number) {
-    if (timeScale === scale) onSetScale(0)
-    else onSetScale(scale)
+    onSetScale(scale)
   }
 
   return (
