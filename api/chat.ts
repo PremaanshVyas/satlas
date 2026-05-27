@@ -555,12 +555,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(400).json({ error: `Message too long (max ${MAX_MSG_LEN} characters).` }); return
   }
 
+  const MAX_HISTORY = 20
+  const safeHistory: HistoryMessage[] = (Array.isArray(history) ? history : [])
+    .slice(-MAX_HISTORY)
+    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .map(m => ({ role: m.role, content: m.content.slice(0, MAX_MSG_LEN) }))
+
   const systemPrompt = buildSystemPrompt(new Date(), shownCategories, categoryCounts)
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache')
 
   try {
-    const historyMessages: Anthropic.MessageParam[] = history.map(m => ({
+    const historyMessages: Anthropic.MessageParam[] = safeHistory.map(m => ({
       role: m.role,
       content: m.role === 'assistant'
         ? m.content.split('\n__HIGHLIGHT__:')[0].split('\n__SET_FILTER__:')[0].split('\n__SPOTLIGHT__:')[0]

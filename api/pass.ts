@@ -89,6 +89,25 @@ const ALLOWED_ORIGINS = [
   'http://localhost:4173',
 ]
 
+// ── Rate limiting (in-process, per warm instance) ─────────────────────────────
+const RATE_WINDOW_MS = 60_000
+const RATE_MAX_REQ = 60
+const _ipWindows = new Map<string, { count: number; resetAt: number }>()
+let _callsSincePurge = 0
+function checkRateLimit(ip: string): boolean {
+  if (++_callsSincePurge > 300) {
+    const now = Date.now()
+    for (const [k, v] of _ipWindows) if (now > v.resetAt) _ipWindows.delete(k)
+    _callsSincePurge = 0
+  }
+  const now = Date.now()
+  const entry = _ipWindows.get(ip)
+  if (!entry || now > entry.resetAt) { _ipWindows.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS }); return true }
+  if (entry.count >= RATE_MAX_REQ) return false
+  entry.count++
+  return true
+}
+
 // ── TLE cache (2-min in-process, same pattern as chat.ts) ────────────────────
 
 interface TleRecord { name: string; noradId: string; tle1: string; tle2: string }
@@ -139,6 +158,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') { res.status(204).end(); return }
   if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return }
 
+  const ip = (req.headers['x-forwarded-for'] as string ?? '').split(',')[0].trim() || 'unknown'
+  if (!checkRateLimit(ip)) {
+    res.status(429).json({ error: 'Too many requests — please wait a moment.' })
+    return
+  }
+
   const { latitude, longitude, hours_ahead = '24', norad_id } = req.query
 
   if (!latitude || !longitude) {
@@ -146,10 +171,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
+  const lat = parseFloat(String(latitude))
+  const lon = parseFloat(String(longitude))
+  if (isNaN(lat) || lat < -90 || lat > 90)  { res.status(400).json({ error: 'latitude must be -90 to 90' }); return }
+  if (isNaN(lon) || lon < -180 || lon > 180) { res.status(400).json({ error: 'longitude must be -180 to 180' }); return }
+
+  const hoursAhead = Math.min(Math.max(1, parseInt(String(hours_ahead), 10) || 24), 168)
+
+  if (norad_id && !/^\d{1,6}$/.test(String(norad_id).trim())) {
+    res.status(400).json({ error: 'norad_id must be a numeric NORAD catalog number.' })
+    return
+  }
+
   const params = new URLSearchParams({
-    latitude: String(latitude),
-    longitude: String(longitude),
-    hours_ahead: String(hours_ahead),
+    latitude: String(lat),
+    longitude: String(lon),
+    hours_ahead: String(hoursAhead),
   })
 
   // Resolve TLE here so ECS doesn't need to do a catalog lookup.
@@ -158,7 +195,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (norad_id) {
     rec = await resolveTle(String(norad_id))
     if (!rec) {
-      res.status(404).json({ error: `Satellite ${norad_id} not found in catalog` })
+      res.status(404).json({ error: 'Satellite not found in catalog.' })
       return
     }
     params.set('tle1', rec.tle1)
@@ -180,8 +217,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Augment passes with solar visibility data
     if (rec && Array.isArray(data.passes) && data.passes.length > 0) {
       const satrec = satellite.twoline2satrec(rec.tle1, rec.tle2)
-      const latNum = parseFloat(String(latitude))
-      const lonNum = parseFloat(String(longitude))
+      const latNum = lat
+      const lonNum = lon
 
       data.passes = data.passes.map((p: { start_utc: string; end_utc: string; max_elevation_deg: number; direction: string }) => {
         const midMs = (new Date(p.start_utc).getTime() + new Date(p.end_utc).getTime()) / 2
@@ -209,8 +246,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     res.status(200).json(data)
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'unknown error'
-    res.status(503).json({ error: `Pass prediction service unavailable: ${message}` })
+  } catch {
+    res.status(503).json({ error: 'Pass prediction service unavailable — please try again.' })
   }
 }

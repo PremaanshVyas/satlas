@@ -3,7 +3,26 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 export const config = { maxDuration: 30 }
 
 const CLOUDFRONT_CATALOG = process.env.CLOUDFRONT_CATALOG ?? 'https://dgsll6twimcwl.cloudfront.net/catalog.tle'
-const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://getsatlas.vercel.app'
+const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://satlas.app'
+
+// ── Rate limiting (in-process, per warm instance) ─────────────────────────────
+const RATE_WINDOW_MS = 60_000
+const RATE_MAX_REQ = 60
+const _ipWindows = new Map<string, { count: number; resetAt: number }>()
+let _callsSincePurge = 0
+function checkRateLimit(ip: string): boolean {
+  if (++_callsSincePurge > 300) {
+    const now = Date.now()
+    for (const [k, v] of _ipWindows) if (now > v.resetAt) _ipWindows.delete(k)
+    _callsSincePurge = 0
+  }
+  const now = Date.now()
+  const entry = _ipWindows.get(ip)
+  if (!entry || now > entry.resetAt) { _ipWindows.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS }); return true }
+  if (entry.count >= RATE_MAX_REQ) return false
+  entry.count++
+  return true
+}
 
 const CATEGORIES = ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'] as const
 type Category = typeof CATEGORIES[number]
@@ -48,6 +67,8 @@ async function getCatalog(): Promise<SatRecord[]> {
   return _cache
 }
 
+const MAX_QUERY_LEN = 200
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
@@ -55,6 +76,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') { res.status(204).end(); return }
   if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return }
+
+  const ip = (req.headers['x-forwarded-for'] as string ?? '').split(',')[0].trim() || 'unknown'
+  if (!checkRateLimit(ip)) {
+    res.status(429).json({ error: 'Too many requests — please wait a moment.' })
+    return
+  }
 
   const { q, category, limit: limitParam = '20' } = req.query
 
@@ -72,6 +99,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const limit = Math.min(Math.max(1, parseInt(String(limitParam), 10) || 20), 100)
+
+  if (q && String(q).length > MAX_QUERY_LEN) {
+    res.status(400).json({ error: `Query too long (max ${MAX_QUERY_LEN} characters).` })
+    return
+  }
 
   try {
     const catalog = await getCatalog()
@@ -104,8 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         category: r.category,
       })),
     })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'unknown error'
-    res.status(503).json({ error: `Catalog unavailable: ${message}` })
+  } catch {
+    res.status(503).json({ error: 'Catalog unavailable — please try again.' })
   }
 }

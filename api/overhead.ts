@@ -4,7 +4,26 @@ import * as satellite from 'satellite.js'
 export const config = { maxDuration: 30 }
 
 const CLOUDFRONT_CATALOG = process.env.CLOUDFRONT_CATALOG ?? 'https://dgsll6twimcwl.cloudfront.net/catalog.tle'
-const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://getsatlas.vercel.app'
+const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://satlas.app'
+
+// ── Rate limiting (in-process, per warm instance) ─────────────────────────────
+const RATE_WINDOW_MS = 60_000
+const RATE_MAX_REQ = 60
+const _ipWindows = new Map<string, { count: number; resetAt: number }>()
+let _callsSincePurge = 0
+function checkRateLimit(ip: string): boolean {
+  if (++_callsSincePurge > 300) {
+    const now = Date.now()
+    for (const [k, v] of _ipWindows) if (now > v.resetAt) _ipWindows.delete(k)
+    _callsSincePurge = 0
+  }
+  const now = Date.now()
+  const entry = _ipWindows.get(ip)
+  if (!entry || now > entry.resetAt) { _ipWindows.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS }); return true }
+  if (entry.count >= RATE_MAX_REQ) return false
+  entry.count++
+  return true
+}
 
 const CATEGORIES = ['STARLINK', 'GPS', 'IRIDIUM', 'DEBRIS', 'OTHER'] as const
 type Category = typeof CATEGORIES[number]
@@ -61,6 +80,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') { res.status(204).end(); return }
   if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return }
+
+  const ip = (req.headers['x-forwarded-for'] as string ?? '').split(',')[0].trim() || 'unknown'
+  if (!checkRateLimit(ip)) {
+    res.status(429).json({ error: 'Too many requests — please wait a moment.' })
+    return
+  }
 
   const { latitude, longitude, min_elevation = '10', category, limit: limitParam = '25' } = req.query
 
@@ -131,8 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       limit,
       satellites: results.slice(0, limit),
     })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'unknown error'
-    res.status(503).json({ error: `Overhead computation failed: ${message}` })
+  } catch {
+    res.status(503).json({ error: 'Overhead computation failed — please try again.' })
   }
 }

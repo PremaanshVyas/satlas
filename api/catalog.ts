@@ -32,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     if (!loginRes.ok) {
-      res.status(503).json({ error: `Space-Track login failed: ${loginRes.status}` })
+      res.status(503).json({ error: 'Catalog service temporarily unavailable.' })
       return
     }
 
@@ -55,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     if (!dataRes.ok) {
-      res.status(503).json({ error: `Space-Track data fetch failed: ${dataRes.status}` })
+      res.status(503).json({ error: 'Catalog service temporarily unavailable.' })
       return
     }
 
@@ -69,8 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Cache-Control', 'public, s-maxage=7200, stale-while-revalidate=86400')
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     res.status(200).send(text)
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'unknown error'
-    res.status(503).json({ error: `Catalog fetch failed: ${message}` })
+  } catch {
+    res.status(503).json({ error: 'Catalog service temporarily unavailable.' })
   }
 }
