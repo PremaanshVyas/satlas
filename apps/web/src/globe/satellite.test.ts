@@ -99,4 +99,54 @@ describe('matchSatelliteQuery', () => {
     expect(matchSatelliteQuery('', names, noradIds, 10).results).toHaveLength(0)
     expect(matchSatelliteQuery('   ', names, noradIds, 10).results).toHaveLength(0)
   })
+
+  it('matches across delimiters — space in query matches hyphen in name', () => {
+    const { results } = matchSatelliteQuery('starlink 1001', names, noradIds, 10)
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('STARLINK-1001')
+  })
+
+  it('matches across delimiters — ignores parentheses in catalog name', () => {
+    const { results } = matchSatelliteQuery('iss zarya', names, noradIds, 10)
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('ISS (ZARYA)')
+  })
+
+  it('token match — partial tokens hit if all present', () => {
+    const { results } = matchSatelliteQuery('gps b', names, noradIds, 10)
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('GPS BIIF-1')
+  })
+
+  it('returns empty for delimiter-only query', () => {
+    expect(matchSatelliteQuery('---', names, noradIds, 10).results).toHaveLength(0)
+    expect(matchSatelliteQuery('()', names, noradIds, 10).results).toHaveLength(0)
+  })
+
+  it('NORAD leading-zero — "6707" matches catalog entry "06707"', () => {
+    const n = ['VANGUARD 1']
+    const ids = ['00005']
+    // typing without leading zero should still match
+    const { results } = matchSatelliteQuery('5', n, ids, 10)
+    expect(results).toHaveLength(1)
+    expect(results[0].noradId).toBe('00005')
+  })
+
+  it('NORAD leading-zero — exact match with leading zero typed', () => {
+    const n = ['VANGUARD 1']
+    const ids = ['00005']
+    const { results } = matchSatelliteQuery('00005', n, ids, 10)
+    expect(results).toHaveLength(1)
+  })
+
+  it('numeric query also hits satellite names — "1001" finds STARLINK-1001', () => {
+    const { results } = matchSatelliteQuery('1001', names, noradIds, 10)
+    expect(results.some(r => r.name === 'STARLINK-1001')).toBe(true)
+  })
+
+  it('duplicate tokens — "starlink starlink" returns same results as "starlink"', () => {
+    const { results: r1 } = matchSatelliteQuery('starlink', names, noradIds, 10)
+    const { results: r2 } = matchSatelliteQuery('starlink starlink', names, noradIds, 10)
+    expect(r2).toEqual(r1)
+  })
 })
