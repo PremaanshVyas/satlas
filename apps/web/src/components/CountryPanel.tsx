@@ -1,4 +1,5 @@
 import type { OverheadSat } from '../globe/Globe'
+import { getDisplayName } from '../lib/satelliteNames'
 
 interface CountryPanelProps {
   country: { name: string; continent: string }
@@ -49,7 +50,7 @@ export default function CountryPanel({
                 onClick={() => onSelectSatellite(sat.noradId)}
                 className="flex items-center justify-between px-1.5 py-1 rounded-[2px] bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)] transition-colors text-left w-full"
               >
-                <span className="text-[10px] text-accent truncate">{sat.name}</span>
+                <span className="text-[10px] text-accent truncate">{getDisplayName(sat.name)}</span>
                 <span className="text-[10px] text-accent flex-shrink-0 ml-2">↑ {sat.elevDeg}°</span>
               </button>
             ))}
@@ -59,7 +60,7 @@ export default function CountryPanel({
                 onClick={() => onSelectSatellite(sat.noradId)}
                 className="flex items-center justify-between px-1.5 py-1 rounded-[2px] hover:bg-[rgba(255,255,255,0.03)] transition-colors text-left w-full"
               >
-                <span className="text-[10px] text-secondary truncate">{sat.name}</span>
+                <span className="text-[10px] text-secondary truncate">{getDisplayName(sat.name)}</span>
                 <span className="text-[10px] text-label flex-shrink-0 ml-2">↑ {sat.elevDeg}°</span>
               </button>
             ))}

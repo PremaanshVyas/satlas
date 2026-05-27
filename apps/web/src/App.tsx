@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { getDisplayName } from './lib/satelliteNames'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Drawer } from 'vaul'
 import GlobeView from './components/GlobeView'
@@ -118,7 +119,7 @@ export default function App() {
 
   function handleAskAI() {
     if (!cardSat) return
-    setPrefill(`Tell me about NORAD ${cardSat.noradId} (${cardSat.name})`)
+    setPrefill(`Tell me about NORAD ${cardSat.noradId} (${getDisplayName(cardSat.name)})`)
     setChatOpen(true)
   }
 
@@ -201,7 +202,7 @@ export default function App() {
                             className="flex-1 min-w-0 text-left touch-manipulation"
                             onClick={() => handleTrayChipClick(sat)}
                           >
-                            <div className="font-mono text-[11px] text-secondary truncate leading-tight uppercase tracking-[0.03em]">{sat.name}</div>
+                            <div className="font-mono text-[11px] text-secondary truncate leading-tight uppercase tracking-[0.03em]">{getDisplayName(sat.name)}</div>
                             <div className="font-mono text-[10px] text-label mt-0.5">{sat.noradId}</div>
                           </button>
                           <button

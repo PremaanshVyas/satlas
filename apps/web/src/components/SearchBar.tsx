@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { SearchResult, SearchResults } from '../globe/searchUtils'
+import { getDisplayName } from '../lib/satelliteNames'
 
 interface SearchBarProps {
   onSearch: (query: string) => SearchResults
@@ -95,7 +96,7 @@ export default function SearchBar({ onSearch, onSelect }: SearchBarProps) {
                   onMouseDown={e => { e.preventDefault(); handleSelect(r) }}
                   onMouseEnter={() => setActiveIdx(i)}
                 >
-                  <span className="font-mono text-[12px] text-secondary truncate">{r.name}</span>
+                  <span className="font-mono text-[12px] text-secondary truncate">{getDisplayName(r.name)}</span>
                   <span className="font-mono text-[10px] text-label flex-shrink-0">{r.noradId}</span>
                 </button>
               ))}

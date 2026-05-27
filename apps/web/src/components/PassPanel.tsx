@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { getDisplayName } from '../lib/satelliteNames'
 
 interface Sat { name: string; noradId: string }
 
@@ -232,7 +233,7 @@ export default function PassPanel({ sat, onClose }: PassPanelProps) {
       <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2.5 border-b border-[rgba(255,255,255,0.04)] flex-shrink-0">
         <div className="min-w-0">
           <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#555555] mb-1">Pass Prediction · Next 24 h</div>
-          <div className="font-mono text-[13px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{sat.name}</div>
+          <div className="font-mono text-[13px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{getDisplayName(sat.name)}</div>
           <div className="font-mono text-[10px] text-label mt-0.5">NORAD ID · {sat.noradId}</div>
         </div>
         <button

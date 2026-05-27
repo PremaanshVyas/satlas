@@ -172,3 +172,33 @@ describe('matchesSatellite (ISS special-case path in Globe.searchCatalog)', () =
     expect(matchesSatellite('starlink', 'ISS (ZARYA)', '25544')).toBe(false)
   })
 })
+
+describe('phrase alias expansion', () => {
+  const hst  = [['HST'],  ['20580']] as [string[], string[]]
+  const jwst = [['JWST'], ['50463']] as [string[], string[]]
+  const css  = [['CSS (TIANHE-1)'], ['48274']] as [string[], string[]]
+
+  it('"hubble" finds HST', () => {
+    expect(matchSatelliteQuery('hubble', hst[0], hst[1], 10).total).toBe(1)
+  })
+
+  it('"hubble space telescope" finds HST', () => {
+    expect(matchSatelliteQuery('hubble space telescope', hst[0], hst[1], 10).total).toBe(1)
+  })
+
+  it('"webb" finds JWST', () => {
+    expect(matchSatelliteQuery('webb', jwst[0], jwst[1], 10).total).toBe(1)
+  })
+
+  it('"james webb" finds JWST', () => {
+    expect(matchSatelliteQuery('james webb', jwst[0], jwst[1], 10).total).toBe(1)
+  })
+
+  it('"tiangong" finds CSS (TIANHE-1)', () => {
+    expect(matchSatelliteQuery('tiangong', css[0], css[1], 10).total).toBe(1)
+  })
+
+  it('unrelated query does not match via alias', () => {
+    expect(matchSatelliteQuery('hubble', jwst[0], jwst[1], 10).total).toBe(0)
+  })
+})

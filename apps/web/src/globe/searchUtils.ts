@@ -8,6 +8,8 @@ export interface SearchResults {
   total: number
 }
 
+import { PHRASE_ALIASES } from '../lib/satelliteNames'
+
 // Strip spaces, hyphens, underscores, brackets, dots so "starlink 1001" matches "STARLINK-1001"
 const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_()[\].]/g, '')
 
@@ -23,8 +25,14 @@ export function matchSatelliteQuery(
   const q = query.trim().toLowerCase()
   if (!q) return { results: [], total: 0 }
 
+  // Expand known phrases before tokenizing: "hubble" → "hst", "james webb" → "jwst"
+  let expanded = q
+  for (const [pattern, replacement] of PHRASE_ALIASES) {
+    expanded = expanded.replace(pattern, replacement)
+  }
+
   // Split on any delimiter; filter empties so "---" or "()" return nothing
-  const rawTokens = q.split(/[\s\-_()[\].]+/).filter(Boolean)
+  const rawTokens = expanded.split(/[\s\-_()[\].]+/).filter(Boolean)
   if (rawTokens.length === 0) return { results: [], total: 0 }
 
   // Deduplicate so "starlink starlink" costs the same as "starlink"

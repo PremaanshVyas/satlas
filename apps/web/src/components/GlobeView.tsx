@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { getDisplayName } from '../lib/satelliteNames'
 import { useGlobe } from '../hooks/useGlobe'
 import type { OrbitalParams, LivePosition, SatcatEntry, OverheadSat } from '../hooks/useGlobe'
 export type { OverheadSat }
@@ -325,7 +326,7 @@ export default function GlobeView({
               transform: 'translateY(-100%)',
             }}
           >
-            <div className="font-mono text-[12px] text-secondary">{hoverInfo.name}</div>
+            <div className="font-mono text-[12px] text-secondary">{getDisplayName(hoverInfo.name)}</div>
             {hoverInfo.altKm !== null && (
               <div className="font-mono text-[10px] text-label">{hoverInfo.altKm.toLocaleString()} km</div>
             )}

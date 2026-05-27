@@ -1,4 +1,5 @@
 import { objectTypeLabel, opsStatusLabel } from '../lib/satcat'
+import { getDisplayName } from '../lib/satelliteNames'
 import type { OrbitalParams, LivePosition, SatcatEntry } from './GlobeView'
 
 interface SelectedSat { name: string; noradId: string }
@@ -46,7 +47,7 @@ export default function SatInfoCard({ sat, meta, position, orbital, onDismiss, o
                 <span className="relative inline-flex rounded-full h-[6px] w-[6px] bg-accent" />
               </span>
             )}
-            <div className="font-mono text-[13px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{sat.name}</div>
+            <div className="font-mono text-[13px] font-bold text-white uppercase tracking-[0.04em] truncate leading-tight">{getDisplayName(sat.name)}</div>
           </div>
           <div className="flex items-center gap-2 mt-1">
             <span className="font-mono text-[10px] text-label">NORAD ID · {sat.noradId}</span>
