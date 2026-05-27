@@ -1,3 +1,5 @@
+import { NORMALIZED_ALIASES } from '../lib/satelliteNames'
+
 export interface SearchResult {
   name: string
   noradId: string
@@ -8,13 +10,22 @@ export interface SearchResults {
   total: number
 }
 
-import { PHRASE_ALIASES } from '../lib/satelliteNames'
-
 // Strip spaces, hyphens, underscores, brackets, dots so "starlink 1001" matches "STARLINK-1001"
 const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_()[\].]/g, '')
 
 // Strip leading zeros for NORAD comparison so "6707" matches catalog entry "06707"
 const stripLeadingZeros = (s: string) => s.replace(/^0+/, '') || '0'
+
+// True if a single normalized token matches a normalized satellite name.
+// Per-token alias prefix: "hubbl".startsWith() of "hubblespacetelescope" → resolves to "hst".
+// This makes partial typing ("hubbl", "jam") resolve via aliases as the user types.
+function tokenMatches(token: string, normName: string): boolean {
+  if (normName.includes(token)) return true
+  for (const [key, value] of NORMALIZED_ALIASES) {
+    if (key.startsWith(token) && normName.includes(value)) return true
+  }
+  return false
+}
 
 export function matchSatelliteQuery(
   query: string,
@@ -25,18 +36,21 @@ export function matchSatelliteQuery(
   const q = query.trim().toLowerCase()
   if (!q) return { results: [], total: 0 }
 
-  // Expand known phrases before tokenizing: "hubble" → "hst", "james webb" → "jwst"
-  let expanded = q
-  for (const [pattern, replacement] of PHRASE_ALIASES) {
-    expanded = expanded.replace(pattern, replacement)
-  }
-
   // Split on any delimiter; filter empties so "---" or "()" return nothing
-  const rawTokens = expanded.split(/[\s\-_()[\].]+/).filter(Boolean)
+  const rawTokens = q.split(/[\s\-_()[\].]+/).filter(Boolean)
   if (rawTokens.length === 0) return { results: [], total: 0 }
 
   // Deduplicate so "starlink starlink" costs the same as "starlink"
   const normTokens = [...new Set(rawTokens.map(normalize))]
+
+  // Join tokens into one string to check multi-word alias prefixes.
+  // "hubble spa" → "hubblspa" → prefix of "hubblespacetelescope" → finds HST.
+  // This handles partial multi-word typing that per-token alone can't resolve.
+  const normJoined = normTokens.join('')
+  let joinedAliasValue: string | undefined
+  for (const [key, value] of NORMALIZED_ALIASES) {
+    if (key.startsWith(normJoined)) { joinedAliasValue = value; break }
+  }
 
   // Pure-digit query → also check NORAD prefix (strip leading zeros on both sides)
   const isNumeric = /^\d+$/.test(q)
@@ -50,13 +64,14 @@ export function matchSatelliteQuery(
     const noradId = noradIds[i] ?? ''
     const normName = normalize(name)
 
-    // NORAD prefix: strip leading zeros so "6707" finds "06707" (same fix as fetchTle S23/S37)
+    // NORAD prefix: strip leading zeros so "6707" finds "06707"
     const noradMatch = isNumeric && stripLeadingZeros(noradId).startsWith(qNorad)
-    // Name token match: ALL tokens must appear in the normalized name (Google AND-logic)
-    // Runs for every query including numeric ones — "1001" finds "STARLINK-1001" via name
-    const nameMatch = normTokens.every(t => normName.includes(t))
+    // Per-token AND-logic with alias prefix expansion — "hubbl" finds HST, "jam" finds JWST
+    const nameMatch = normTokens.every(t => tokenMatches(t, normName))
+    // Joined-token alias — "hubble sp" joined is "hubblesp" → prefix of "hubblespacetelescope"
+    const joinedMatch = joinedAliasValue !== undefined && normName.includes(joinedAliasValue)
 
-    if (noradMatch || nameMatch) {
+    if (noradMatch || nameMatch || joinedMatch) {
       total++
       if (results.length < maxResults) results.push({ name, noradId })
     }
@@ -65,8 +80,7 @@ export function matchSatelliteQuery(
   return { results, total }
 }
 
-// Single-satellite check using the same logic as matchSatelliteQuery.
-// Used by Globe.searchCatalog for the ISS special case (ISS is not in satNames).
+// Single-satellite check — used by Globe.searchCatalog for the ISS special case.
 export function matchesSatellite(query: string, name: string, noradId: string): boolean {
   return matchSatelliteQuery(query, [name], [noradId], 1).total > 0
 }

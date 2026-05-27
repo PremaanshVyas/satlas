@@ -173,32 +173,63 @@ describe('matchesSatellite (ISS special-case path in Globe.searchCatalog)', () =
   })
 })
 
-describe('phrase alias expansion', () => {
-  const hst  = [['HST'],  ['20580']] as [string[], string[]]
-  const jwst = [['JWST'], ['50463']] as [string[], string[]]
-  const css  = [['CSS (TIANHE-1)'], ['48274']] as [string[], string[]]
+describe('alias matching — full names, partials, and mid-word typing', () => {
+  const hst  = [['HST'],           ['20580']] as [string[], string[]]
+  const jwst = [['JWST'],          ['50463']] as [string[], string[]]
+  const css  = [['CSS (TIANHE-1)'],['48274']] as [string[], string[]]
 
-  it('"hubble" finds HST', () => {
-    expect(matchSatelliteQuery('hubble', hst[0], hst[1], 10).total).toBe(1)
-  })
+  // Full alias names
+  it('"hubble" finds HST', () =>
+    expect(matchSatelliteQuery('hubble', hst[0], hst[1], 10).total).toBe(1))
 
-  it('"hubble space telescope" finds HST', () => {
-    expect(matchSatelliteQuery('hubble space telescope', hst[0], hst[1], 10).total).toBe(1)
-  })
+  it('"hubble space telescope" finds HST', () =>
+    expect(matchSatelliteQuery('hubble space telescope', hst[0], hst[1], 10).total).toBe(1))
 
-  it('"webb" finds JWST', () => {
-    expect(matchSatelliteQuery('webb', jwst[0], jwst[1], 10).total).toBe(1)
-  })
+  it('"webb" finds JWST', () =>
+    expect(matchSatelliteQuery('webb', jwst[0], jwst[1], 10).total).toBe(1))
 
-  it('"james webb" finds JWST', () => {
-    expect(matchSatelliteQuery('james webb', jwst[0], jwst[1], 10).total).toBe(1)
-  })
+  it('"james webb" finds JWST', () =>
+    expect(matchSatelliteQuery('james webb', jwst[0], jwst[1], 10).total).toBe(1))
 
-  it('"tiangong" finds CSS (TIANHE-1)', () => {
-    expect(matchSatelliteQuery('tiangong', css[0], css[1], 10).total).toBe(1)
-  })
+  it('"james webb space telescope" finds JWST', () =>
+    expect(matchSatelliteQuery('james webb space telescope', jwst[0], jwst[1], 10).total).toBe(1))
 
-  it('unrelated query does not match via alias', () => {
-    expect(matchSatelliteQuery('hubble', jwst[0], jwst[1], 10).total).toBe(0)
-  })
+  it('"tiangong" finds CSS (TIANHE-1)', () =>
+    expect(matchSatelliteQuery('tiangong', css[0], css[1], 10).total).toBe(1))
+
+  // Partial typing — the key fix: incremental characters resolve before word is complete
+  it('"hubbl" finds HST (partial single word)', () =>
+    expect(matchSatelliteQuery('hubbl', hst[0], hst[1], 10).total).toBe(1))
+
+  it('"hub" finds HST', () =>
+    expect(matchSatelliteQuery('hub', hst[0], hst[1], 10).total).toBe(1))
+
+  it('"jam" finds JWST', () =>
+    expect(matchSatelliteQuery('jam', jwst[0], jwst[1], 10).total).toBe(1))
+
+  it('"james w" finds JWST (partial second word)', () =>
+    expect(matchSatelliteQuery('james w', jwst[0], jwst[1], 10).total).toBe(1))
+
+  it('"web" finds JWST', () =>
+    expect(matchSatelliteQuery('web', jwst[0], jwst[1], 10).total).toBe(1))
+
+  it('"tiango" finds CSS (TIANHE-1)', () =>
+    expect(matchSatelliteQuery('tiango', css[0], css[1], 10).total).toBe(1))
+
+  // Partial multi-word — joined token is a prefix of a known alias
+  it('"hubble sp" finds HST (mid-phrase partial)', () =>
+    expect(matchSatelliteQuery('hubble sp', hst[0], hst[1], 10).total).toBe(1))
+
+  it('"hubble space" finds HST', () =>
+    expect(matchSatelliteQuery('hubble space', hst[0], hst[1], 10).total).toBe(1))
+
+  it('"james web" finds JWST', () =>
+    expect(matchSatelliteQuery('james web', jwst[0], jwst[1], 10).total).toBe(1))
+
+  // Negative — alias for one should not bleed into the other
+  it('"hubble" does not find JWST', () =>
+    expect(matchSatelliteQuery('hubble', jwst[0], jwst[1], 10).total).toBe(0))
+
+  it('"webb" does not find HST', () =>
+    expect(matchSatelliteQuery('webb', hst[0], hst[1], 10).total).toBe(0))
 })
