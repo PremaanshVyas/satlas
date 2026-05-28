@@ -326,3 +326,32 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/decisions-archive.md` | Full ADR entries from Sessions 1–17. |
 | `CHANGELOG.md` | Engineering change log — significant problems, diagnosis, and fixes per session. |
 | `README.md` | Public-facing project overview. What it does, how to run it locally, deploy notes. |
+
+---
+
+## Mycelium — Pheromone Field Protocol
+
+This repo has Mycelium installed (MCP server auto-starts with this session). The codebase is a pheromone field — every file carries signals about churn, complexity, coverage, and what past agents decided. Read the field before touching anything.
+
+**Session start — always, in this order:**
+
+```
+1. session_start(task, "claude-code")   → get session_id
+2. sessions_recent(3)                   → what past agents built and decided
+3. field_summary()                      → current repo health snapshot
+4. decisions_recent(20)                 → what was reasoned, what was rejected
+```
+
+**Before touching any file:** `field_read(path)` — see its danger_score, trust_score, churn.
+**Before modifying a file someone else touched:** `sessions_on_path(path)`.
+**When starting work on a file:** `session_mark(session_id, path, "working", reason, confidence)`.
+**Every significant choice:** `session_decide(session_id, decision, reason, path?, alternatives?, confidence)`.
+**When done with a file:** `session_mark(session_id, path, "completed" | "avoid", reason, confidence)`.
+
+**Session end — always:**
+
+```
+session_end(session_id, outcome, next_session_notes)
+```
+
+`next_session_notes` must include: what was completed, what was skipped and why, what is fragile, where to start next, constraints the next agent must not violate.

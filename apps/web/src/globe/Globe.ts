@@ -1279,6 +1279,7 @@ export class Globe {
   getAllCategoryCounts(): Record<string, number> {
     const counts: Record<string, number> = { STARLINK: 0, GPS: 0, IRIDIUM: 0, DEBRIS: 0, OTHER: 0 }
     for (const cat of this.satCategories) counts[cat] = (counts[cat] ?? 0) + 1
+    counts.OTHER += 1 // ISS is tracked separately but is part of the total
     return counts
   }
 
