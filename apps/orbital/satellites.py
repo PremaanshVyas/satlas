@@ -44,7 +44,12 @@ GP_MIN_INTERVAL_SECONDS = 3600
 GP_QUERY_MINUTE = 17
 DELTA_MIN_DAYS = 0.042       # ~1 hour — Space-Track's example window
 DELTA_BUFFER_SECONDS = 900   # 15 min overlap so nothing slips between consecutive windows
-SATCAT_REFRESH_SECONDS = 24 * 60 * 60  # satcat is a separate, slow-changing class — once/day
+
+# Space-Track SATCAT-class policy: at most once per day, and only after 1700 UTC (the daily
+# catalog is published around then). We seed this clock from S3 on boot (below) so a restart
+# can never re-query within the same day — the gp-class restart-storm that caused the
+# suspension must not be reproducible for the satcat endpoint either.
+SATCAT_QUERY_HOUR_UTC = 17
 
 ISS_NORAD = '25544'
 
@@ -198,6 +203,21 @@ def _load_catalog_from_s3() -> tuple:
         return [], 0.0
 
 
+def _satcat_last_modified_from_s3() -> float:
+    """LastModified epoch of satcat.json in S3, or 0.0 if absent/unreadable. Seeds the
+    satcat rate clock on boot so a restart never re-queries within the same UTC day."""
+    bucket = os.environ.get('CATALOG_BUCKET')
+    if not bucket:
+        return 0.0
+    try:
+        s3 = boto3.client('s3')
+        head = s3.head_object(Bucket=bucket, Key='satcat.json')
+        last_mod = head.get('LastModified')
+        return last_mod.timestamp() if last_mod else 0.0
+    except Exception:
+        return 0.0
+
+
 async def _refresh_catalog() -> None:
     """Issue exactly ONE gp query — a full pull on cold start, otherwise an hourly delta
     merged into the cache — then write the result to S3. Updates the gp rate-limit clock."""
@@ -215,10 +235,26 @@ async def _refresh_catalog() -> None:
     _s3_put(_cache['tles'])
 
 
+def _satcat_due(now: float, last_refresh: float) -> bool:
+    """Whether a satcat query is allowed right now under Space-Track's SATCAT-class rule:
+    at most once per UTC day, and only at/after SATCAT_QUERY_HOUR_UTC. A never-fetched
+    satcat (last_refresh <= 0, i.e. no satcat.json in S3) is exempt from the time-of-day
+    gate so a first-ever cold start can populate metadata immediately."""
+    if last_refresh <= 0:
+        return True
+    now_dt = datetime.datetime.fromtimestamp(now, datetime.timezone.utc)
+    last_dt = datetime.datetime.fromtimestamp(last_refresh, datetime.timezone.utc)
+    if last_dt.date() >= now_dt.date():
+        return False  # already refreshed today (or future clock skew) — once per day
+    return now_dt.hour >= SATCAT_QUERY_HOUR_UTC
+
+
 async def _maybe_refresh_satcat() -> None:
-    """Refresh satcat metadata at most once per day (a separate Space-Track class)."""
+    """Refresh satcat metadata at most once per UTC day, only after 1700 UTC (Space-Track
+    SATCAT-class guidance). The rate clock is seeded from S3 on boot so restarts can't
+    re-query within the day."""
     global _satcat_last_refresh
-    if _satcat_last_refresh and time.time() - _satcat_last_refresh < SATCAT_REFRESH_SECONDS:
+    if not _satcat_due(time.time(), _satcat_last_refresh):
         return
     satcat = await _fetch_space_track_satcat()
     _s3_put_satcat(satcat)
@@ -229,6 +265,7 @@ async def refresh_loop() -> None:
     """The single Space-Track client. Seeds from S3 on boot (no query on restart),
     bootstraps the catalog only if S3 is empty, then issues at most one gp query per hour
     at :GP_QUERY_MINUTE — a delta that merges into the cache."""
+    global _satcat_last_refresh
     logger = logging.getLogger(__name__)
 
     # Seed from our own S3 copy first. A crash-looping task therefore never re-queries
@@ -238,6 +275,9 @@ async def refresh_loop() -> None:
         _cache['tles'] = records
         _cache['fetched_at'] = last_mod or time.time()
         logger.info('Seeded %d satellites from S3 (no Space-Track query on boot)', len(records))
+
+    # Seed the satcat clock from S3 too, so a restart can't re-query satcat within the day.
+    _satcat_last_refresh = _satcat_last_modified_from_s3()
 
     if not _cache['tles']:
         try:
