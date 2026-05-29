@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import logging
 import os
@@ -11,9 +12,18 @@ CELESTRAK_ISS_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FOR
 CELESTRAK_HEADERS = {'User-Agent': 'satlas/1.0 (portfolio project; https://satlas.app)'}
 
 SPACETRACK_LOGIN_URL = 'https://www.space-track.org/ajaxauth/login'
+# Full catalog (~30k) — used only for the cold-start bootstrap when no cache exists.
 SPACETRACK_CATALOG_URL = (
     'https://www.space-track.org/basicspacedata/query/class/gp'
     '/DECAY_DATE/null-val/EPOCH/%3Enow-90/orderby/NORAD_CAT_ID/format/3le'
+)
+# Hourly delta — only objects whose TLE was published within the window. {days} is filled
+# in per-run so a missed cycle is still caught up by widening the window. This is
+# Space-Track's recommended bandwidth-saving query (see their API guidelines / the
+# suspension notice that prompted this design).
+SPACETRACK_DELTA_TEMPLATE = (
+    'https://www.space-track.org/basicspacedata/query/class/gp'
+    '/DECAY_DATE/null-val/CREATION_DATE/%3Enow-{days}/orderby/NORAD_CAT_ID/format/3le'
 )
 SPACETRACK_SATCAT_URL = (
     'https://www.space-track.org/basicspacedata/query/class/satcat'
@@ -26,12 +36,22 @@ _SATCAT_TYPE_MAP = {
 }
 
 ISS_TLE_TTL_SECONDS = 300   # 5 min — ISS moves 7.66 km/s
-CATALOG_REFRESH_SECONDS = 2 * 60 * 60  # 2 h
+
+# Space-Track gp-class policy: at most ONE query per hour. We query at a fixed minute
+# offset (well inside the 5–25 min off-peak window) and a hard interval guard makes a
+# second gp query within the hour structurally impossible — even across restarts/retries.
+GP_MIN_INTERVAL_SECONDS = 3600
+GP_QUERY_MINUTE = 17
+DELTA_MIN_DAYS = 0.042       # ~1 hour — Space-Track's example window
+DELTA_BUFFER_SECONDS = 900   # 15 min overlap so nothing slips between consecutive windows
+SATCAT_REFRESH_SECONDS = 24 * 60 * 60  # satcat is a separate, slow-changing class — once/day
 
 ISS_NORAD = '25544'
 
 _cache: dict = {'tles': [], 'fetched_at': 0.0}
 _iss_cache: dict = {'tle': None, 'fetched_at': 0.0}
+_last_gp_query_at: float = 0.0
+_satcat_last_refresh: float = 0.0
 
 
 def _parse_tle_text(text: str) -> list:
@@ -55,8 +75,8 @@ def _parse_tle_text(text: str) -> list:
     return result
 
 
-async def _fetch_space_track_tles() -> list:
-    """Authenticate to Space-Track and fetch full catalog as 3LE text."""
+async def _fetch_space_track_tles(query_url: str = SPACETRACK_CATALOG_URL) -> list:
+    """Authenticate to Space-Track and fetch TLEs (3LE) for the given gp query URL."""
     user = os.environ.get('SPACETRACK_USER')
     password = os.environ.get('SPACETRACK_PASS')
     if not user or not password:
@@ -65,7 +85,7 @@ async def _fetch_space_track_tles() -> list:
     async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
         login_resp = await client.post(SPACETRACK_LOGIN_URL, data={'identity': user, 'password': password})
         login_resp.raise_for_status()
-        resp = await client.get(SPACETRACK_CATALOG_URL)
+        resp = await client.get(query_url)
         resp.raise_for_status()
         return _parse_tle_text(resp.text)
 
@@ -138,36 +158,108 @@ def _s3_put_satcat(rows: list) -> None:
     )
 
 
-async def _s3_refresh() -> None:
-    """Fetch full catalog and SATCAT from Space-Track, update in-memory cache, write to S3."""
-    tles = await _fetch_space_track_tles()
-    _cache['tles'] = tles
-    _cache['fetched_at'] = time.time()
-    _s3_put(tles)
+def _merge_tles(existing: list, updates: list) -> list:
+    """Overlay delta updates onto the cached catalog, keyed by NORAD id, NORAD-sorted."""
+    by_id = {r['norad_id']: r for r in existing}
+    for r in updates:
+        by_id[r['norad_id']] = r
+    return sorted(by_id.values(), key=lambda r: int(r['norad_id']))
+
+
+def _delta_window_days(gap_seconds: float) -> float:
+    """How many days back the hourly delta query looks, widened to cover any missed cycle."""
+    return max((gap_seconds + DELTA_BUFFER_SECONDS) / 86400.0, DELTA_MIN_DAYS)
+
+
+def _next_gp_slot(now: float, last_gp: float) -> float:
+    """Epoch of the next :GP_QUERY_MINUTE that is also >= GP_MIN_INTERVAL_SECONDS after the
+    last gp query. Guarantees at most one gp query per hour — restarts and retries included."""
+    dt = datetime.datetime.fromtimestamp(now, datetime.timezone.utc)
+    candidate = dt.replace(minute=GP_QUERY_MINUTE, second=0, microsecond=0)
+    while candidate.timestamp() <= now or candidate.timestamp() < last_gp + GP_MIN_INTERVAL_SECONDS:
+        candidate += datetime.timedelta(hours=1)
+    return candidate.timestamp()
+
+
+def _load_catalog_from_s3() -> tuple:
+    """Load the existing catalog.tle from S3 so a restart never re-queries Space-Track.
+    Returns (records, last_modified_epoch); ([], 0.0) if unavailable."""
+    bucket = os.environ.get('CATALOG_BUCKET')
+    if not bucket:
+        return [], 0.0
     try:
-        satcat = await _fetch_space_track_satcat()
-        _s3_put_satcat(satcat)
-    except Exception as exc:
-        logging.getLogger(__name__).warning('SATCAT refresh failed (non-fatal): %s', exc)
+        s3 = boto3.client('s3')
+        obj = s3.get_object(Bucket=bucket, Key='catalog.tle')
+        text = obj['Body'].read().decode('utf-8')
+        last_mod = obj.get('LastModified')
+        ts = last_mod.timestamp() if last_mod else 0.0
+        return _parse_tle_text(text), ts
+    except Exception:
+        return [], 0.0
+
+
+async def _refresh_catalog() -> None:
+    """Issue exactly ONE gp query — a full pull on cold start, otherwise an hourly delta
+    merged into the cache — then write the result to S3. Updates the gp rate-limit clock."""
+    global _last_gp_query_at
+    is_bootstrap = not _cache['tles']
+    if is_bootstrap:
+        url = SPACETRACK_CATALOG_URL
+    else:
+        days = _delta_window_days(time.time() - _cache['fetched_at'])
+        url = SPACETRACK_DELTA_TEMPLATE.format(days=f'{days:.4f}')
+    fetched = await _fetch_space_track_tles(url)
+    _last_gp_query_at = time.time()
+    _cache['tles'] = fetched if is_bootstrap else _merge_tles(_cache['tles'], fetched)
+    _cache['fetched_at'] = time.time()
+    _s3_put(_cache['tles'])
+
+
+async def _maybe_refresh_satcat() -> None:
+    """Refresh satcat metadata at most once per day (a separate Space-Track class)."""
+    global _satcat_last_refresh
+    if _satcat_last_refresh and time.time() - _satcat_last_refresh < SATCAT_REFRESH_SECONDS:
+        return
+    satcat = await _fetch_space_track_satcat()
+    _s3_put_satcat(satcat)
+    _satcat_last_refresh = time.time()
 
 
 async def refresh_loop() -> None:
-    """Background task: retry aggressively on startup, then refresh every 2h."""
+    """The single Space-Track client. Seeds from S3 on boot (no query on restart),
+    bootstraps the catalog only if S3 is empty, then issues at most one gp query per hour
+    at :GP_QUERY_MINUTE — a delta that merges into the cache."""
     logger = logging.getLogger(__name__)
-    # Startup: retry every 30s until first successful fetch
-    while not _cache['tles']:
+
+    # Seed from our own S3 copy first. A crash-looping task therefore never re-queries
+    # Space-Track — the restart storm that triggered the suspension can't recur.
+    records, last_mod = _load_catalog_from_s3()
+    if records:
+        _cache['tles'] = records
+        _cache['fetched_at'] = last_mod or time.time()
+        logger.info('Seeded %d satellites from S3 (no Space-Track query on boot)', len(records))
+
+    if not _cache['tles']:
         try:
-            await _s3_refresh()
+            await _refresh_catalog()
         except Exception as exc:
-            logger.error('Catalog startup refresh failed: %s', exc)
-            await asyncio.sleep(30)
-    # Steady state: refresh every 2h
+            logger.error('Catalog bootstrap failed (will retry at next gp slot): %s', exc)
+    try:
+        await _maybe_refresh_satcat()
+    except Exception as exc:
+        logger.warning('SATCAT bootstrap failed (non-fatal): %s', exc)
+
+    # Steady state: wake at the next compliant gp slot, issue one delta query, repeat.
     while True:
-        await asyncio.sleep(CATALOG_REFRESH_SECONDS)
+        await asyncio.sleep(max(0.0, _next_gp_slot(time.time(), _last_gp_query_at) - time.time()))
         try:
-            await _s3_refresh()
+            await _refresh_catalog()
         except Exception as exc:
             logger.error('Catalog refresh failed: %s', exc)
+        try:
+            await _maybe_refresh_satcat()
+        except Exception as exc:
+            logger.warning('SATCAT refresh failed (non-fatal): %s', exc)
 
 
 async def get_satellites() -> list:
