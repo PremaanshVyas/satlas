@@ -22,10 +22,13 @@ Fix:
 - `_satcat_due(now, last)` permits a query only when it is a new UTC day **and** the hour is ≥ `SATCAT_QUERY_HOUR_UTC` (17). A never-fetched satcat (`last <= 0`, i.e. no `satcat.json` in S3) is exempt so a genuine cold start still populates metadata immediately.
 - `refresh_loop` seeds `_satcat_last_refresh` from the S3 `LastModified` of `satcat.json` (`_satcat_last_modified_from_s3`, a `head_object`) so a restart inherits the day's clock instead of resetting it.
 
-`gp` was left untouched. Also corrected stale "refreshed every 2 hours" wording in the public API docs (`ApiDocs.tsx`) to reflect the hourly-delta design.
+Also corrected stale "refreshed every 2 hours" wording in the public API docs (`ApiDocs.tsx`) to reflect the hourly-delta design.
+
+### Follow-up: the gp clock had the same hole
+While verifying the hourly `:17` cadence during recovery, we realised `gp`'s clock (`_last_gp_query_at`) had the *same* weakness we'd just fixed for satcat — never seeded from S3, only reset to 0 on boot. The fixed `:17` minute keeps steady-state queries ≥1h apart even across restarts, but an off-schedule **bootstrap** query (written at boot, not `:17`) followed by a redeploy that boots *before* the next `:17` would fire a second `gp` query within the hour. We hit exactly this during recovery (a bootstrap pull at 16:54 UTC, then the node-bump redeploy) and only dodged it because the new worker happened to boot after 17:17 — confirmed by `catalog.tle`'s S3 LastModified staying at 16:54. Fix: extracted `_seed_from_s3()` and seeded `_last_gp_query_at` from `catalog.tle`'s S3 `LastModified` (the last successful gp write), so `_next_gp_slot` enforces the once-per-hour gap across restarts and redeploys, not just within one process.
 
 ### Verification
-+7 orbital tests (`TestSatcatDue`, `TestSatcatLastModifiedFromS3`) → 110 orbital, 169 web, typecheck clean. `grep` across the repo confirms `satellites.py` is the only code that makes Space-Track network calls.
++10 orbital tests (`TestSatcatDue`, `TestSatcatLastModifiedFromS3`, `TestSeedFromS3` — the last includes a regression asserting a redeploy can't double-query `gp` within the hour) → 113 orbital, 169 web, typecheck clean. `grep` across the repo confirms `satellites.py` is the only code that makes Space-Track network calls.
 
 ### Rule
 A "once per day" limit means once per *calendar day at the vendor's stated hour*, not "≥24h since the last call." And every rate-limited endpoint's throttle clock must be persisted to durable storage (S3) and seeded on boot — never kept only in process memory, or a crash-loop silently reproduces the abuse. For query-shape experiments, use Space-Track's test server (`for-testing-only.space-track.org`), not the production account.

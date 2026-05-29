@@ -261,23 +261,39 @@ async def _maybe_refresh_satcat() -> None:
     _satcat_last_refresh = time.time()
 
 
-async def refresh_loop() -> None:
-    """The single Space-Track client. Seeds from S3 on boot (no query on restart),
-    bootstraps the catalog only if S3 is empty, then issues at most one gp query per hour
-    at :GP_QUERY_MINUTE — a delta that merges into the cache."""
-    global _satcat_last_refresh
-    logger = logging.getLogger(__name__)
+def _seed_from_s3() -> int:
+    """Seed the catalog cache AND both rate clocks from our S3 copies on boot, so a restart
+    can never re-query Space-Track inside the compliant window — for gp or satcat. Returns
+    the number of catalog records seeded (0 if S3 is empty → caller bootstraps).
 
-    # Seed from our own S3 copy first. A crash-looping task therefore never re-queries
-    # Space-Track — the restart storm that triggered the suspension can't recur.
+    Seeding the gp clock matters as much as seeding the cache: `catalog.tle`'s LastModified
+    is the time of the last successful gp write, so feeding it to `_next_gp_slot` enforces
+    the once-per-hour gap ACROSS restarts. Without it, an off-schedule bootstrap query by a
+    prior process followed by a redeploy that boots before the next `:17` would issue a
+    second gp query within the hour — the in-process `_last_gp_query_at` resets to 0 on
+    restart and can't see the prior process's query."""
+    global _last_gp_query_at, _satcat_last_refresh
     records, last_mod = _load_catalog_from_s3()
     if records:
         _cache['tles'] = records
         _cache['fetched_at'] = last_mod or time.time()
-        logger.info('Seeded %d satellites from S3 (no Space-Track query on boot)', len(records))
-
-    # Seed the satcat clock from S3 too, so a restart can't re-query satcat within the day.
+        _last_gp_query_at = last_mod  # last gp write time → cross-restart once/hour guard
     _satcat_last_refresh = _satcat_last_modified_from_s3()
+    return len(records)
+
+
+async def refresh_loop() -> None:
+    """The single Space-Track client. Seeds cache + rate clocks from S3 on boot (no query on
+    restart), bootstraps the catalog only if S3 is empty, then issues at most one gp query
+    per hour at :GP_QUERY_MINUTE — a delta that merges into the cache."""
+    logger = logging.getLogger(__name__)
+
+    # Seed from our own S3 copies first. A crash-looping or redeployed task therefore never
+    # re-queries Space-Track inside the rate window — the storm that caused the suspension
+    # can't recur, and an off-schedule bootstrap can't be doubled by a fast redeploy.
+    seeded = _seed_from_s3()
+    if seeded:
+        logger.info('Seeded %d satellites from S3 (no Space-Track query on boot)', seeded)
 
     if not _cache['tles']:
         try:
