@@ -3,6 +3,8 @@ from typing import Optional
 
 from skyfield.api import EarthSatellite, load, wgs84
 
+from satellites import norad_to_int
+
 _ts = load.timescale(builtin=True)
 
 
@@ -21,10 +23,10 @@ def satellite_info(catalog: list, query: str, fresh_tles: Optional[dict] = None)
         query_int = int(query_stripped)
         for item in catalog:
             try:
-                if int(item['norad_id']) == query_int:
+                if norad_to_int(item['norad_id']) == query_int:
                     sat_data = item
                     break
-            except (ValueError, KeyError):
+            except KeyError:
                 pass
     else:
         query_lower = query_stripped.lower()

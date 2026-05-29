@@ -80,6 +80,25 @@ def _parse_tle_text(text: str) -> list:
     return result
 
 
+# Space-Track 'alpha-5' NORAD ids (for catalog numbers >= 100000) replace the leading two
+# digits with a letter: A=10..H=17, J..N=18..22, P..Z=23..33 (I and O are omitted to avoid
+# confusion with 1 and 0). E.g. 'T0000' -> 270000. Plain int() raises on these, which is what
+# silently froze the hourly delta (the _merge_tles sort crashed on the first alpha-5 id).
+_ALPHA5_DIGITS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+
+
+def norad_to_int(norad_id: str) -> int:
+    """NORAD id (numeric or alpha-5) -> int, for sorting/comparison. Never raises: an
+    unparseable id falls back to 0 so a single bad record can't crash a whole catalog sort."""
+    s = (norad_id or '').strip()
+    try:
+        if s and s[0].isalpha():
+            return _ALPHA5_DIGITS.index(s[0].upper()) * 10000 + int(s[1:] or '0')
+        return int(s)
+    except (ValueError, IndexError):
+        return 0
+
+
 async def _fetch_space_track_tles(query_url: str = SPACETRACK_CATALOG_URL) -> list:
     """Authenticate to Space-Track and fetch TLEs (3LE) for the given gp query URL."""
     user = os.environ.get('SPACETRACK_USER')
@@ -168,7 +187,7 @@ def _merge_tles(existing: list, updates: list) -> list:
     by_id = {r['norad_id']: r for r in existing}
     for r in updates:
         by_id[r['norad_id']] = r
-    return sorted(by_id.values(), key=lambda r: int(r['norad_id']))
+    return sorted(by_id.values(), key=lambda r: norad_to_int(r['norad_id']))
 
 
 def _delta_window_days(gap_seconds: float) -> float:
