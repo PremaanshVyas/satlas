@@ -4,6 +4,26 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 45 — hotfix] Alpha-5 NORAD ids silently froze the hourly catalog delta (2026-05-30)
+
+### How it was found
+Verifying the `:17` hourly cadence after recovery: the worker was healthy and queries fired on schedule, but `catalog.tle`'s S3 `LastModified` never moved past the recovery bootstrap (16:54 UTC). The logs showed every delta failing identically:
+
+```
+Catalog refresh failed: invalid literal for int() with base 10: 'T0000'
+```
+
+### Root cause
+`'T0000'` is a Space-Track **alpha-5** NORAD id — the encoding for catalog numbers ≥ 100000, where the leading two digits become a letter (`A`=10 … `T`=27, skipping `I`/`O`), so `T0000` = 270000. As the catalog grew past 100000 these ids appeared, and `_merge_tles` sorted with `int(r['norad_id'])`, which raises on the first alpha-5 id. The bootstrap path assigns the cache directly (no sort) so it survived, but **every delta** (which sorts the merged set) crashed — leaving the catalog frozen at the last bootstrap. SGP4 still propagated the day-old TLEs fine, so nothing looked broken from the outside; only the S3 timestamp gave it away. `satinfo.py` had the same `int()` call, but inside a `try/except`, so it didn't crash — it just silently failed to resolve alpha-5 satellites by their numeric id.
+
+### Fix
+Added `norad_to_int()` — decodes both plain-numeric and alpha-5 ids, and never raises (an unparseable id falls back to `0` so one bad record can't crash a whole catalog sort). Used it in `_merge_tles` (unfreezes the delta) and in `satinfo.py` (alpha-5 satellites are now resolvable by numeric id). +6 tests (`TestNoradToInt`, an alpha-5 `_merge_tles` regression, an alpha-5 `satinfo` lookup) → 119 orbital.
+
+### Rule
+A rate-limited refresh loop that swallows-and-logs its own exceptions can fail *every* cycle while looking perfectly healthy from the outside. Verify the **effect** (did the data actually update?), not just liveness. And never call bare `int()` on a NORAD id — Space-Track uses alpha-5 above 100000.
+
+---
+
 ## [Session 45] — Space-Track reinstated; full per-class compliance audit (2026-05-30)
 
 ### Context

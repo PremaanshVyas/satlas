@@ -47,6 +47,17 @@ class TestSatelliteInfo:
         assert result['norad_id'] == '25544'
         assert result['name'] == 'ISS (ZARYA)'
 
+    def test_finds_alpha5_satellite_by_numeric_norad_id(self):
+        # Alpha-5 ids (catalog numbers >= 100000) are stored as e.g. 'T0000' (= 270000).
+        # A numeric query must resolve them, and scanning past one must never crash.
+        catalog = SAMPLE_CATALOG + [
+            {'name': 'BIG NUMBER SAT', 'norad_id': 'T0000', 'tle1': ISS_TLE1, 'tle2': ISS_TLE2},
+        ]
+        result = satellite_info(catalog, '270000')
+        assert result is not None
+        assert result['norad_id'] == 'T0000'
+        assert result['name'] == 'BIG NUMBER SAT'
+
     def test_finds_by_name_substring_case_insensitive(self):
         result = satellite_info(SAMPLE_CATALOG, 'hubble')
         assert result is not None

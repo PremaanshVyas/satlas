@@ -271,6 +271,33 @@ class TestMergeTles:
         out = satellites._merge_tles(existing, updates)
         assert [r['norad_id'] for r in out] == ['00005', '00100']
 
+    def test_merges_alpha5_norad_without_crashing(self):
+        # Regression: Space-Track alpha-5 ids (catalog numbers >= 100000, e.g. 'T0000' =
+        # 270000) crashed the int() sort key, silently freezing the hourly delta refresh.
+        # They must merge cleanly and sort after all plain-numeric ids.
+        existing = [{'norad_id': '25544', 'name': 'ISS', 'tle1': '1', 'tle2': '2'}]
+        updates = [{'norad_id': 'T0000', 'name': 'BIGSAT', 'tle1': '1', 'tle2': '2'},
+                   {'norad_id': '00005', 'name': 'VANGUARD', 'tle1': '1', 'tle2': '2'}]
+        out = satellites._merge_tles(existing, updates)
+        assert [r['norad_id'] for r in out] == ['00005', '25544', 'T0000']
+
+
+class TestNoradToInt:
+    def test_plain_numeric(self):
+        assert satellites.norad_to_int('25544') == 25544
+
+    def test_leading_zero(self):
+        assert satellites.norad_to_int('06707') == 6707
+
+    def test_alpha5(self):
+        assert satellites.norad_to_int('A0000') == 100000   # A -> 10
+        assert satellites.norad_to_int('E8493') == 148493   # E -> 14
+        assert satellites.norad_to_int('T0000') == 270000   # T -> 27
+
+    def test_garbage_falls_back_to_zero_not_crash(self):
+        assert satellites.norad_to_int('') == 0
+        assert satellites.norad_to_int('???') == 0
+
 
 class TestDeltaWindowDays:
     def test_floor_is_min_days(self):
