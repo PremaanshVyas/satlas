@@ -399,6 +399,45 @@ class TestSatcatLastModifiedFromS3:
             assert satellites._satcat_last_modified_from_s3() == 0.0
 
 
+class TestSeedFromS3:
+    def setup_method(self):
+        satellites._cache['tles'] = []
+        satellites._cache['fetched_at'] = 0.0
+        satellites._last_gp_query_at = 0.0
+        satellites._satcat_last_refresh = 0.0
+
+    def test_seeds_gp_clock_from_catalog_last_modified(self):
+        ts = _utc(2026, 5, 29, 16)  # last gp write time, from S3 LastModified
+        with patch('satellites._load_catalog_from_s3', return_value=(SAMPLE_TLES, ts)), \
+             patch('satellites._satcat_last_modified_from_s3', return_value=0.0):
+            count = satellites._seed_from_s3()
+        assert count == len(SAMPLE_TLES)
+        assert satellites._cache['tles'] == SAMPLE_TLES
+        assert satellites._last_gp_query_at == ts  # gp clock seeded, not left at 0
+
+    def test_no_gp_seed_when_s3_empty(self):
+        # Empty S3 → cold-start bootstrap path; the clock is set after the pull, not here.
+        with patch('satellites._load_catalog_from_s3', return_value=([], 0.0)), \
+             patch('satellites._satcat_last_modified_from_s3', return_value=0.0):
+            count = satellites._seed_from_s3()
+        assert count == 0
+        assert satellites._last_gp_query_at == 0.0
+
+    def test_seeded_gp_clock_blocks_a_second_query_within_the_hour_across_restart(self):
+        # Regression: a prior process wrote the catalog (bootstrap) at 16:54; a redeploy
+        # boots at 17:16. Without seeding, the new process would schedule 17:17 — a 2nd gp
+        # query 23 min after 16:54. With the seed, _next_gp_slot must skip to 18:17.
+        last_write = _utc(2026, 5, 29, 16) + 54 * 60        # 16:54
+        with patch('satellites._load_catalog_from_s3', return_value=(SAMPLE_TLES, last_write)), \
+             patch('satellites._satcat_last_modified_from_s3', return_value=0.0):
+            satellites._seed_from_s3()
+        boot = _utc(2026, 5, 29, 17) + 16 * 60               # 17:16
+        nxt = satellites._next_gp_slot(boot, satellites._last_gp_query_at)
+        nxt_dt = datetime.datetime.fromtimestamp(nxt, datetime.timezone.utc)
+        assert nxt_dt.hour == 18 and nxt_dt.minute == satellites.GP_QUERY_MINUTE
+        assert nxt - last_write >= satellites.GP_MIN_INTERVAL_SECONDS
+
+
 # ── get_satellites (reads from cache only) ────────────────────────────────────
 
 class TestGetSatellites:
