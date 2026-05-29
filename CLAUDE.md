@@ -110,24 +110,19 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 44 (INCIDENT) — Space-Track suspension remediation. Code fix complete; awaiting deploy + account reinstatement.
+**Current phase:** Session 44 (INCIDENT) — Space-Track suspension remediated and shipped. Traffic stopped (worker at `desired_count=0` + Vercel Space-Track creds pulled), reinstatement email sent, fix merged to `main` (PR #1), maintenance mode live. The Mycelium plugin was fully removed and `main` reset to the pre-plugin commit `daf1f74`. **Recovery (Step 3) is gated on Space-Track reinstatement — see `docs/session-45-bootstrap.md`.**
 
-**Session 44 completed tasks (Space-Track compliance):**
-- [x] `api/catalog.ts` — rewritten to proxy CloudFront `catalog.tle`; no longer queries Space-Track (was fetching full `gp` catalog per Vercel edge-cache miss, fanning out across PoPs)
-- [x] `apps/orbital/satellites.py` — `refresh_loop` is now the single Space-Track client: seeds from S3 on boot, hourly `gp` delta at `:17` via `CREATION_DATE` query, hard once/hour guard (`_next_gp_slot`/`GP_MIN_INTERVAL_SECONDS`), 30s startup retry storm removed, `satcat` dropped to once/day
-- [x] `.env.example` — Vercel no longer holds Space-Track creds; documents CloudFront single-source + `CLOUDFRONT_CATALOG`/`VITE_CATALOG_URL`
-- [x] Tests: 103/103 orbital (was 93 — added merge/delta-window/gp-slot/S3-seed/satcat coverage), 166/166 web, API typecheck clean
-- [ ] **DEPLOY (mickey):** pull Space-Track creds from Vercel; redeploy ECS (auto on merge to `main` via `ecr-push`); set `VITE_CATALOG_URL` to CloudFront; reply to Space-Track with the mitigation plan + URLs/times
+**Session 44 completed:**
+- [x] `api/catalog.ts` — proxies CloudFront `catalog.tle`; never queries Space-Track (was pulling the full `gp` catalog per Vercel edge-cache miss, fanning out across PoPs)
+- [x] `apps/orbital/satellites.py` — the single Space-Track client: S3 seed on boot, hourly `gp` delta at `:17` (`CREATION_DATE`), hard once/hour guard (`_next_gp_slot`/`GP_MIN_INTERVAL_SECONDS`), 30s retry storm removed, `satcat` once/day
+- [x] `Maintenance.tsx` + `main.tsx` — `VITE_MAINTENANCE` gate on the `/` route only (keeps `/docs` reachable)
+- [x] Mycelium removed: MCP server, `.mycelium/`, `api/_mycelium.ts`, CLAUDE.md protocol section; `main` reset to `daf1f74`
+- [x] Ops (mickey): worker→0, Vercel creds removed, email sent, PR #1 merged, `VITE_MAINTENANCE=1` set
+- [x] Tests: 103/103 orbital, 169/169 web, API typecheck clean
 
-**Next milestone:** Confirm account reinstated, verify CloudFront catalog stays fresh under the hourly delta, then resume Session 43 = V2 direction decision: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
+**Next milestone:** Session 45 (gated on Space-Track reply) — see `docs/session-45-bootstrap.md`. After reinstatement: scale worker to 1, confirm CloudFront `catalog.tle` repopulates (currently 1 byte — the suspended worker overwrote it), remove `VITE_MAINTENANCE`, redeploy. Then resume V2 = vision pipeline / bushfire scars.
 
-**Session 42 completed tasks (post-S41 hotfixes):**
-- [x] `TimeControls.tsx` + `MobileControlsSheet.tsx` — removed toggle-to-pause from `handleSpeed`; clicking an active speed button kept pausing the simulation; ⏸ is the explicit pause control
-- [x] `GlobeView.tsx` + `MobileControlsSheet.tsx` — toggle switch dot overflow fixed: dot shrunk from `w-3 h-3` (12px) to `w-2.5 h-2.5` (10px), on-position shifted `left-[12px]`→`left-[14px]`, `overflow-hidden` added to pill containers; dot no longer escapes the rounded boundary
-- [x] `Globe.ts` — `workerBusy` flag added: tick dispatch gated on `!workerBusy`; satellite positions now update immediately on speed change instead of lagging 2-3s behind the Earth rotation
-- [x] `App.tsx` — Toaster moved from `position="bottom-right"` → `"bottom-left"`; Sonner's z-index (2147483647) was covering the DevNotes panel (also bottom-right); both are now visible simultaneously
-- [x] `apps/orbital/passes.py` — filter zero-duration passes: grazing transits where rise and set fall in the same UTC second produced `start_utc == end_utc`; filtered out before return; CI test `test_start_before_end` now passes
-- [x] Tests: 166/166 web (vitest) + 93/93 orbital (pytest) passing
+**Session 42 (complete, stable) — post-S41 hotfixes:** removed toggle-to-pause from speed buttons; fixed toggle-dot overflow; `workerBusy` flag so sat positions update immediately on speed change; Toaster moved to bottom-left (z-index vs DevNotes); zero-duration passes filtered. Detail in the S42 hotfix ADRs below.
 
 **Session 41 completed tasks (frontend/UX polish):**
 - [x] `Globe.ts` — adaptive `FIELD_TICK_MS`: at timeScale>1 ticks at up to 60Hz so fast-forward/reverse is smooth instead of jittery; `TOUCH_MIN_RADIUS_PX` raised 18→24 for better mobile satellite tap targets
@@ -180,7 +175,13 @@ Format: date, decision, rationale, rule to remember.
 
 Sessions 1–36 decisions archived in `docs/decisions-archive.md` (the three 2026-05-13 ADRs — presenter-not-calculator, no-tools-in-answer-turn, haiku-for-tool-detection — were moved there to keep this file under budget).
 
-- **2026-05-29 — Session 44 (INCIDENT): Space-Track account suspended for exceeding the gp-class once-per-hour limit. Two redundant clients fixed; single hourly client established.** Root cause: (1) `api/catalog.ts` logged into Space-Track and pulled the full `gp` catalog (`EPOCH/>now-90`, ~30k) on every Vercel edge-cache miss — distributed across global PoPs, traffic-driven (the frontend's `celestrak.ts:117` fires a background refresh on every page load and four `api/*.ts` functions also proxy `/api/catalog`), and `VITE_CATALOG_URL` was unset so the frontend defaulted to it; (2) `apps/orbital/satellites.py refresh_loop` retried `gp` every 30s on startup failure (restart/crash-loop storm) plus a 2h steady cycle. Fix: `api/catalog.ts` now proxies the CloudFront `catalog.tle` (zero Space-Track load); the ECS orbital worker is the single Space-Track client — it seeds from S3 on boot (no query on restart), bootstraps the full catalog only when S3 is empty, then issues at most one `gp` query per hour at minute `:17` using the `CREATION_DATE/>now-{days}` delta (window widened to cover any missed cycle) merged into cache by NORAD id; a hard `GP_MIN_INTERVAL_SECONDS=3600` guard in `_next_gp_slot` makes a second `gp` query within the hour structurally impossible even across restarts; `satcat` class dropped to once/day. Vercel no longer holds Space-Track creds (`.env.example` updated). Tests: 103/103 orbital, 166/166 web, API typecheck clean. Rule: exactly one process may ever touch a rate-limited upstream; every other reader goes through our own cache (S3/CloudFront). A per-edge/per-instance cache TTL is NOT a global rate limit — distributed cache misses fan out to the origin. Any retry/refresh loop against a rate-limited API must enforce the limit with a persistent interval guard, never a fixed short sleep.
+- **2026-05-29 — Session 44 (INCIDENT): Space-Track account suspended for exceeding the gp-class once-per-hour limit. Two redundant clients fixed; single hourly client established.** Root cause: (1) `api/catalog.ts` logged into Space-Track and pulled the full `gp` catalog (`EPOCH/>now-90`, ~30k) on every Vercel edge-cache miss — distributed across global PoPs, traffic-driven (the frontend's `celestrak.ts:117` fires a background refresh on every page load and four `api/*.ts` functions also proxy `/api/catalog`), and `VITE_CATALOG_URL` was unset so the frontend defaulted to it; (2) `apps/orbital/satellites.py refresh_loop` retried `gp` every 30s on startup failure (restart/crash-loop storm) plus a 2h steady cycle. Fix: `api/catalog.ts` now proxies the CloudFront `catalog.tle` (zero Space-Track load); the ECS orbital worker is the single Space-Track client — it seeds from S3 on boot (no query on restart), bootstraps the full catalog only when S3 is empty, then issues at most one `gp` query per hour at minute `:17` using the `CREATION_DATE/>now-{days}` delta (window widened to cover any missed cycle) merged into cache by NORAD id; a hard `GP_MIN_INTERVAL_SECONDS=3600` guard in `_next_gp_slot` makes a second `gp` query within the hour structurally impossible even across restarts; `satcat` class dropped to once/day. Vercel no longer holds Space-Track creds (`.env.example` updated). Tests: 103/103 orbital, 169/169 web, API typecheck clean. Rule: exactly one process may ever touch a rate-limited upstream; every other reader goes through our own cache (S3/CloudFront). A per-edge/per-instance cache TTL is NOT a global rate limit — distributed cache misses fan out to the origin. Any retry/refresh loop against a rate-limited API must enforce the limit with a persistent interval guard, never a fixed short sleep.
+
+- **2026-05-29 — Session 44: CloudFront `catalog.tle` was found empty (1 byte) — the suspended worker overwrote the good catalog with zero satellites.** While the account was suspended the old 2h `refresh_loop` kept running; each cycle the `gp` query returned no usable data, `_parse_tle_text` → `[]`, and `_s3_put([])` wrote a 1-byte file. So deploying the new proxy alone could not restore the globe — the cache itself was corrupt and can only be repopulated after reinstatement (or a manual CelesTrak seed; CelesTrak was unreachable from the dev sandbox). Added a `VITE_MAINTENANCE` gate (`Maintenance.tsx`) as the interim, shown while the cache has no valid data. Rule: a cache-refresh job must never overwrite a good cache with an empty/failed fetch — treat an empty parse as a failure and keep the prior copy.
+
+- **2026-05-29 — Session 44: the maintenance gate first replaced the whole router — `/docs` also showed maintenance.** The initial `VITE_MAINTENANCE` gate rendered `<Maintenance/>` instead of the entire `<BrowserRouter>`, so every path (including `/docs`) showed the maintenance screen and the page's own "View API docs" link did nothing. Fix: gate only the `/` route (`element={MAINTENANCE ? <Maintenance/> : <App/>}`); the static API docs don't depend on the catalog and stay live. Rule: scope a maintenance gate to the routes that are actually broken, not the whole app.
+
+- **2026-05-29 — Session 44: Mycelium plugin removed; `main` reset to `daf1f74` (force-push).** A Mycelium MCP plugin was being tested in this repo (config in the gitignored `.claude/settings.json`, a `.mycelium/` SQLite field, `api/_mycelium.ts`, and a CLAUDE.md "Pheromone Field Protocol" section). The user wanted it gone before merging the fix. Removed: local `.mycelium/` + MCP config; commit `8496455` (field DB) dropped by resetting `main` to `daf1f74`; `efb1892` (`api/_mycelium.ts`) dropped by deleting the local-only `mycelium-runtime-hits` branch; the CLAUDE.md protocol section deleted via PR #1. Resetting to `daf1f74` (the user's chosen target) also dropped two V2 vision-pipeline doc commits — intentional, recoverable from reflog. The Space-Track fix PR was rebased onto the clean `daf1f74` so it carries no Mycelium ancestor; `main` + the PR branch were force-pushed (solo repo, no branch protection). Rule: an experimental plugin tested in a portfolio repo should live on its own branch and config scope so it can be excised without rewriting unrelated history.
 
 
 
@@ -253,7 +254,7 @@ When mickey opens a new conversation:
 
 1. He pastes this file's current contents (Claude Code auto-reads it).
 2. He says where we left off (or asks Claude to figure it out from "Active scope").
-3. For the full session context prompt for the next session, see `docs/session-43-bootstrap.md`.
+3. For the full session context prompt for the next session, see `docs/session-45-bootstrap.md`.
 
 This file is the contract. If something here is wrong or stale, fix the file before fixing the code.
 
@@ -278,11 +279,7 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 |------|-----------------|
 | `CLAUDE.md` | Master context: project goal, architecture, tech stack, active scope, decisions log. Update every session. |
 | `docs/v1-synopsis.md` | Compressed history of Sessions 1–38: what was built, key decisions, bugs fixed. |
-| `docs/session-39-bootstrap.md` | Session 39 bootstrap — V1 cleanup complete, V2 direction pending. |
-| `docs/session-40-bootstrap.md` | Session 40 bootstrap — security hardening. |
-| `docs/session-41-bootstrap.md` | Session 41 bootstrap — frontend/UX polish. |
-| `docs/session-42-bootstrap.md` | Session 42 bootstrap — post-S41 hotfixes (completed). |
-| `docs/session-43-bootstrap.md` | Session 43 bootstrap — V2 direction decision. |
-| `docs/decisions-archive.md` | Full ADR entries from Sessions 1–17. |
+| `docs/session-NN-bootstrap.md` *(local-only, gitignored)* | Per-session handoff for the next session. Current: `session-45-bootstrap.md` — Space-Track reinstatement recovery checklist. Recovery essentials are also mirrored in Active scope above so nothing is lost on a fresh clone. |
+| `docs/decisions-archive.md` | Full ADR entries from earlier sessions (Sessions 1–17 plus older entries moved here for budget). |
 | `CHANGELOG.md` | Engineering change log — significant problems, diagnosis, and fixes per session. |
 | `README.md` | Public-facing project overview. What it does, how to run it locally, deploy notes. |

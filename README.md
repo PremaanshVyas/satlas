@@ -72,7 +72,7 @@ The AI agent doesn't generate orbital math. It calls tools that do. Every user q
 | Frontend | TypeScript, React, Three.js, Tailwind, Vite | Live at satlas.app |
 | Agent | Anthropic Claude API (Haiku + Sonnet) with tool use | Live |
 | Orbital compute | Python FastAPI + skyfield (ECS Fargate) + satellite.js (browser worker) | Live — backend API at api.satlas.app |
-| Satellite catalog | S3 + CloudFront (TLE + satcat from Space-Track, refreshed by ECS) | Live |
+| Satellite catalog | S3 + CloudFront (TLE + satcat from Space-Track, refreshed hourly by a single ECS worker; all reads served from CloudFront) | Live |
 | CI/CD | GitHub Actions — lint + typecheck + vitest + pytest + Docker build + ECR push | Live |
 | Infra | Terraform: ECS Fargate, RDS PostgreSQL, S3+CloudFront, ALB, ACM, Route 53, ECR | Live |
 | Frontend hosting | Vercel — frontend + AI agent/pass/catalog functions | Live |
@@ -226,12 +226,12 @@ Then add `VITE_CHAT_URL=http://localhost:3000/api/chat` to `apps/web/.env.local`
 
 ```bash
 cd apps/web
-npx vitest run               # 166 frontend unit tests
+npx vitest run               # 169 frontend unit tests
 npx tsc -b --noEmit          # TypeScript type check
 npx eslint .                 # lint
 
 cd apps/orbital
-pytest                       # 93 Python unit tests
+pytest                       # 103 Python unit tests
 ```
 
 ---

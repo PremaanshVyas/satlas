@@ -4,6 +4,25 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 44] — Space-Track API compliance + maintenance mode (2026-05-29)
+
+### The incident
+Space-Track.org suspended the account for exceeding its `gp`-class limit of one query per hour. Two independent clients were over-querying:
+- **`api/catalog.ts`** logged into Space-Track and fetched the full catalog (~30k objects) on every Vercel edge-cache miss. A per-edge cache TTL is not a global rate limit — Vercel runs many edge regions, each re-fetching on miss, so real traffic produced far more than one query per hour.
+- **`apps/orbital` `refresh_loop`** retried the `gp` query every 30 seconds whenever a fetch failed (a restart/crash-loop storm), on top of a 2-hour steady cycle.
+
+### The fix
+- **`api/catalog.ts`** now proxies our own S3 → CloudFront `catalog.tle` and never contacts Space-Track. Vercel no longer holds Space-Track credentials.
+- **`apps/orbital/satellites.py`** is now the single Space-Track client: it seeds from S3 on boot (no query on restart), bootstraps the full catalog only when S3 is empty, then issues at most one `gp` query per hour at minute `:17` using Space-Track's recommended `CREATION_DATE` delta query (window widened to cover any missed cycle). A hard 60-minute interval guard makes a second query within the hour impossible even across restarts. `satcat` dropped to once per day.
+
+### Maintenance mode
+The suspended worker had overwritten CloudFront's `catalog.tle` with an empty file, so the globe couldn't load even after the fix. Added a `VITE_MAINTENANCE` flag that shows a maintenance screen on the globe route while keeping the API docs (`/docs`) live — for use until the account is reinstated and the catalog repopulates.
+
+### Rule
+Exactly one process may ever touch a rate-limited upstream; every other reader goes through our own cache. And a cache-refresh job must never overwrite a good cache with an empty/failed fetch.
+
+---
+
 ## [Session 38] — Search overhaul: token AND-logic, display names, partial-typing aliases (2026-05-27)
 
 ### What shipped
