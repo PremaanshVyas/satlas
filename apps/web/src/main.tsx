@@ -8,22 +8,19 @@ import App from './App.tsx'
 import ApiDocs from './pages/ApiDocs.tsx'
 import Maintenance from './components/Maintenance.tsx'
 
-// Set VITE_MAINTENANCE=1 in Vercel to take the whole site to a maintenance screen
-// (e.g. while the satellite catalog has no valid data to serve). Dormant by default.
+// Set VITE_MAINTENANCE=1 in Vercel to show a maintenance screen on the globe route
+// (e.g. while the satellite catalog has no valid data to serve). The static API docs
+// at /docs don't depend on the catalog, so they stay available. Dormant by default.
 const MAINTENANCE = import.meta.env.VITE_MAINTENANCE === '1'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {MAINTENANCE ? (
-      <Maintenance />
-    ) : (
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/docs" element={<ApiDocs />} />
-        </Routes>
-      </BrowserRouter>
-    )}
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={MAINTENANCE ? <Maintenance /> : <App />} />
+        <Route path="/docs" element={<ApiDocs />} />
+      </Routes>
+    </BrowserRouter>
     <Analytics />
     <SpeedInsights />
   </StrictMode>,
