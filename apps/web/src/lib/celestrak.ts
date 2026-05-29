@@ -5,7 +5,7 @@ export interface TLERecord {
   tle2: string
 }
 
-// v4: fresh key so browsers discard any stale pre-session-14 cache.
+// Bump this key whenever the cached shape changes so browsers discard stale data.
 const CACHE_KEY = 'satlas-catalog-v5'
 // Serve cached data immediately (stale-while-revalidate) for up to 24h.
 // Background refresh fires on every call regardless. Between 24h and 72h the data
@@ -127,10 +127,9 @@ export async function fetchSatelliteCatalog(): Promise<TLERecord[]> {
     return data
   } catch (err) {
     // Both sources failed. Fall back to any previous cache key we can find.
-    // CelesTrak enforces 1 download per IP per 2-hour update cycle (since Mar 2026).
-    // The v4 cache-key bump forced a fresh fetch for all users; if they'd already
-    // fetched the v3 data within the same 2h window from the same IP, CelesTrak
-    // returns 403 on the v4 fetch. Fall back to any previous cache key we can find.
+    // CelesTrak rate-limits to ~1 download per IP per 2-hour update cycle. A cache-key
+    // bump forces all users to re-fetch; if the same IP already fetched within that 2h
+    // window, CelesTrak may 403 the new fetch. Fall back to any previous cache key.
     const stale = loadCache()
     if (stale) return stale.data
     const legacy = loadAnyLegacyCache()

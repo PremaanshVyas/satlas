@@ -137,9 +137,10 @@ The AI agent doesn't generate orbital math. It calls tools that do. Every user q
 - [x] Public API with docs (satlas.app/docs) — 6 endpoints
 - [x] Custom domain + HTTPS on ALB (satlas.app / api.satlas.app)
 - [x] Satellite metadata from Space-Track (owner, launch date, launch site, decay status)
+- [x] Rate limiting + security hardening on all public API endpoints (60 req/min/IP, input validation, CSP/security headers)
+- [x] Space-Track API-compliance hardening — single hourly catalog client, durable per-class rate clocks
 
 ### V2 — next up
-- [ ] Rate limiting on public API
 - [ ] Conjunction analysis service
 - [ ] Alert subscriptions (email/SMS for ISS pass, debris near asset, etc.)
 - [ ] Vision pipeline integration — Sentinel-2 imagery on demand
@@ -231,7 +232,7 @@ npx tsc -b --noEmit          # TypeScript type check
 npx eslint .                 # lint
 
 cd apps/orbital
-pytest                       # 103 Python unit tests
+pytest                       # 113 Python unit tests
 ```
 
 ---

@@ -125,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // 2-min cache — catalog refreshes every 2h, no need to serve stale faster
+    // 2-min cache — the catalog refreshes hourly upstream, no need to serve stale faster
     res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300')
     res.status(200).json({
       total: results.length,
