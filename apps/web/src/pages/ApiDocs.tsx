@@ -270,7 +270,7 @@ export default function ApiDocs() {
             </div>
             <p className="font-mono text-[11px] font-light text-secondary mb-6 leading-relaxed">
               Full TLE (Two-Line Element) catalog in 3-line text format. Approximately 31,000+ objects — active
-              satellites, rocket bodies, and debris. Sourced from Space-Track.org and refreshed every 2 hours.
+              satellites, rocket bodies, and debris. Sourced from Space-Track.org and refreshed hourly.
               Served from Vercel Edge Cache; most requests resolve in under 100 ms globally.
             </p>
 
@@ -650,7 +650,7 @@ export default function ApiDocs() {
                 {
                   name: 'Space-Track.org',
                   detail: 'TLE catalog',
-                  desc: 'The authoritative source for all satellite tracking data, operated by US Space Command. Satlas fetches the full GP catalog (non-decayed objects, epoch within 90 days) every 2 hours and caches it on Vercel Edge. Data is subject to Space-Track.org redistribution terms.',
+                  desc: 'The authoritative source for all satellite tracking data, operated by US Space Command. A single Satlas worker seeds the full GP catalog once, then pulls an hourly delta of newly-published elements (and daily satellite metadata), caching everything on S3/CloudFront and Vercel Edge. Data is subject to Space-Track.org redistribution terms.',
                 },
                 {
                   name: 'SGP4 / skyfield',

@@ -4,6 +4,34 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Session 45] — Space-Track reinstated; full per-class compliance audit (2026-05-30)
+
+### Context
+Space-Track restored the account and asked us to comply with their published API usage policy. We read their [documentation](https://www.space-track.org/documentation) and audited our single client (`apps/orbital/satellites.py`) against every per-class rule before bringing the worker back.
+
+### Audit result
+- **Global throttle** (<30 requests/min, <300/hr): we issue one `gp`/hour + one `satcat`/day — orders of magnitude under.
+- **GP class** (1/hour, at an off-peak minute): already compliant — query at `:17` with a hard `GP_MIN_INTERVAL_SECONDS` interval guard. Unchanged.
+- **Comma-delimited multi-object lists:** N/A to us — we don't do per-object queries; we bulk-pull the whole `gp` class filtered by date, which is the more efficient pattern their guidance points at.
+- **Store the full catalog locally / don't re-download:** already done — S3 seed on boot, full pull only when S3 is empty.
+
+### Two things fixed in the `satcat` path
+Their SATCAT rule is *once per day, after 1700 UTC*. We were running a drifting 24-hour timer — the right frequency but the wrong time-of-day, and worse, the refresh clock (`_satcat_last_refresh`) lived only in process memory. That second point is the important one: a crash-looping worker would reset the clock to zero on every boot and re-query `satcat` each time — the exact restart-storm class of bug that got us suspended on `gp`, latent on the `satcat` endpoint.
+
+Fix:
+- `_satcat_due(now, last)` permits a query only when it is a new UTC day **and** the hour is ≥ `SATCAT_QUERY_HOUR_UTC` (17). A never-fetched satcat (`last <= 0`, i.e. no `satcat.json` in S3) is exempt so a genuine cold start still populates metadata immediately.
+- `refresh_loop` seeds `_satcat_last_refresh` from the S3 `LastModified` of `satcat.json` (`_satcat_last_modified_from_s3`, a `head_object`) so a restart inherits the day's clock instead of resetting it.
+
+`gp` was left untouched. Also corrected stale "refreshed every 2 hours" wording in the public API docs (`ApiDocs.tsx`) to reflect the hourly-delta design.
+
+### Verification
++7 orbital tests (`TestSatcatDue`, `TestSatcatLastModifiedFromS3`) → 110 orbital, 169 web, typecheck clean. `grep` across the repo confirms `satellites.py` is the only code that makes Space-Track network calls.
+
+### Rule
+A "once per day" limit means once per *calendar day at the vendor's stated hour*, not "≥24h since the last call." And every rate-limited endpoint's throttle clock must be persisted to durable storage (S3) and seeded on boot — never kept only in process memory, or a crash-loop silently reproduces the abuse. For query-shape experiments, use Space-Track's test server (`for-testing-only.space-track.org`), not the production account.
+
+---
+
 ## [Session 44] — Space-Track API compliance + maintenance mode (2026-05-29)
 
 ### The incident

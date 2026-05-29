@@ -348,6 +348,57 @@ class TestMaybeRefreshSatcat:
         fetch.assert_not_awaited()
 
 
+def _utc(year, month, day, hour=0):
+    return datetime.datetime(year, month, day, hour, tzinfo=datetime.timezone.utc).timestamp()
+
+
+class TestSatcatDue:
+    def test_bootstrap_is_due_regardless_of_hour(self):
+        # No satcat yet (last_refresh <= 0): a cold start may populate metadata immediately.
+        before_1700 = _utc(2026, 5, 30, 9)
+        assert satellites._satcat_due(before_1700, 0.0) is True
+
+    def test_not_due_before_1700_utc(self):
+        # Last refreshed a previous day, but it is not yet 1700 UTC today.
+        now = _utc(2026, 5, 30, 16)
+        last = _utc(2026, 5, 29, 17)
+        assert satellites._satcat_due(now, last) is False
+
+    def test_due_at_or_after_1700_utc_on_new_day(self):
+        now = _utc(2026, 5, 30, 17)
+        last = _utc(2026, 5, 29, 17)
+        assert satellites._satcat_due(now, last) is True
+
+    def test_not_due_twice_in_same_day(self):
+        # Already refreshed today after 1700 — must not fire again until tomorrow.
+        last = _utc(2026, 5, 30, 17)
+        later = _utc(2026, 5, 30, 22)
+        assert satellites._satcat_due(later, last) is False
+
+
+class TestSatcatLastModifiedFromS3:
+    def test_returns_zero_without_bucket(self):
+        with patch.dict('os.environ', {}, clear=True):
+            assert satellites._satcat_last_modified_from_s3() == 0.0
+
+    def test_returns_timestamp_when_present(self):
+        mock_s3 = MagicMock()
+        mock_s3.head_object.return_value = {
+            'LastModified': datetime.datetime(2026, 5, 29, tzinfo=datetime.timezone.utc),
+        }
+        with patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
+            ts = satellites._satcat_last_modified_from_s3()
+        assert ts > 0
+
+    def test_returns_zero_on_missing_object(self):
+        mock_s3 = MagicMock()
+        mock_s3.head_object.side_effect = Exception('NoSuchKey')
+        with patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
+            assert satellites._satcat_last_modified_from_s3() == 0.0
+
+
 # ── get_satellites (reads from cache only) ────────────────────────────────────
 
 class TestGetSatellites:
