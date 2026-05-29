@@ -110,9 +110,16 @@ satlas/
 
 ## Active scope (update this each session)
 
-**Current phase:** Session 42 complete. Post-S41 hotfixes applied. V2 direction decision pending.
+**Current phase:** Session 44 (INCIDENT) — Space-Track suspension remediation. Code fix complete; awaiting deploy + account reinstatement.
 
-**Next milestone:** Session 43 = V2 direction decision: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
+**Session 44 completed tasks (Space-Track compliance):**
+- [x] `api/catalog.ts` — rewritten to proxy CloudFront `catalog.tle`; no longer queries Space-Track (was fetching full `gp` catalog per Vercel edge-cache miss, fanning out across PoPs)
+- [x] `apps/orbital/satellites.py` — `refresh_loop` is now the single Space-Track client: seeds from S3 on boot, hourly `gp` delta at `:17` via `CREATION_DATE` query, hard once/hour guard (`_next_gp_slot`/`GP_MIN_INTERVAL_SECONDS`), 30s startup retry storm removed, `satcat` dropped to once/day
+- [x] `.env.example` — Vercel no longer holds Space-Track creds; documents CloudFront single-source + `CLOUDFRONT_CATALOG`/`VITE_CATALOG_URL`
+- [x] Tests: 103/103 orbital (was 93 — added merge/delta-window/gp-slot/S3-seed/satcat coverage), 166/166 web, API typecheck clean
+- [ ] **DEPLOY (mickey):** pull Space-Track creds from Vercel; redeploy ECS (auto on merge to `main` via `ecr-push`); set `VITE_CATALOG_URL` to CloudFront; reply to Space-Track with the mitigation plan + URLs/times
+
+**Next milestone:** Confirm account reinstated, verify CloudFront catalog stays fresh under the hourly delta, then resume Session 43 = V2 direction decision: (A) alert subscriptions, (B) conjunction analysis, (C) vision pipeline / bushfire scars, (D) vector RAG over space docs. (C) is the strongest portfolio differentiator; (A) is quickest to ship.
 
 **Session 42 completed tasks (post-S41 hotfixes):**
 - [x] `TimeControls.tsx` + `MobileControlsSheet.tsx` — removed toggle-to-pause from `handleSpeed`; clicking an active speed button kept pausing the simulation; ⏸ is the explicit pause control
@@ -135,58 +142,15 @@ satlas/
 - [x] `CountryPanel.tsx` — `active:scale-[0.98]` + `touch-manipulation` on all buttons
 - [x] `lucide-react` and `sonner` installed as dependencies
 
-**Session 40 completed tasks (security hardening):**
-- [x] Rate limiting added to all public API endpoints (`/api/overhead`, `/api/pass`, `/api/satellites`, `/api/satellite-info`) — 60 req/min/IP in-process, same pattern as `/api/chat`
-- [x] Chat history capped at 20 messages × 500 chars each to prevent token budget exhaustion
-- [x] Query length cap (200 chars) on `api/satellites.ts` `q` param and `api/satellite-info.ts` `query` param
-- [x] `api/pass.ts` input validation: lat/lon range check, hours_ahead clamped 1–168, norad_id validated as ≤6-digit numeric
-- [x] Error messages sanitized across all API endpoints — internal error strings no longer leak to callers
-- [x] XSS: `AgentPanel.tsx` anchor href sanitized — non-http/https schemes render as plain text, not clickable links
-- [x] Security headers added to `vercel.json`: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
-- [x] Stale `CATALOG_BASE` fallback (`getsatlas.vercel.app`) fixed in `api/overhead.ts` and `api/satellites.ts`
+**Session 40 (complete, stable) — security hardening:** rate limiting on all public API endpoints (60 req/min/IP); chat history capped (20×500); query-length caps; `api/pass.ts` input validation; error-message sanitization; `AgentPanel.tsx` href scheme sanitization; `vercel.json` security headers; stale `CATALOG_BASE` fallbacks fixed. Detail in the eight S40 ADRs below.
 
 **Sessions 1–20 (complete, stable):** See `docs/decisions-archive.md` (all ADRs through S30). Key phases: globe + ISS (S1-5), AI agent + tools (S6-10), CI/CD + search (S11-15), AWS infra (S16-19), PassPanel + satcat fix (S20).
 
-**Session 39 completed tasks (V1 cleanup):**
-- [x] NORAD integer comparison fixed in `api/satellite-info.ts` and `api/pass.ts` (string equality missed leading-zero IDs; same bug fixed in `api/chat.ts` in S37 but missed in the two public API files)
-- [x] Dead props `onSimulatedTime`/`onTimeReady` removed from `GlobeView` interface and effects
-- [x] `CATALOG_BASE` fallback updated from `getsatlas.vercel.app` → `satlas.app` in `api/chat.ts` and `api/pass.ts`
-- [x] Session bootstrap docs S10–S38 removed; replaced with `docs/v1-synopsis.md` compressed history
-- [x] `docs/superpowers/` plans and specs directories removed (historical, no longer needed)
-- [x] `.superpowers/brainstorm/` artifacts and `.DS_Store` files removed
-- [x] README test count updated (126 → 166); dead `docs/architecture.md` reference removed
-- [x] CHANGELOG session 38 entry added; CLAUDE.md docs map updated
+**Session 39 (complete, stable) — V1 cleanup:** NORAD integer comparison fixed in `api/satellite-info.ts` + `api/pass.ts`; dead `onSimulatedTime`/`onTimeReady` props removed; `CATALOG_BASE` fallback → `satlas.app`; bootstrap docs compressed to `docs/v1-synopsis.md`; superpowers/brainstorm artifacts removed. Detail in the S39 ADRs below.
 
-**Session 38 completed tasks (search overhaul):**
-- [x] `matchSatelliteQuery` hardened — token AND-logic (all tokens must match), delimiter normalization (strip spaces/hyphens/parens/dots/slashes on both sides), leading-zero NORAD prefix comparison; 166 tests passing
-- [x] ISS search bug fixed — `Globe.searchCatalog` checked ISS with raw `includes(q)` bypassing all token logic; extracted `matchesSatellite()` from `searchUtils.ts` so ISS uses the same code path as the main catalog
-- [x] `satelliteNames.ts` — `DISPLAY_NAMES` (HST → Hubble Space Telescope, JWST → James Webb Space Telescope); `getDisplayName()` applied at every render site (search dropdown, info card, hover tooltip, pass panel, country panel, satellite tray, chat prefill)
-- [x] Partial-typing aliases — `NORMALIZED_ALIASES` with token-level prefix matching replaces regex `PHRASE_ALIASES`; "hubbl" finds HST, "jam"/"james w" finds JWST, "tiango" finds Tiangong; joined-token path handles mid-phrase multi-word typing ("hubble sp")
-- [x] Slash normalization + category aliases — "/" added to normalize; "rb" finds R/B rocket bodies; "debris"/"debri" finds DEB entries; "rocket body"/"rocket" finds R/B entries
+**Session 38 (complete, stable) — search overhaul:** `matchSatelliteQuery` hardened (token AND-logic, delimiter normalization, leading-zero NORAD); ISS search path unified via `matchesSatellite()`; `satelliteNames.ts` display names + `NORMALIZED_ALIASES` prefix matching; slash normalization + debris/rocket-body category aliases. Detail in the five S38 ADRs below and `docs/session-*-bootstrap.md`.
 
-**Session 37 completed tasks:**
-- [x] Mobile touch hit-test fix — `TOUCH_MIN_RADIUS_PX = 18`; `_lastInputWasTouch` flag; nearest-screen-distance selection on touch; desktop path unchanged
-- [x] `MobileControlsSheet.tsx` — vaul `Drawer` behind `sm:hidden` hamburger; UTC clock, time transport, layer toggles, category pills; 13 tests
-- [x] `GlobeView.tsx` integration — desktop controls wrapped `hidden sm:block`/`hidden sm:flex`; mobile sheet alongside
-
-**Session 36 completed tasks:**
-- [x] Zoom-aware orbit controls — `rotateSpeed = 0.15 + sqrt(t)*0.35` (close→far), `zoomSpeed = 0.50 + t*0.50`; updated per-frame in `tick()` based on camera distance; fixes mobile scroll sensitivity
-- [x] Dynamic dot scaling — attempted and reverted; dense LEO constellation fills Earth at far zoom; scroll speed fix via OrbitControls is sufficient
-- [x] Gaussian glow — added and reverted in same session; flat uniform disc looks cleaner and avoids blur at far zoom
-- [x] Time controls merged into top-left UTC clock card — `TimeControls` accepts `clock?: string` prop; single widget replaces separate clock + speed bar; no overlap with other UI elements
-- [x] Satellite dot shader — flat `fwidth`-AA disc (gaussian glow reverted); uniform alpha across the entire circle
-- [x] Hit-test depth — replaced Euclidean `√(dx²+dy²+dz²)` with camera-space z-depth `-(me[2]*x+me[6]*y+me[10]*z+me[14])`; Euclidean > z-depth for off-centre satellites → hit radius was smaller than visual dot
-- [x] Hit-test scale — `satScales[i]` factored into `dotRadiusPx`; GPS/GEO/MEO satellites render at 1.5× but hit radius was using bare `SPHERE_RADIUS` → hover only registered in inner 67% of those dots
-
-**Session 35 completed tasks:**
-- [x] Time controls engine — `Globe.ts` simulated time accumulator (`_simTimeMs`, `_timeScale`); dt capped at 200ms; `lastFieldTickMs` uses real time so worker rate-limiting survives speed/direction changes; reset to 0 in `setTimeScale()` so satellites respond on the very next frame; `onSimulatedTime` callback fires once per simulated second
-- [x] `useGlobe` — exposes `simulatedTime`, `timeScale`, `setTimeScale`; callback ref pattern bubbles `setTimeScale` up to App.tsx
-- [x] `TimeControls.tsx` — compact transport card: 4 reverse + ⏸ + LIVE + 4 forward; toggle-to-pause on the active speed button; speed badge only (date row removed — redundant with UTC clock)
-- [x] `GlobeView.tsx` — `timeScale` destructured; speed badge (⏸ or Nx►/◄Nx) shown inline with UTC clock when not at 1×
-- [x] `App.tsx` — wires `setTimeScale` callback ref; renders TimeControls in the bottom-left cluster (desktop only); `simulatedTime` state removed
-- [x] `App.test.tsx` — stable `Date` reference captured in outer mock factory closure to prevent infinite render loop
-- [x] `api/chat.ts` — `get_satellite_info` tool now computes in-process via `fetchTle()` + satellite.js; ECS orbital service no longer on the critical path; `ORBITAL_SERVICE_URL` constant removed
-- [x] `api/satellite-info.ts` — rewritten to compute locally from CloudFront TLEs; same response shape as the old ECS proxy
+**Sessions 35–37 (complete, stable):** Time-controls engine + in-process `get_satellite_info` (S35); zoom-aware orbit controls, flat `fwidth`-AA dot shader, camera-space z-depth hit-test with `satScales` (S36); mobile touch hit-test + `MobileControlsSheet` vaul drawer (S37). Full task lists in `docs/session-*-bootstrap.md`; ADRs in `docs/decisions-archive.md`.
 
 **Sessions 31–34 (complete, stable):** Pass visibility scoring + shadow model (S34); billboard shader + fwidth AA + cyan dot colour (S33); Vercel Analytics/Speed Insights, API docs redesign, public overhead/satellites endpoints (S31); catalog error state, uBlock /api/tles alias (S32). See `docs/decisions-archive.md` and session bootstrap files for detail.
 
@@ -214,13 +178,9 @@ satlas/
 
 Format: date, decision, rationale, rule to remember.
 
-Sessions 1–36 decisions archived in `docs/decisions-archive.md`.
+Sessions 1–36 decisions archived in `docs/decisions-archive.md` (the three 2026-05-13 ADRs — presenter-not-calculator, no-tools-in-answer-turn, haiku-for-tool-detection — were moved there to keep this file under budget).
 
-- **2026-05-13 — Architectural rule: Claude is the presenter, never the calculator.** Claude must not compute, infer, or guess any data value shown to the user — not time, not timezone offsets, not satellite positions, not pass windows. Every value must come from a backend tool result or a pre-computed server-side value. If data is missing, say unavailable. Violation that prompted this rule: passed UTC time and let Claude infer the Melbourne offset → got AEST/AEDT wrong. Fix pattern: compute it server-side, hand Claude the answer to format.
-
-- **2026-05-13 — Globe camera highlight: never include tools in the streaming answer turn.** Second Claude call had `tools: TOOLS`. Haiku called `highlight_on_globe` in the streaming turn; the streaming loop only handles `text_delta` events, so the tool call was silently dropped. Fix: remove `tools` from the answer turn entirely. Rule: if the answer turn must produce text, pass no tools — force text output, not a tool call.
-
-- **2026-05-13 — Chatbot reliability: haiku for tool-detection, Vercel Hobby 10s hard cap.** `maxDuration: 60` is silently ignored on Hobby tier — 10s is the real limit. Sonnet tool-detection consumed 3–5s. Fix: `claude-haiku-4-5-20251001` for the tool-detection turn (~1s), Sonnet for streaming answer. Rule: use the fastest model capable of the task; tool-detection is routing, not reasoning. Always budget total latency (detect + execute + stream) against the hard platform limit.
+- **2026-05-29 — Session 44 (INCIDENT): Space-Track account suspended for exceeding the gp-class once-per-hour limit. Two redundant clients fixed; single hourly client established.** Root cause: (1) `api/catalog.ts` logged into Space-Track and pulled the full `gp` catalog (`EPOCH/>now-90`, ~30k) on every Vercel edge-cache miss — distributed across global PoPs, traffic-driven (the frontend's `celestrak.ts:117` fires a background refresh on every page load and four `api/*.ts` functions also proxy `/api/catalog`), and `VITE_CATALOG_URL` was unset so the frontend defaulted to it; (2) `apps/orbital/satellites.py refresh_loop` retried `gp` every 30s on startup failure (restart/crash-loop storm) plus a 2h steady cycle. Fix: `api/catalog.ts` now proxies the CloudFront `catalog.tle` (zero Space-Track load); the ECS orbital worker is the single Space-Track client — it seeds from S3 on boot (no query on restart), bootstraps the full catalog only when S3 is empty, then issues at most one `gp` query per hour at minute `:17` using the `CREATION_DATE/>now-{days}` delta (window widened to cover any missed cycle) merged into cache by NORAD id; a hard `GP_MIN_INTERVAL_SECONDS=3600` guard in `_next_gp_slot` makes a second `gp` query within the hour structurally impossible even across restarts; `satcat` class dropped to once/day. Vercel no longer holds Space-Track creds (`.env.example` updated). Tests: 103/103 orbital, 166/166 web, API typecheck clean. Rule: exactly one process may ever touch a rate-limited upstream; every other reader goes through our own cache (S3/CloudFront). A per-edge/per-instance cache TTL is NOT a global rate limit — distributed cache misses fan out to the origin. Any retry/refresh loop against a rate-limited API must enforce the limit with a persistent interval guard, never a fixed short sleep.
 
 
 
@@ -326,32 +286,3 @@ This file is the contract. If something here is wrong or stale, fix the file bef
 | `docs/decisions-archive.md` | Full ADR entries from Sessions 1–17. |
 | `CHANGELOG.md` | Engineering change log — significant problems, diagnosis, and fixes per session. |
 | `README.md` | Public-facing project overview. What it does, how to run it locally, deploy notes. |
-
----
-
-## Mycelium — Pheromone Field Protocol
-
-This repo has Mycelium installed (MCP server auto-starts with this session). The codebase is a pheromone field — every file carries signals about churn, complexity, coverage, and what past agents decided. Read the field before touching anything.
-
-**Session start — always, in this order:**
-
-```
-1. session_start(task, "claude-code")   → get session_id
-2. sessions_recent(3)                   → what past agents built and decided
-3. field_summary()                      → current repo health snapshot
-4. decisions_recent(20)                 → what was reasoned, what was rejected
-```
-
-**Before touching any file:** `field_read(path)` — see its danger_score, trust_score, churn.
-**Before modifying a file someone else touched:** `sessions_on_path(path)`.
-**When starting work on a file:** `session_mark(session_id, path, "working", reason, confidence)`.
-**Every significant choice:** `session_decide(session_id, decision, reason, path?, alternatives?, confidence)`.
-**When done with a file:** `session_mark(session_id, path, "completed" | "avoid", reason, confidence)`.
-
-**Session end — always:**
-
-```
-session_end(session_id, outcome, next_session_notes)
-```
-
-`next_session_notes` must include: what was completed, what was skipped and why, what is fragile, where to start next, constraints the next agent must not violate.

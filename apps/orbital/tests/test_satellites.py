@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import os
 import sys
 import time
@@ -193,7 +194,7 @@ class TestS3PutSatcat:
         mock_s3.put_object.assert_not_called()
 
 
-# ── _s3_refresh ────────────────────────────────────────────────────────────────
+# ── _refresh_catalog + compliant scheduling helpers ────────────────────────────
 
 SAMPLE_TLES = [
     {'name': 'ISS (ZARYA)', 'norad_id': '25544',
@@ -202,53 +203,149 @@ SAMPLE_TLES = [
 ]
 
 
-class TestS3Refresh:
+class TestRefreshCatalog:
     def setup_method(self):
         satellites._cache['tles'] = []
         satellites._cache['fetched_at'] = 0.0
+        satellites._last_gp_query_at = 0.0
 
-    def test_updates_in_memory_cache(self):
+    def test_bootstrap_uses_full_catalog_query(self):
         mock_s3 = MagicMock()
-        with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
-             patch('satellites._fetch_space_track_satcat', AsyncMock(return_value=SAMPLE_SATCAT_RAW)), \
+        fetch = AsyncMock(return_value=SAMPLE_TLES)
+        with patch('satellites._fetch_space_track_tles', fetch), \
              patch('satellites.boto3.client', return_value=mock_s3), \
              patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
-            asyncio.run(satellites._s3_refresh())
+            asyncio.run(satellites._refresh_catalog())
+        # Cold start (empty cache) must hit the full-catalog URL, not a delta.
+        fetch.assert_awaited_once_with(satellites.SPACETRACK_CATALOG_URL)
         assert satellites._cache['tles'] == SAMPLE_TLES
         assert satellites._cache['fetched_at'] > 0
+        assert satellites._last_gp_query_at > 0
+
+    def test_delta_query_merges_into_existing_cache(self):
+        satellites._cache['tles'] = [dict(SAMPLE_TLES[0])]
+        satellites._cache['fetched_at'] = time.time() - 3600
+        update = {'name': 'ISS (ZARYA)', 'norad_id': '25544',
+                  'tle1': '1 25544U NEW', 'tle2': '2 25544 NEW'}
+        new_sat = {'name': 'NEWSAT', 'norad_id': '99999',
+                   'tle1': '1 99999U', 'tle2': '2 99999'}
+        fetch = AsyncMock(return_value=[update, new_sat])
+        mock_s3 = MagicMock()
+        with patch('satellites._fetch_space_track_tles', fetch), \
+             patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
+            asyncio.run(satellites._refresh_catalog())
+        # A populated cache must use the CREATION_DATE delta query, not the full pull.
+        assert 'CREATION_DATE' in fetch.await_args.args[0]
+        by_id = {r['norad_id']: r for r in satellites._cache['tles']}
+        assert by_id['25544']['tle1'] == '1 25544U NEW'   # existing record updated
+        assert '99999' in by_id                            # new object added
 
     def test_writes_catalog_to_s3(self):
         mock_s3 = MagicMock()
         with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
-             patch('satellites._fetch_space_track_satcat', AsyncMock(return_value=SAMPLE_SATCAT_RAW)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
              patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
-            asyncio.run(satellites._s3_refresh())
+            asyncio.run(satellites._refresh_catalog())
         calls_by_key = {c.kwargs['Key']: c.kwargs for c in mock_s3.put_object.call_args_list}
         assert 'catalog.tle' in calls_by_key
         assert calls_by_key['catalog.tle']['Bucket'] == 'satlas-catalog'
         assert calls_by_key['catalog.tle']['ContentType'] == 'text/plain'
-        assert 'satcat.json' in calls_by_key
-
-    def test_s3_object_contains_tle_data(self):
-        mock_s3 = MagicMock()
-        with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
-             patch('satellites._fetch_space_track_satcat', AsyncMock(return_value=SAMPLE_SATCAT_RAW)), \
-             patch('satellites.boto3.client', return_value=mock_s3), \
-             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
-            asyncio.run(satellites._s3_refresh())
-        calls_by_key = {c.kwargs['Key']: c.kwargs for c in mock_s3.put_object.call_args_list}
         assert '25544' in calls_by_key['catalog.tle']['Body']
 
-    def test_skips_s3_write_without_bucket_env(self):
+
+class TestMergeTles:
+    def test_update_overwrites_and_adds(self):
+        existing = [{'norad_id': '00005', 'name': 'A', 'tle1': '1', 'tle2': '2'}]
+        updates = [{'norad_id': '00005', 'name': 'A2', 'tle1': '1b', 'tle2': '2b'},
+                   {'norad_id': '00010', 'name': 'B', 'tle1': '1', 'tle2': '2'}]
+        out = satellites._merge_tles(existing, updates)
+        by = {r['norad_id']: r for r in out}
+        assert by['00005']['name'] == 'A2'
+        assert by['00010']['name'] == 'B'
+        assert len(out) == 2
+
+    def test_sorted_by_norad_int(self):
+        existing = [{'norad_id': '00100', 'name': 'x', 'tle1': '1', 'tle2': '2'}]
+        updates = [{'norad_id': '00005', 'name': 'y', 'tle1': '1', 'tle2': '2'}]
+        out = satellites._merge_tles(existing, updates)
+        assert [r['norad_id'] for r in out] == ['00005', '00100']
+
+
+class TestDeltaWindowDays:
+    def test_floor_is_min_days(self):
+        assert satellites._delta_window_days(0) == satellites.DELTA_MIN_DAYS
+
+    def test_widens_to_cover_gap(self):
+        # A 6h outage must look back well beyond the 1h floor so no updates are missed.
+        assert satellites._delta_window_days(6 * 3600) > 0.25
+
+
+class TestNextGpSlot:
+    def test_picks_fixed_minute_and_is_in_future(self):
+        now = datetime.datetime(2026, 5, 29, 12, 0, 0, tzinfo=datetime.timezone.utc).timestamp()
+        nxt = satellites._next_gp_slot(now, 0.0)
+        slot = datetime.datetime.fromtimestamp(nxt, datetime.timezone.utc)
+        assert slot.minute == satellites.GP_QUERY_MINUTE
+        assert nxt > now
+
+    def test_enforces_min_interval_after_last_query(self):
+        now = datetime.datetime(2026, 5, 29, 12, 0, 0, tzinfo=datetime.timezone.utc).timestamp()
+        last = datetime.datetime(2026, 5, 29, 11, 50, 0, tzinfo=datetime.timezone.utc).timestamp()
+        nxt = satellites._next_gp_slot(now, last)
+        # 12:17 is only 27 min after 11:50 — must skip to 13:17 to stay >= 1h apart.
+        assert nxt - last >= satellites.GP_MIN_INTERVAL_SECONDS
+        assert datetime.datetime.fromtimestamp(nxt, datetime.timezone.utc).hour == 13
+
+
+class TestLoadCatalogFromS3:
+    def test_returns_empty_without_bucket(self):
+        with patch.dict('os.environ', {}, clear=True):
+            recs, ts = satellites._load_catalog_from_s3()
+        assert recs == [] and ts == 0.0
+
+    def test_parses_s3_body_and_timestamp(self):
+        body = MagicMock()
+        body.read.return_value = SPACETRACK_3LE.encode('utf-8')
         mock_s3 = MagicMock()
-        with patch('satellites._fetch_space_track_tles', AsyncMock(return_value=SAMPLE_TLES)), \
-             patch('satellites._fetch_space_track_satcat', AsyncMock(return_value=SAMPLE_SATCAT_RAW)), \
+        mock_s3.get_object.return_value = {
+            'Body': body,
+            'LastModified': datetime.datetime(2026, 5, 29, tzinfo=datetime.timezone.utc),
+        }
+        with patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
+            recs, ts = satellites._load_catalog_from_s3()
+        assert len(recs) == 2
+        assert ts > 0
+
+    def test_returns_empty_on_missing_object(self):
+        mock_s3 = MagicMock()
+        mock_s3.get_object.side_effect = Exception('NoSuchKey')
+        with patch('satellites.boto3.client', return_value=mock_s3), \
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
+            recs, ts = satellites._load_catalog_from_s3()
+        assert recs == [] and ts == 0.0
+
+
+class TestMaybeRefreshSatcat:
+    def setup_method(self):
+        satellites._satcat_last_refresh = 0.0
+
+    def test_refreshes_when_stale(self):
+        mock_s3 = MagicMock()
+        with patch('satellites._fetch_space_track_satcat', AsyncMock(return_value=SAMPLE_SATCAT_RAW)), \
              patch('satellites.boto3.client', return_value=mock_s3), \
-             patch.dict('os.environ', {}, clear=True):
-            asyncio.run(satellites._s3_refresh())
-        mock_s3.put_object.assert_not_called()
-        assert satellites._cache['tles'] == SAMPLE_TLES  # cache still updated
+             patch.dict('os.environ', {'CATALOG_BUCKET': 'satlas-catalog'}):
+            asyncio.run(satellites._maybe_refresh_satcat())
+        assert satellites._satcat_last_refresh > 0
+        mock_s3.put_object.assert_called_once()
+
+    def test_skips_when_fresh(self):
+        satellites._satcat_last_refresh = time.time()
+        fetch = AsyncMock()
+        with patch('satellites._fetch_space_track_satcat', fetch):
+            asyncio.run(satellites._maybe_refresh_satcat())
+        fetch.assert_not_awaited()
 
 
 # ── get_satellites (reads from cache only) ────────────────────────────────────
