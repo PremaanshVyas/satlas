@@ -4,6 +4,51 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Cache] localStorage quota silently pinned some browsers to a stale, smaller catalog (2026-08-20)
+
+### How it was found
+A user reported that satlas.app showed roughly 15,000 objects in Chrome on his laptop while Safari on the same laptop showed 35,000, and both browsers were correct on a different machine. Chrome incognito on the affected machine also showed the full count. Same machine, two browsers, different answers, which rules out network, CDN, geography and hardware and points squarely at per-browser storage.
+
+### Root cause
+The catalog is cached in `localStorage` under `satlas-catalog-v5`. Measured against the live catalog:
+
+| | |
+|---|---|
+| Records | 35,160 |
+| Serialised payload | 7,093,124 characters |
+| Cost as localStorage counts it (UTF-16) | 13.53 MB |
+| Per-origin quota | roughly 5 MB, 10 MB on some Chrome builds |
+
+So the full catalog cannot be written to `localStorage` in any browser. `saveCache()` threw `QuotaExceededError` on every call and a bare `catch {}` swallowed it. Working out what does fit: about 13,000 records at a 5 MB cap, about 26,000 at 10 MB. A browser that cached a roughly 15,000 object catalog at some point in the past therefore holds an entry that fits, while the 35,160 replacement never can. That entry can never be overwritten.
+
+Three separate defects combined to make it permanent:
+
+1. **The write always failed silently.** Every visitor re-downloaded the full 5.4 MB catalog on every page load, and the stale-while-revalidate design did nothing at all.
+2. **The expiry check was dead code.** Both branches returned `cached.data`, so `age` was computed and then ignored and a cache entry never expired. The 30 minute refresh interval just re-read the same stale copy.
+3. **Legacy key cleanup never ran.** It sat inside the `try`, after the `setItem` that always threw, so `satlas-catalog-v4` and the four `aussie-sky-catalog-*` keys were never purged and could resurface through `loadAnyLegacyCache()`.
+
+A fourth issue widened the blast radius: `fetchFresh()` falls back to CelesTrak `GROUP=active`, the operational subset of roughly 15,000 objects, and cached that result as if it were authoritative. One transient failure of the primary source was enough to seed exactly the stale small entry described above.
+
+### Fix
+- Check the payload size before writing instead of relying on a thrown quota error, so the failure is intentional and visible in the code rather than swallowed.
+- When the fresh catalog cannot be stored, evict whatever is currently cached. Anything still there is smaller and older and nothing will ever replace it, so serving it is strictly worse than fetching fresh. This is the change that un-sticks an affected browser, on the first load after deploy.
+- Honour `MAX_CACHE_AGE_MS` on read. A stale copy is now a fallback used only when the network fails, never the answer when a fresh fetch is available.
+- Purge legacy keys unconditionally, before the write rather than after it.
+- Never persist the degraded CelesTrak fallback, so a transient outage of the primary source cannot pin anyone to the smaller catalog.
+
+`satcat.ts` had the same exception-driven write against an 8.7 MB source and got the same size guard and eviction. It was lower severity because `loadCached` does honour its 24 hour TTL, so it could not strand a browser indefinitely.
+
+### Verification
+10 new tests covering expiry, eviction on oversize, eviction on rejected write, unconditional legacy purge, stale-on-network-failure, and non-persistence of the fallback, plus a first test file for `satcat.ts`. 185 web tests passing, ESLint, `tsc -b` and `vite build` clean.
+
+### Related finding, not fixed here
+CloudFront does not return `Access-Control-Allow-Origin`. `s3.tf` does configure CORS, but CloudFront is not forwarding the `Origin` header so the S3 rule never fires, and an `OPTIONS` preflight returns 403. That makes the `VITE_CATALOG_URL=https://...cloudfront.net/catalog.tle` line in `.env.example`, currently labelled "Recommended in production", actively dangerous. Setting it would break catalog loading for every visitor. Production has it unset. Left alone deliberately rather than folding an infrastructure change into a client-side fix.
+
+### Rule
+A cache entry you cannot replace is worse than no cache at all. Any write that can fail on size must check the size up front, and must evict what it failed to replace, otherwise the stale copy becomes permanent. Never swallow a storage exception without deciding what happens to the data already there.
+
+---
+
 ## [Issue #7] Background stars were mistaken for satellites — added a Stars toggle (2026-08-20)
 
 ### How it was found
