@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Stryker mutation testing — generated report + scratch dir
+reports/
+.stryker-tmp/
