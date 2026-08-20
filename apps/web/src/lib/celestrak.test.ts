@@ -1,9 +1,8 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fetchSatelliteCatalog, fetchIssTle, parseTleText } from './celestrak'
+import { fetchSatelliteCatalog, parseTleText } from './celestrak'
 import type { TLERecord } from './celestrak'
 
 const CATALOG_API_URL = '/api/tles'
-const ISS_URL         = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'
 const CACHE_KEY       = 'satlas-catalog-v5'
 
 function makeLocalStorageMock(initial: Record<string, string> = {}) {
@@ -269,32 +268,3 @@ describe('catalog cache lifecycle', () => {
   })
 })
 
-// ── fetchIssTle ──────────────────────────────────────────────────────────────
-
-describe('fetchIssTle', () => {
-  afterEach(() => vi.restoreAllMocks())
-
-  test('fetches ISS TLE directly from CelesTrak CATNR endpoint', async () => {
-    const issText = [
-      'ISS (ZARYA)',
-      '1 25544U 98067A   26133.54791667  .00016717  00000-0  10270-3 0  9993',
-      '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522',
-    ].join('\n')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve(issText),
-    }))
-
-    const result = await fetchIssTle()
-
-    expect(result.tle1).toMatch(/^1 25544/)
-    expect(result.tle2).toMatch(/^2 25544/)
-    expect(fetch).toHaveBeenCalledWith(ISS_URL, expect.objectContaining({ signal: expect.anything() }))
-  })
-
-  test('throws when CelesTrak returns non-ok status', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
-
-    await expect(fetchIssTle()).rejects.toThrow('503')
-  })
-})

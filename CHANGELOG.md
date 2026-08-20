@@ -4,6 +4,39 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Cleanup] The frontend was polling CelesTrak every 2 minutes for data it already had (2026-08-20)
+
+### How it was found
+Reading the production network log while verifying the CloudFront CORS fix showed a request returning 403 on every page load:
+
+```
+https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE  ->  403
+```
+
+### What it actually was
+Not a broken dependency to repair. A redundant one.
+
+Space-Track is this project's source of truth. `apps/orbital/satellites.py` is the sole Space-Track client, queries the `gp` class hourly, and writes `catalog.tle` to S3/CloudFront, which is what `/api/tles` serves. The ISS is in that catalog like every other object, and `Globe.initCatalog()` already pulls it out by NORAD id and applies it to both the mesh and `issSatrec`.
+
+So `fetchIssTle()` was fetching, from a third party, data the app had already downloaded, fresher and under our own control. It ran on mount and then on a `setInterval` every 2 minutes, for the lifetime of every open tab, and 403'd every time. A tab left open for an hour made 30 doomed cross-origin requests to a service we no longer depend on.
+
+The failure was invisible because `refreshIssTle` swallowed the error to keep the current TLE.
+
+Two smaller problems surfaced alongside it. The hardcoded bootstrap TLE in `Globe.ts` had epoch `24087`, which is 2024-03-27, roughly 2.4 years stale. SGP4 error grows quickly past a few weeks, so anything propagated from it is meaningless. It is only used for the second or two before the catalog arrives, but it is also the fallback if the catalog fetch fails outright, and in that case the ISS would have been drawn somewhere arbitrary.
+
+### Fix
+Deleted `fetchIssTle()`, `ISS_CATNR_URL`, `refreshIssTle()`, the `issTleInterval` field, its `setInterval`, and its `clearInterval`. The ISS now comes from the catalog like the other 35,159 objects, which it already did.
+
+Refreshed the bootstrap constants to the current element set (epoch 2026-08-19 12:48 UTC) and documented that they are bootstrap only and should be refreshed occasionally.
+
+### Still outstanding
+One CelesTrak reference remains: `ACTIVE_URL`, the `GROUP=active` fallback in `fetchFresh()`. It is a genuine last-resort path if our own catalog is unreachable, but it returns the operational subset only, roughly 15k against the full 35k, and given the CATNR endpoint now 403s it is unclear whether that fallback would even succeed from a browser. Left in place pending a decision, since removing a fallback changes resilience behaviour.
+
+### Rule
+Before debugging why a third-party call fails, check whether the call is needed at all. A silent catch around a redundant request hides both that it is failing and that it is pointless.
+
+---
+
 ## [Infra] CloudFront served CORS headers only by luck of which request warmed the cache (2026-08-20)
 
 ### How it was found

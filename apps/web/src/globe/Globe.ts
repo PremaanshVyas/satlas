@@ -10,7 +10,7 @@ import { SunMesh } from './SunMesh'
 import { SatelliteMesh } from './SatelliteMesh'
 import { SatelliteField, DEFAULT_COLOR as SAT_DEFAULT_COLOR } from './SatelliteField'
 import { getSunDirection } from '../lib/solar'
-import { fetchSatelliteCatalog, fetchIssTle } from '../lib/celestrak'
+import { fetchSatelliteCatalog } from '../lib/celestrak'
 import type { TLERecord } from '../lib/celestrak'
 import { fetchSatcat } from '../lib/satcat'
 import type { SatcatEntry } from '../lib/satcat'
@@ -96,8 +96,14 @@ const GROUP_HIGHLIGHT_COLORS: Record<string, THREE.Color> = {
   OTHER:    new THREE.Color(0xfbbf24),  // amber-400
 }
 
-const ISS_TLE1 = '1 25544U 98067A   24087.54791667  .00016717  00000-0  10270-3 0  9993'
-const ISS_TLE2 = '2 25544  51.6412 195.4700 0001944  67.8403 292.2940 15.50034440443522'
+// Bootstrap only. The ISS is in the Space-Track catalog like every other object, and
+// initCatalog() replaces this with the live element set as soon as the catalog arrives
+// (hourly refresh). These constants exist purely so the mesh has something to propagate
+// during the second or two before that, and if the catalog fetch fails outright.
+// Refresh them occasionally: SGP4 error grows quickly once a TLE is weeks old.
+// Epoch below: 2026-08-19 12:48 UTC.
+const ISS_TLE1 = '1 25544U 98067A   26231.53387315  .00011071  00000-0  20501-3 0  9990'
+const ISS_TLE2 = '2 25544  51.6332 346.5707 0007665  63.0282 297.1489 15.49512520581579'
 const ISS_NORAD = '25544'
 const FLY_DURATION_MS = 1500
 const CAMERA_DISTANCE = 3.5
@@ -170,7 +176,6 @@ export class Globe {
   private flyToPos: THREE.Vector3 | null = null
   private flyStartTime: number | null = null
   private catalogCount = 0
-  private issTleInterval: ReturnType<typeof setInterval> | null = null
   private satNames: string[] = []
   private satNoradIds: string[] = []
   private satTles: Array<{ tle1: string; tle2: string }> = []
@@ -313,8 +318,6 @@ export class Globe {
 
     this.tick()
     requestAnimationFrame(() => { if (this.mounted) onReady?.() })
-    void this.refreshIssTle()
-    this.issTleInterval = setInterval(() => void this.refreshIssTle(), 2 * 60 * 1000)
     void this.initCatalog()
     this.catalogRefreshInterval = setInterval(() => {
       void this.initCatalog()
@@ -340,17 +343,6 @@ export class Globe {
     })
   }
 
-  private async refreshIssTle(): Promise<void> {
-    try {
-      const { tle1, tle2 } = await fetchIssTle()
-      if (this.mounted) {
-        this.iss.updateTle(tle1, tle2)
-        this.issSatrec = satellite.twoline2satrec(tle1, tle2)
-      }
-    } catch {
-      // silent — ISS keeps its current TLE
-    }
-  }
 
   setStarsVisible(visible: boolean): void {
     this.stars.setVisible(visible)
@@ -1392,7 +1384,6 @@ export class Globe {
     this.mounted = false
     if (this.rafId !== null) cancelAnimationFrame(this.rafId)
     if (this.catalogRefreshInterval !== null) { clearInterval(this.catalogRefreshInterval); this.catalogRefreshInterval = null }
-    if (this.issTleInterval !== null) { clearInterval(this.issTleInterval); this.issTleInterval = null }
     if (this.clickCanvas !== null) {
       this.clickCanvas.removeEventListener('mousedown', this.onCanvasMouseDown)
       this.clickCanvas.removeEventListener('click', this.onCanvasClick)
