@@ -27,6 +27,14 @@ function makeTleText(count: number): string {
   return lines.join('\n')
 }
 
+// localStorage that accepts reads/removes but refuses every write, the way a browser
+// behaves once the payload exceeds the per-origin quota.
+function makeFullLocalStorageMock(initial: Record<string, string> = {}) {
+  const mock = makeLocalStorageMock(initial)
+  mock.setItem = vi.fn(() => { throw new DOMException('quota', 'QuotaExceededError') })
+  return mock
+}
+
 function makeRecords(count: number): TLERecord[] {
   return Array.from({ length: count }, (_, i) => ({
     name: `SAT-${i}`,
@@ -160,6 +168,104 @@ describe('fetchSatelliteCatalog', () => {
     await new Promise(r => setTimeout(r, 0))
 
     expect(fetch).toHaveBeenCalledWith(CATALOG_API_URL, expect.objectContaining({ signal: expect.anything() }))
+  })
+})
+
+// ── cache lifecycle ──────────────────────────────────────────────────────────
+
+describe('catalog cache lifecycle', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  test('does not serve an expired cache when the network succeeds', async () => {
+    // Regression: both branches of the age check returned cached.data, so an entry
+    // never expired. A browser holding a small old catalog was pinned to it forever.
+    const old = makeRecords(110)
+    vi.stubGlobal('localStorage', makeLocalStorageMock({
+      [CACHE_KEY]: JSON.stringify({ data: old, ts: Date.now() - 100 * 60 * 60 * 1000 }),
+    }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(makeTleText(400)),
+    }))
+
+    const result = await fetchSatelliteCatalog()
+
+    expect(result.length).toBe(400)
+  })
+
+  test('evicts a cache entry that the fresh catalog is too large to replace', async () => {
+    // The decisive fix: if we cannot store what we just fetched, whatever is still in
+    // localStorage is smaller and older and nothing will ever overwrite it. Drop it.
+    const store = makeLocalStorageMock({
+      [CACHE_KEY]: JSON.stringify({ data: makeRecords(110), ts: Date.now() }),
+    })
+    vi.stubGlobal('localStorage', store)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(makeTleText(12000)),
+    }))
+
+    await fetchSatelliteCatalog()
+    await new Promise(r => setTimeout(r, 0))
+
+    expect(store.removeItem).toHaveBeenCalledWith(CACHE_KEY)
+  })
+
+  test('evicts the cache entry when the write itself is rejected', async () => {
+    const store = makeFullLocalStorageMock()
+    vi.stubGlobal('localStorage', store)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(makeTleText(110)),
+    }))
+
+    await fetchSatelliteCatalog()
+
+    expect(store.removeItem).toHaveBeenCalledWith(CACHE_KEY)
+  })
+
+  test('purges legacy cache keys even when the catalog cannot be stored', async () => {
+    // Legacy cleanup used to sit after the setItem that throws, so it never ran and
+    // 10k-era entries could resurface through loadAnyLegacyCache().
+    const store = makeFullLocalStorageMock()
+    vi.stubGlobal('localStorage', store)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(makeTleText(110)),
+    }))
+
+    await fetchSatelliteCatalog()
+
+    expect(store.removeItem).toHaveBeenCalledWith('satlas-catalog-v4')
+    expect(store.removeItem).toHaveBeenCalledWith('aussie-sky-catalog-v1')
+  })
+
+  test('still serves an expired cache when the network fails', async () => {
+    const stale = makeRecords(110)
+    const store = makeLocalStorageMock({
+      [CACHE_KEY]: JSON.stringify({ data: stale, ts: Date.now() - 100 * 60 * 60 * 1000 }),
+    })
+    vi.stubGlobal('localStorage', store)
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+
+    const result = await fetchSatelliteCatalog()
+
+    expect(result).toEqual(stale)
+  })
+
+  test('does not persist the degraded CelesTrak fallback catalog', async () => {
+    // GROUP=active is the operational subset only. Caching it would pin a browser to a
+    // much smaller catalog after one transient failure of the primary source.
+    const store = makeLocalStorageMock()
+    vi.stubGlobal('localStorage', store)
+    vi.stubGlobal('fetch', vi.fn()
+      .mockRejectedValueOnce(new Error('primary blocked'))
+      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(makeTleText(150)) }))
+
+    const result = await fetchSatelliteCatalog()
+
+    expect(result.length).toBe(150)
+    expect(store.setItem).not.toHaveBeenCalled()
   })
 })
 

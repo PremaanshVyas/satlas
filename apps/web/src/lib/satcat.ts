@@ -11,6 +11,12 @@ const SATCAT_URL = `${_cfBase}/satcat.json`
 const SATCAT_CACHE_KEY = 'satlas-satcat-v6'
 const SATCAT_CACHE_TTL_MS = 24 * 60 * 60 * 1000  // 24 h
 
+// localStorage counts UTF-16 code units, so an N-character payload costs ~2N bytes against
+// a per-origin cap of roughly 5-10 MB. satcat.json is ~8.7 MB and does not fit, so the write
+// is checked up front rather than left to throw a QuotaExceededError we would swallow.
+// Mirrors MAX_CACHE_CHARS in celestrak.ts.
+const MAX_CACHE_CHARS = 2_000_000
+
 export interface SatcatEntry {
   noradId: string
   objectType: string   // PAY, R/B, DEB, UNK
@@ -140,10 +146,28 @@ function loadCached(): Map<string, SatcatEntry> | null {
   } catch { return null }
 }
 
-function saveToCache(map: Map<string, SatcatEntry>): void {
+function dropCache(): void {
   try {
-    localStorage.setItem(SATCAT_CACHE_KEY, JSON.stringify({ data: [...map], ts: Date.now() }))
-  } catch { /* quota or private browsing — not fatal */ }
+    localStorage.removeItem(SATCAT_CACHE_KEY)
+  } catch { /* storage unavailable — nothing to drop */ }
+}
+
+function saveToCache(map: Map<string, SatcatEntry>): void {
+  const payload = JSON.stringify({ data: [...map], ts: Date.now() })
+
+  if (payload.length > MAX_CACHE_CHARS) {
+    // We cannot persist what we just fetched, so any smaller entry still stored here can
+    // never be replaced by it. Evict rather than leave a copy we have no way to refresh.
+    dropCache()
+    return
+  }
+
+  try {
+    localStorage.setItem(SATCAT_CACHE_KEY, payload)
+  } catch {
+    // Quota, private browsing, or storage disabled — same reasoning as above.
+    dropCache()
+  }
 }
 
 let _memCache: Map<string, SatcatEntry> | null = null
