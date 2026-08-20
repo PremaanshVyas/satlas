@@ -352,6 +352,10 @@ export class Globe {
     }
   }
 
+  setStarsVisible(visible: boolean): void {
+    this.stars.setVisible(visible)
+  }
+
   setCloudVisibility(visible: boolean): void {
     this._userCloudsVisible = visible
     // In border/map mode clouds are always hidden; respect user preference otherwise

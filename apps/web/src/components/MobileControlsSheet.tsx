@@ -9,6 +9,8 @@ interface MobileControlsSheetProps {
   onSetScale: (scale: number) => void
   cloudsVisible: boolean
   onToggleClouds: () => void
+  starsVisible: boolean
+  onToggleStars: () => void
   bordersVisible: boolean
   onToggleBorders: () => Promise<void>
   activeCategories: Set<SatCategory>
@@ -55,6 +57,8 @@ export default function MobileControlsSheet({
   onSetScale,
   cloudsVisible,
   onToggleClouds,
+  starsVisible,
+  onToggleStars,
   bordersVisible,
   onToggleBorders,
   activeCategories,
@@ -160,6 +164,17 @@ export default function MobileControlsSheet({
                       <span className={`font-mono text-[11px] ${cloudsVisible ? 'text-secondary' : 'text-label'}`}>Clouds</span>
                       <div className={`relative w-7 h-4 rounded-full border overflow-hidden transition-colors ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
                         <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+                      </div>
+                    </button>
+
+                    <button
+                      title="Toggle stars"
+                      onClick={onToggleStars}
+                      className="w-full flex items-center justify-between px-3 py-3 rounded-[2px] border border-[rgba(255,255,255,0.07)] touch-manipulation active:scale-[0.98] transition-transform duration-75"
+                    >
+                      <span className={`font-mono text-[11px] ${starsVisible ? 'text-secondary' : 'text-label'}`}>Stars</span>
+                      <div className={`relative w-7 h-4 rounded-full border overflow-hidden transition-colors ${starsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+                        <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all duration-200 ${starsVisible ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
                       </div>
                     </button>
 

@@ -73,6 +73,12 @@ export class StarField {
     })
   }
 
+  /** Toggle the whole field. Every tier must flip together — a partially
+   *  hidden field still leaves the bright tier looking like satellites. */
+  setVisible(visible: boolean): void {
+    for (const tier of this.tiers) tier.visible = visible
+  }
+
   addToScene(scene: THREE.Scene): void {
     for (const tier of this.tiers) scene.add(tier)
   }

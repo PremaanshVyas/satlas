@@ -4,6 +4,27 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Issue #7] Background stars were mistaken for satellites — added a Stars toggle (2026-08-20)
+
+### How it was found
+Reported on GitHub by an external user ([#7](https://github.com/PremaanshVyas/satlas/issues/7)): *"It would be great to be able to change the background or at least hide the stars, it is easy to confuse the star with the satellite."*
+
+### Root cause
+Not a defect — a legibility problem. `StarField` renders ~49,300 points in three density tiers, and the brightest tier (300 points at `size: 0.20`, full opacity, white) is drawn at roughly the same on-screen size as a satellite dot. With no way to turn it off, a user scanning for a specific object has to distinguish "moving dot" from "stationary dot", which only works if you watch long enough. Clouds, debris, and borders all had visibility toggles; the starfield had none.
+
+### Fix
+`StarField.setVisible()` flips **all three tiers** together (hiding only the dense background tier would leave exactly the bright tier that causes the confusion), exposed through `Globe.setStarsVisible()` → `useGlobe` → a "Stars" toggle in the desktop toggle stack and in the mobile controls sheet. Wired identically to the existing Clouds toggle, including the same switch styling, so there is one pattern for layer visibility rather than two. Turning stars off leaves a plain black background, which also covers the "change the background" half of the request.
+
+Not persisted across reloads — matching Clouds and Borders, which are also session-only.
+
+### Verification
++6 web tests (`StarField.test.ts` covering all-tier show/hide; two `MobileControlsSheet` cases) → 175 web tests passing, ESLint clean, `tsc -b` clean, production build clean.
+
+### Rule
+A decorative layer that can be visually confused with a data layer needs an off switch. And when a visual element is built from multiple tiers/passes, its visibility control must cover every one of them — a partial hide leaves precisely the loudest part on screen.
+
+---
+
 ## [Session 45 — hotfix] Alpha-5 NORAD ids silently froze the hourly catalog delta (2026-05-30)
 
 ### How it was found

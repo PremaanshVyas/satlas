@@ -40,6 +40,7 @@ export function useGlobe(
   applySpotlight: (noradId: string | null) => void
   removeFromSelection: (noradId: string) => void
   setCloudVisibility: (visible: boolean) => void
+  setStarsVisible: (visible: boolean) => void
   searchCatalog: (query: string) => SearchResults
   selectCatalogSatellite: (noradId: string) => void
   setBordersVisible: (visible: boolean) => Promise<void>
@@ -135,6 +136,10 @@ export function useGlobe(
     globeRef.current?.setCloudVisibility(visible)
   }, [])
 
+  const setStarsVisible = useCallback((visible: boolean): void => {
+    globeRef.current?.setStarsVisible(visible)
+  }, [])
+
   const searchCatalog = useCallback((query: string): SearchResults => {
     return globeRef.current?.searchCatalog(query) ?? { results: [], total: 0 }
   }, [])
@@ -156,5 +161,5 @@ export function useGlobe(
     setTimeScaleState(scale)
   }, [])
 
-  return { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight, simulatedTime, timeScale, setTimeScale }
+  return { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, setStarsVisible, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight, simulatedTime, timeScale, setTimeScale }
 }
