@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Cloud, Layers, LayoutGrid, RefreshCw } from 'lucide-react'
+import { Cloud, Layers, LayoutGrid, RefreshCw, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { getDisplayName } from '../lib/satelliteNames'
 import { useGlobe } from '../hooks/useGlobe'
@@ -60,9 +60,10 @@ export default function GlobeView({
   const DEFAULT_CATEGORIES = new Set(ALL_CATEGORIES.filter(c => c !== 'DEBRIS'))
   const [activeCategories, setActiveCategoriesState] = useState<Set<SatCategory>>(DEFAULT_CATEGORIES)
   const [cloudsVisible, setCloudsVisible] = useState(true)
+  const [starsVisible, setStarsVisibleState] = useState(true)
   const [bordersVisible, setBordersVisibleState] = useState(false)
 
-  const { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight, simulatedTime, timeScale, setTimeScale } = useGlobe(
+  const { isLoading, satelliteCount, catalogError, hoverInfo, setActiveCategories, applyAgentFilter, applySpotlight, removeFromSelection, setCloudVisibility, setStarsVisible, searchCatalog, selectCatalogSatellite, setBordersVisible, clearCountryHighlight, simulatedTime, timeScale, setTimeScale } = useGlobe(
     containerRef,
     highlight,
     { onSatelliteClick: onSatelliteSelect, onSatelliteSelectInfo, onLivePosition, onSatelliteRemove, onCategoryCounts, onCountryClick },
@@ -133,6 +134,12 @@ export default function GlobeView({
     setCloudVisibility(next)
   }
 
+  function toggleStars() {
+    const next = !starsVisible
+    setStarsVisibleState(next)
+    setStarsVisible(next)
+  }
+
   async function toggleBorders() {
     const next = !bordersVisible
     setBordersVisibleState(next)
@@ -190,6 +197,8 @@ export default function GlobeView({
             onSetScale={setTimeScale}
             cloudsVisible={cloudsVisible}
             onToggleClouds={toggleClouds}
+            starsVisible={starsVisible}
+            onToggleStars={toggleStars}
             bordersVisible={bordersVisible}
             onToggleBorders={toggleBorders}
             activeCategories={activeCategories}
@@ -242,6 +251,18 @@ export default function GlobeView({
             <span className="hidden sm:inline">Clouds</span>
             <div className={`relative w-7 h-4 rounded-full border overflow-hidden transition-colors flex-shrink-0 ${cloudsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
               <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all duration-200 ${cloudsVisible ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
+            </div>
+          </button>
+
+          <button
+            onClick={toggleStars}
+            title={starsVisible ? 'Hide stars' : 'Show stars'}
+            className={toggleBtnBase}
+          >
+            <Sparkles size={13} className="flex-shrink-0" />
+            <span className="hidden sm:inline">Stars</span>
+            <div className={`relative w-7 h-4 rounded-full border overflow-hidden transition-colors flex-shrink-0 ${starsVisible ? 'bg-[rgba(0,212,255,0.12)] border-[rgba(0,212,255,0.35)]' : 'border-[rgba(255,255,255,0.1)]'}`}>
+              <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all duration-200 ${starsVisible ? 'left-[14px] bg-accent' : 'left-[2px] bg-[rgba(255,255,255,0.25)]'}`} />
             </div>
           </button>
 

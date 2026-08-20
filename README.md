@@ -14,7 +14,7 @@ Ask: _"Show all Starlink satellites"_ — it highlights every Starlink dot in vi
 Ask: _"How many GPS satellites are tracked?"_ — reads the live count from the globe, no tool call needed.  
 Ask: _"What satellites are overhead right now from Sydney?"_ — it queries the catalog and tells you.  
 Hover any dot for name + altitude. Click to select (multiple selections supported) — see the info card with live lat/lon/altitude/velocity, orbital parameters, and satellite metadata (owner, launch date, launch site). Hit "Ask AI" to query it.  
-Category filter pills toggle entire groups on/off. Cloud layer and Debris toggles in the top-right. Enable the Borders toggle to switch to map mode — country fills, graticule, and country name labels appear; click any country to see which satellites are overhead right now.  
+Category filter pills toggle entire groups on/off. Cloud layer, Stars, and Debris toggles in the top-right — turn Stars off if the background starfield makes it hard to pick satellites out. Enable the Borders toggle to switch to map mode — country fills, graticule, and country name labels appear; click any country to see which satellites are overhead right now.  
 Open the Pass Prediction panel from any satellite info card — enter or geolocate your position; see every visible pass in the next 24 hours with times, max elevation, and approach direction.  
 The agent remembers conversation context — follow-up questions work.  
 **API docs** at [satlas.app/docs](https://satlas.app/docs) — curl-ready examples for every endpoint.  
@@ -104,7 +104,7 @@ The AI agent doesn't generate orbital math. It calls tools that do. Every user q
 - [x] Text search — type to find any satellite by name or NORAD ID; keyboard-navigable results
 - [x] Hover tooltip — satellite name + altitude; hovered/selected satellites highlight lime green
 - [x] Category filter pills — Starlink / GPS / Iridium / Debris / Other with instant Uint8Array mask; debris off by default
-- [x] Cloud layer + Debris toggles — show/hide independently from the globe overlay
+- [x] Cloud layer + Stars + Debris toggles — show/hide independently from the globe overlay (all three also in the mobile controls sheet)
 - [x] Borders / map mode — dark navy fill, country borders, lat/lon graticule, country name labels; lazy GeoJSON fetch
 - [x] Country click → CountryPanel — shows all satellites overhead (>10° elevation) at that moment, tiered by elevation
 - [x] Search fly-to — selecting a satellite from search flies the camera directly to it

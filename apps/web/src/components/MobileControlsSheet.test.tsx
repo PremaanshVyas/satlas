@@ -10,6 +10,8 @@ function make(overrides: Partial<Parameters<typeof MobileControlsSheet>[0]> = {}
     onSetScale: vi.fn(),
     cloudsVisible: true,
     onToggleClouds: vi.fn(),
+    starsVisible: true,
+    onToggleStars: vi.fn(),
     bordersVisible: false,
     onToggleBorders: vi.fn().mockResolvedValue(undefined),
     activeCategories: new Set(ALL_CATEGORIES),
@@ -87,6 +89,21 @@ describe('MobileControlsSheet', () => {
     fireEvent.click(screen.getByTitle('Open controls'))
     fireEvent.click(await screen.findByTitle('Toggle clouds'))
     expect(onToggleClouds).toHaveBeenCalled()
+  })
+
+  it('clicking Stars calls onToggleStars', async () => {
+    const onToggleStars = vi.fn()
+    render(<MobileControlsSheet {...make({ onToggleStars })} />)
+    fireEvent.click(screen.getByTitle('Open controls'))
+    fireEvent.click(await screen.findByTitle('Toggle stars'))
+    expect(onToggleStars).toHaveBeenCalled()
+  })
+
+  it('Stars toggle reflects the off state', async () => {
+    render(<MobileControlsSheet {...make({ starsVisible: false })} />)
+    fireEvent.click(screen.getByTitle('Open controls'))
+    const label = await screen.findByText('Stars')
+    expect(label.className).toContain('text-label')
   })
 
   it('clicking Borders calls onToggleBorders', async () => {
