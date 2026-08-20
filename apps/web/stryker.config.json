@@ -1,0 +1,6 @@
+{
+  "testRunner": "vitest",
+  "mutate": ["src/hooks/useChat.ts"],
+  "reporters": ["clear-text", "html"],
+  "timeoutMS": 10000
+}
