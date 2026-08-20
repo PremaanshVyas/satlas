@@ -4,6 +4,50 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Infra] CloudFront served CORS headers only by luck of which request warmed the cache (2026-08-20)
+
+### How it was found
+While investigating the catalog cache bug, a probe against CloudFront showed no `Access-Control-Allow-Origin` on `catalog.tle`, which would mean a browser could not fetch it cross-origin. That looked like a simple missing configuration. It was not.
+
+### What the evidence actually showed
+Testing each object and method separately gave an inconsistent result from the same bucket:
+
+| Request | Access-Control-Allow-Origin |
+|---|---|
+| S3 direct, `satcat.json`, GET with Origin | present |
+| S3 direct, `satcat.json`, GET without Origin | absent |
+| S3 direct, `catalog.tle`, GET with Origin | present |
+| via CloudFront, `satcat.json`, GET with Origin | present |
+| via CloudFront, `catalog.tle`, GET with Origin | **absent** |
+
+S3 is behaving correctly. The bucket rule in `s3.tf` works and returns the header whenever an `Origin` is present. The inconsistency is introduced by CloudFront.
+
+Inspecting the live distribution (`EQGP3F01Y5N7W`) confirmed it matches the committed Terraform exactly, with no drift: no cache policy, no origin request policy, no response headers policy, and `ForwardedValues.Headers` of `Quantity: 0`.
+
+### Root cause
+CloudFront forwards the viewer's `Origin` header to the origin, but because `headers` is empty in the legacy `forwarded_values` block, `Origin` is not part of the cache key and no `Vary` is emitted. One cached variant therefore serves every viewer, and whichever request causes the cache MISS at a given edge decides whether that variant carries CORS headers at all.
+
+That is why the two objects differ. `catalog.tle` is rewritten hourly and its cache is re-warmed by the server-side Vercel proxy in `api/catalog.ts`, which sends no `Origin`, so the cached copy has no CORS headers. `satcat.json` happened to be warmed by a request that did send one.
+
+This is not cosmetic. `satcat.ts` fetches `satcat.json` from CloudFront cross-origin on every page load, so any edge whose cache is repopulated by a request without an `Origin` header will silently stop serving satellite metadata to every browser using that edge, until the cache rotates again. It is intermittent, region dependent, and invisible because `fetchSatcat` swallows the failure and returns an empty map.
+
+### Fix
+Attach the AWS managed `SimpleCORS` response headers policy to the default cache behaviour. A response headers policy is applied to every response, cache hit or miss, so the headers no longer depend on who warmed the cache. It sets `Access-Control-Allow-Origin: *`, matching the intent of the existing bucket rule (`allowed_origins = ["*"]`).
+
+Adding `Origin` to the cache key would also work but fragments the cache per requesting origin and still leaves a header-less variant for no-Origin requests, so the response headers policy is the better tool.
+
+Only simple GETs are made against this distribution, so no preflight is involved and `allowed_methods` does not need `OPTIONS`.
+
+`terraform plan` reports a single in-place attribute change: 0 to add, 1 to change, 0 to destroy.
+
+### Also corrected
+`.env.example` described `VITE_CATALOG_URL` pointing at CloudFront as "Recommended in production". With `catalog.tle` currently serving no CORS headers, setting it would have failed the catalog fetch in every browser and taken the globe down for all visitors. The guidance now states the precondition and includes the command to verify it.
+
+### Rule
+A CDN that forwards a request header without including it in the cache key will serve one arbitrary variant to everybody. If a response header depends on a request header, that request header must be in the cache key, or the response header must be added by the CDN itself. Test a CDN with the exact method and object the application uses, because HEAD, range requests, and different objects can each hit different cached variants and give different answers.
+
+---
+
 ## [Cache] localStorage quota silently pinned some browsers to a stale, smaller catalog (2026-08-20)
 
 ### How it was found
