@@ -69,6 +69,17 @@ OUT_DIR = os.environ.get('REFRESH_OUT_DIR', '.')
 # let a bad read become a bad write.
 MIN_PLAUSIBLE_RECORDS = 1000
 
+# The cron fires on a fixed minute, but the clock is stamped AFTER the query returns, so
+# consecutive scheduled runs are always slightly under an hour apart — 16:17:00 then a
+# marker at 16:17:30 makes the 17:17:00 run measure 3570s and skip. Without tolerance the
+# job would silently refresh every two hours instead of every hour, halving catalog
+# freshness while reporting success.
+#
+# This does not weaken the protection it exists for. Space-Track's concern is a process
+# re-querying in a tight loop; a manual trigger still has to wait ~55 minutes. It only
+# stops normal execution time from being mistaken for abuse.
+SCHEDULE_TOLERANCE_SECONDS = 300
+
 
 def log(msg: str) -> None:
     print(f'[refresh] {msg}', flush=True)
@@ -211,7 +222,7 @@ async def refresh_catalog() -> bool:
     last_query = _gp_clock()
     gap = max(time.time() - last_query, 0.0) if last_query else float('inf')
 
-    if gap < GP_MIN_INTERVAL_SECONDS:
+    if gap < GP_MIN_INTERVAL_SECONDS - SCHEDULE_TOLERANCE_SECONDS:
         log(
             f'last gp query was {gap / 60:.1f} min ago; the class allows one per hour '
             f'({GP_MIN_INTERVAL_SECONDS / 60:.0f} min) — skipping to stay compliant'

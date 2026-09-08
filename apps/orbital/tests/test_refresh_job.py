@@ -51,6 +51,34 @@ class TestGpIntervalGuard:
         assert wrote is False
         fetch.assert_not_called()
 
+    def test_a_scheduled_run_is_not_blocked_by_its_own_execution_time(self, tmp_path):
+        """The cron fires on a fixed minute but the clock is stamped after the query, so
+        consecutive scheduled runs sit just under an hour apart. Without tolerance the job
+        would refresh every two hours while still reporting success."""
+        just_under = time.time() - (GP_MIN_INTERVAL_SECONDS - 45)
+        with patch.object(refresh_job, '_read_blob', return_value=(_catalog_text(PLENTY), 0.0)), \
+             patch.object(refresh_job, '_gp_clock', return_value=just_under), \
+             patch.object(refresh_job, '_fetch_space_track_tles',
+                          new=AsyncMock(return_value=[])) as fetch, \
+             patch.object(refresh_job, '_stamp_gp_query'), \
+             patch.object(refresh_job, 'put_blob', return_value='https://x/catalog.tle'), \
+             patch.object(refresh_job, 'OUT_DIR', str(tmp_path)):
+            wrote = asyncio.run(refresh_job.refresh_catalog())
+
+        fetch.assert_called_once()
+        assert wrote is True
+
+    def test_tolerance_does_not_permit_a_rapid_retrigger(self, tmp_path):
+        """Tolerance absorbs execution time, not a manual re-run minutes later."""
+        with patch.object(refresh_job, '_read_blob', return_value=(_catalog_text(PLENTY), 0.0)), \
+             patch.object(refresh_job, '_gp_clock', return_value=time.time() - 600), \
+             patch.object(refresh_job, '_fetch_space_track_tles', new=AsyncMock()) as fetch, \
+             patch.object(refresh_job, 'OUT_DIR', str(tmp_path)):
+            wrote = asyncio.run(refresh_job.refresh_catalog())
+
+        assert wrote is False
+        fetch.assert_not_called()
+
     def test_queries_once_the_interval_has_elapsed(self, tmp_path):
         stale = time.time() - (GP_MIN_INTERVAL_SECONDS + 60)
         with patch.object(refresh_job, '_read_blob', return_value=(_catalog_text(PLENTY), stale)), \
