@@ -73,9 +73,12 @@ function computeVisibilityScore(sunElev: number, illuminated: boolean, maxElev: 
   return { score, label }
 }
 
+// Pass prediction now runs as a Vercel Python function alongside this one, using the same
+// skyfield code the ECS service ran. api.satlas.app died with the AWS account; a same-origin
+// call keeps the existing request/response contract intact so nothing downstream changed.
 const ORBITAL_SERVICE_URL =
   process.env.ORBITAL_SERVICE_URL ??
-  'https://api.satlas.app'
+  'https://satlas.app/api'
 
 const CATALOG_URL =
   process.env.CATALOG_BLOB_URL ?? 'https://bop9747v4vkycovg.public.blob.vercel-storage.com/catalog.tle'
