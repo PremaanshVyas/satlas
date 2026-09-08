@@ -18,7 +18,7 @@ Category filter pills toggle entire groups on/off. Cloud layer, Stars, and Debri
 Open the Pass Prediction panel from any satellite info card — enter or geolocate your position; see every visible pass in the next 24 hours with times, max elevation, and approach direction.  
 The agent remembers conversation context — follow-up questions work.  
 **API docs** at [satlas.app/docs](https://satlas.app/docs) — curl-ready examples for every endpoint.  
-**Status:** V1 live — custom domain (satlas.app), HTTPS on ALB, ECS Fargate + S3/CloudFront/RDS all deployed, pass prediction for any location, satellite metadata (owner/launch date/site) from Space-Track, public API docs.
+**Status:** V1 live — custom domain (satlas.app), pass prediction for any location, satellite metadata (owner/launch date/site) from Space-Track, public API docs. Runs entirely on Vercel and GitHub Actions at zero infrastructure cost.
 
 ---
 
@@ -71,18 +71,18 @@ The AI agent doesn't generate orbital math. It calls tools that do. Every user q
 |---|---|---|
 | Frontend | TypeScript, React, Three.js, Tailwind, Vite | Live at satlas.app |
 | Agent | Anthropic Claude API (Haiku + Sonnet) with tool use | Live |
-| Orbital compute | Python FastAPI + skyfield (ECS Fargate) + satellite.js (browser worker) | Live — backend API at api.satlas.app |
-| Satellite catalog | S3 + CloudFront (TLE + satcat from Space-Track, refreshed hourly by a single ECS worker; all reads served from CloudFront) | Live |
-| CI/CD | GitHub Actions — lint + typecheck + vitest + pytest + Docker build + ECR push | Live |
-| Infra | Terraform: ECS Fargate, RDS PostgreSQL, S3+CloudFront, ALB, ACM, Route 53, ECR | Live |
+| Orbital compute | Python + skyfield (Vercel Function) + satellite.js (browser worker) | Live |
+| Satellite catalog | Vercel Blob (TLE + satcat from Space-Track, refreshed hourly by a single scheduled job; all reads served from the Blob CDN) | Live |
+| CI/CD | GitHub Actions — lint + typecheck + vitest + pytest + Docker build | Live |
+| Infra | Vercel (hosting + functions + Blob), GitHub Actions (scheduled catalog refresh), Namecheap DNS | Live |
 | Frontend hosting | Vercel — frontend + AI agent/pass/catalog functions | Live |
-| Database | PostgreSQL 15 + pgvector + PostGIS (RDS) — schema migrated | Live |
+| Database | Not currently used — the app is stateless; migrations exist for a future vector/spatial store | Deferred |
 
 ---
 
 ## Data sources (all public)
 
-- **TLE catalogs** — Space-Track.org (free with registration) via ECS → S3 → CloudFront pipeline
+- **TLE catalogs** — Space-Track.org (free with registration) via a scheduled job → Vercel Blob pipeline
 - **Satellite imagery** — Sentinel-2 via [Sentinel Hub](https://www.sentinel-hub.com/) and Copernicus
 - **Space weather** — [NOAA SWPC](https://www.swpc.noaa.gov/)
 - **Ground station coordinates** — public ephemerides
@@ -121,7 +121,7 @@ The AI agent doesn't generate orbital math. It calls tools that do. Every user q
 - [x] Search dropdown always shows a catalog-name tip — some satellites appear under catalog IDs; try NORAD ID if a name search misses
 - [x] Developer notes panel — "i" button (bottom-right) opens a toggleable panel with notes from the developer; hides when chat is open
 - [x] Public API with docs at satlas.app/docs — 6 endpoints, curl-ready examples
-- [x] Custom domain satlas.app with HTTPS (ACM cert, ALB HTTPS listener, HTTP→HTTPS redirect)
+- [x] Custom domain satlas.app with HTTPS (managed certificate, HTTP→HTTPS redirect)
 
 ### V1 (complete)
 - [x] Project scaffolding, monorepo, CI/CD
@@ -132,10 +132,10 @@ The AI agent doesn't generate orbital math. It calls tools that do. Every user q
 - [x] Cloud layer, star field, dot sizing by type
 - [x] Borders / map mode — country fills, borders, graticule, labels; click country → overhead satellites panel
 - [x] Mobile-responsive layout (100dvh + safe-area insets)
-- [x] AWS infra deployed (ECS Fargate, RDS, S3+CloudFront, ALB, ECR, Route 53, ACM)
+- [x] AWS infra built and run in production (ECS Fargate, RDS, S3+CloudFront, ALB, ECR, Route 53, ACM) — since migrated to Vercel + GitHub Actions
 - [x] Pass predictor for any user location (exposed in UI)
 - [x] Public API with docs (satlas.app/docs) — 6 endpoints
-- [x] Custom domain + HTTPS on ALB (satlas.app / api.satlas.app)
+- [x] Custom domain + HTTPS (satlas.app), DNS at the registrar rather than the host
 - [x] Satellite metadata from Space-Track (owner, launch date, launch site, decay status)
 - [x] Rate limiting + security hardening on all public API endpoints (60 req/min/IP, input validation, CSP/security headers)
 - [x] Space-Track API-compliance hardening — single hourly catalog client, durable per-class rate clocks
@@ -204,7 +204,7 @@ cd apps/web
 npm run dev                  # Vite dev server → http://localhost:5173
 ```
 
-The globe loads immediately. Satellite data fetches from CloudFront in the browser — no backend needed to see the globe.
+The globe loads immediately. Satellite data is fetched from the catalog CDN in the browser — no backend needed to see the globe.
 
 ### Run the AI chat locally
 
