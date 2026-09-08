@@ -4,6 +4,50 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Migration] Off AWS entirely: catalog to Vercel Blob, pass prediction to a Python function (2026-09-09)
+
+### What happened
+The AWS account was suspended for an unpaid overage. That took S3, CloudFront, ECS and Route53 with it, and Route53 was the worst of the four: satlas.app stopped resolving at all, so the project did not look degraded, it looked deleted.
+
+### Order of recovery
+DNS first, because a dead domain is indistinguishable from a dead project and the fix is free. Nameservers moved from Route53 to Namecheap, which is independent of any hosting account. That is the structural lesson: DNS should never live in the same account as the thing that can be suspended.
+
+Then a maintenance screen, so the restored domain showed an honest message rather than a broken globe. Then the catalog. Then pass prediction.
+
+### Catalog
+S3 and CloudFront became a public Vercel Blob store; the always-on ECS worker became a GitHub Actions cron at `:17`. The payload is byte-identical, so the frontend parser and the public API are unchanged.
+
+`refresh_job.py` imports the delta window, the NORAD merge, alpha-5 handling and `_satcat_due` unchanged from `satellites.py`. That logic is the product of two incidents and a compliance audit, and rewriting it to change where bytes land would have been the wrong trade.
+
+### Three failures worth recording
+**The upload command needed credentials the token did not provide.** `vercel blob put --rw-token` still requires account-level auth and fails in CI. The local test passed only because the shell happened to be logged in, so it was never a faithful rehearsal. Publishing moved to the Blob HTTP API, which accepts the token alone.
+
+**An undefined GitHub Actions variable is an empty string, not unset.** `${{ vars.CATALOG_BLOB_BASE }}` expanded to `''`, so `os.environ.get(name, default)` never fell back and the base URL was blank. Every read failed, every run looked like a cold start, and cold start takes the full-pull path, which was exempt from the once-per-hour guard. An undefined variable would have quietly rebuilt the S44 query pattern out of spare parts.
+
+**The rate clock measured the wrong event.** It tracked the last successful publish rather than the last query. Those diverged the instant publishing failed: the query was spent, the store stayed empty, and a retry would have read "no catalog" and queried again minutes later. A storage failure must not refund a rate budget. A `.gp-last-query` marker is now written immediately after the fetch, before anything that can fail.
+
+### Pass prediction
+The last AWS dependency. Ported to a Vercel Python function running the same skyfield code, not a satellite.js reimplementation: `find_events` decides pass boundaries, and a different implementation shifts rise/set times by seconds and changes which marginal passes appear.
+
+It hung for over two minutes on first deploy, including on validation paths that do no propagation. The build was fine, so the candidates were the runtime, the routing, the handler pattern or skyfield. A dependency-free control function deployed alongside it answered that in one cycle: the control worked, so the fault was skyfield's initialisation. Importing a 57 MB numpy/skyfield bundle at module scope meant every cold start had to load it before the handler could reply. Made lazy, the endpoint answers in under 700 ms, and validation errors no longer pay for the import at all.
+
+The algorithm now exists twice, because Vercel bundles each function independently and cross-directory imports fail at runtime rather than at build. `test_pass_parity.py` loads both copies and asserts identical output across five sites and two window lengths, with the clock pinned in both since each calls `_ts.now()` internally.
+
+### Result
+| | Before | After |
+|---|---|---|
+| DNS | Route53 | Namecheap |
+| Catalog | S3 + CloudFront | Vercel Blob |
+| Refresh | ECS Fargate, always on | GitHub Actions, hourly |
+| Pass prediction | ECS + ALB | Vercel Python function |
+| Database | RDS | already unused |
+| Cost | overdue bill | $0 |
+
+### Rule
+Put DNS somewhere that cannot be suspended along with the servers. Test a deployment command in the environment that will run it, not in a shell that happens to be authenticated. Treat an undefined CI variable as an empty string. And when a serverless function hangs rather than errors, deploy a dependency-free control beside it instead of guessing which layer is at fault.
+
+---
+
 ## [Cleanup] The frontend was polling CelesTrak every 2 minutes for data it already had (2026-08-20)
 
 ### How it was found

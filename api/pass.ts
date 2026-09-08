@@ -78,7 +78,10 @@ function computeVisibilityScore(sunElev: number, illuminated: boolean, maxElev: 
 // call keeps the existing request/response contract intact so nothing downstream changed.
 const ORBITAL_SERVICE_URL =
   process.env.ORBITAL_SERVICE_URL ??
-  'https://satlas.app/api'
+  // VERCEL_URL is the current deployment, so a preview calls its own copy of the Python
+  // function rather than production's. Without this a preview silently exercises whatever
+  // is already live, which defeats the point of testing it before merge.
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api` : 'https://satlas.app/api')
 
 const CATALOG_URL =
   process.env.CATALOG_BLOB_URL ?? 'https://bop9747v4vkycovg.public.blob.vercel-storage.com/catalog.tle'
