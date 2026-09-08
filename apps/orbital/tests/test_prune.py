@@ -22,7 +22,12 @@ NOW = time.time()
 
 
 def _tle1(days_ago: float, norad: str = '25544') -> str:
-    """A TLE line 1 whose epoch is `days_ago` days before NOW."""
+    """A TLE line 1 whose epoch is `days_ago` days before NOW.
+
+    The NORAD field is zero-padded to five characters because TLE parsing is
+    column-positional: a short id shifts every later column and the epoch cannot be read.
+    """
+    norad = norad.zfill(5)
     dt = datetime.datetime.fromtimestamp(NOW, datetime.timezone.utc) - datetime.timedelta(days=days_ago)
     start = datetime.datetime(dt.year, 1, 1, tzinfo=datetime.timezone.utc)
     doy = (dt - start).total_seconds() / 86400.0 + 1
@@ -82,9 +87,9 @@ class TestFailureDirection:
         assert len(prune_stale_tles([bad], now=NOW)) == 1
 
     def test_one_bad_record_does_not_discard_the_rest(self):
-        records = [_rec(1, '1'), {'norad_id': '2', 'tle1': 'junk'}, _rec(500, '3')]
+        records = [_rec(1, '00001'), {'norad_id': '00002', 'tle1': 'junk'}, _rec(500, '00003')]
         kept = {r['norad_id'] for r in prune_stale_tles(records, now=NOW)}
-        assert kept == {'1', '2'}
+        assert kept == {'00001', '00002'}
 
     def test_empty_input_is_empty_output(self):
         assert prune_stale_tles([], now=NOW) == []

@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import importlib
 import os
 import time
@@ -11,11 +12,21 @@ from satellites import GP_MIN_INTERVAL_SECONDS
 
 
 def _catalog_text(count: int) -> str:
+    """A catalog with CURRENT epochs.
+
+    These fixtures previously used epoch 24001 (1 Jan 2024). Once prune_stale_tles landed,
+    every record was older than the 90-day window and was correctly deleted, dropping the
+    catalog below MIN_PLAUSIBLE_RECORDS so nothing was written. The fixture has to reflect
+    a live catalog, which is one where element sets are days old, not years.
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    doy = (now - datetime.datetime(now.year, 1, 1, tzinfo=datetime.timezone.utc)).total_seconds() / 86400.0 + 1
+    epoch = f'{now.year % 100:02d}{doy:012.8f}'
     lines = []
     for i in range(count):
         nid = str(i + 1).zfill(5)
         lines.append(f'SAT-{i}')
-        lines.append(f'1 {nid}U 20001A   24001.00000000  .00000000  00000-0  00000-0 0  9990')
+        lines.append(f'1 {nid}U 20001A   {epoch}  .00000000  00000-0  00000-0 0  9990')
         lines.append(f'2 {nid}  51.6000 000.0000 0001000  00.0000 000.0000 15.50000000000000')
     return '\n'.join(lines) + '\n'
 
