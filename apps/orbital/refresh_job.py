@@ -7,8 +7,13 @@ Only the storage target moved, from S3 to Vercel Blob.
 
 Why this is safer than the worker it replaces: the S44 suspension happened because a
 crash-looping process re-queried Space-Track on every boot, and the in-process clock reset
-to zero each time. A cron entry cannot do that. The scheduler is now the rate limiter, and
-one invocation issues at most one gp query and then exits.
+to zero each time. A cron entry cannot do that; one invocation issues at most one gp query
+and then exits.
+
+The schedule alone is not treated as sufficient, though. workflow_dispatch can fire at any
+time, so the once-per-hour gp interval is ALSO enforced here against the store's own
+Last-Modified. That is the S45 rule: a rate clock must live in durable storage, never in
+the scheduler and never in memory.
 
 The previous catalog is read back from the public Blob URL, and its Last-Modified header
 plays exactly the role S3's LastModified used to: it tells us how far back the delta window
@@ -32,6 +37,7 @@ import time
 import httpx
 
 from satellites import (
+    GP_MIN_INTERVAL_SECONDS,
     SPACETRACK_CATALOG_URL,
     SPACETRACK_DELTA_TEMPLATE,
     _delta_window_days,
@@ -139,6 +145,19 @@ async def refresh_catalog() -> bool:
         bootstrap = True
     else:
         gap = max(time.time() - last_modified, 0.0)
+
+        # The gp class allows one query per hour. The cron enforces that for scheduled
+        # runs, but workflow_dispatch can fire at any time, so the interval is also
+        # checked here against the store's own Last-Modified. That is the S45 rule: the
+        # rate clock must live in durable storage, never in the scheduler or in memory,
+        # or a manual trigger reproduces exactly the abuse that caused the suspension.
+        if gap < GP_MIN_INTERVAL_SECONDS:
+            log(
+                f'last catalog write was {gap / 60:.1f} min ago; gp allows one query per '
+                f'hour ({GP_MIN_INTERVAL_SECONDS / 60:.0f} min) — skipping to stay compliant'
+            )
+            return False
+
         days = _delta_window_days(gap)
         log(f'{len(existing)} records on hand, {gap / 3600:.2f}h old — delta window {days:.4f}d')
         url = SPACETRACK_DELTA_TEMPLATE.format(days=f'{days:.4f}')
