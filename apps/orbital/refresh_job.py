@@ -95,7 +95,9 @@ def _http_date_to_epoch(value: str | None) -> float:
 
 
 def _read_blob(pathname: str) -> tuple[str | None, float]:
-    """Fetch a public blob. Returns (text, last_modified_epoch), or (None, 0.0) if absent."""
+    """Fetch a public blob's CONTENT. The returned timestamp is advisory only — see
+    _blob_uploaded_at for why a CDN Last-Modified must never drive the rate clock.
+    A few minutes of CDN staleness in the body is harmless: the delta merges by NORAD id."""
     url = f'{BLOB_BASE}/{pathname}'
     try:
         resp = httpx.get(url, timeout=60, follow_redirects=True)
@@ -111,16 +113,39 @@ def _read_blob(pathname: str) -> tuple[str | None, float]:
     return resp.text, _http_date_to_epoch(resp.headers.get('last-modified'))
 
 
-def _blob_last_modified(pathname: str) -> float:
-    """Last-Modified epoch of a public blob, 0.0 if absent. Seeds the SATCAT day clock."""
-    url = f'{BLOB_BASE}/{pathname}'
+def _blob_uploaded_at(pathname: str) -> float:
+    """Authoritative write time from the Blob API. 0.0 if absent or unreadable.
+
+    Deliberately NOT the public URL's Last-Modified header. That is served from a regional
+    CDN cache, and on a cache fill in another region it reports the fill time rather than
+    the object's write time. The rate clock read it and every run concluded a query had
+    just happened, so the guard skipped indefinitely — the catalog would never have
+    refreshed again while every run reported success.
+
+    This endpoint is authenticated and not CDN-cached, so it returns the real upload time.
+    """
+    token = os.environ.get('BLOB_READ_WRITE_TOKEN')
+    if not token:
+        log(f'{pathname}: no blob token, cannot read the clock')
+        return 0.0
     try:
-        resp = httpx.head(url, timeout=30, follow_redirects=True)
-    except httpx.HTTPError:
+        resp = httpx.get(
+            BLOB_API,
+            params={'prefix': pathname, 'limit': 1},
+            headers={'authorization': f'Bearer {token}'},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        for blob in resp.json().get('blobs', []):
+            if blob.get('pathname') == pathname:
+                stamp = blob.get('uploadedAt', '')
+                return datetime.datetime.fromisoformat(
+                    stamp.replace('Z', '+00:00')
+                ).timestamp()
+    except Exception as exc:  # noqa: BLE001
+        log(f'{pathname}: could not read upload time ({exc.__class__.__name__})')
         return 0.0
-    if resp.status_code != 200:
-        return 0.0
-    return _http_date_to_epoch(resp.headers.get('last-modified'))
+    return 0.0
 
 
 def put_blob(pathname: str, body: bytes, content_type: str) -> str:
@@ -170,10 +195,10 @@ def _gp_clock() -> float:
     everything downstream fails. Falls back to the catalog's own timestamp for stores
     written before the marker existed.
     """
-    marker = _blob_last_modified(GP_MARKER)
+    marker = _blob_uploaded_at(GP_MARKER)
     if marker:
         return marker
-    return _blob_last_modified('catalog.tle')
+    return _blob_uploaded_at('catalog.tle')
 
 
 def _stamp_gp_query() -> None:
@@ -266,7 +291,7 @@ async def refresh_catalog() -> bool:
 async def refresh_satcat() -> bool:
     """SATCAT metadata, at most once per UTC day and only at/after 1700 UTC. Returns True
     if a file was written."""
-    last_refresh = _blob_last_modified('satcat.json')
+    last_refresh = _blob_uploaded_at('satcat.json')
     now = time.time()
     if not _satcat_due(now, last_refresh):
         when = (

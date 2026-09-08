@@ -146,6 +146,49 @@ class TestBadWriteGuard:
         assert not (tmp_path / 'catalog.tle').exists()
 
 
+class TestClockSource:
+    """The rate clock must come from the authenticated Blob API, never the public URL's
+    Last-Modified. That header is served from a regional CDN cache and was observed
+    reporting ~now on a cache fill, which made every run skip and would have frozen the
+    catalog permanently while reporting success."""
+
+    def test_reads_uploaded_at_from_the_api(self):
+        class _Resp:
+            def raise_for_status(self): pass
+            @staticmethod
+            def json():
+                return {'blobs': [{'pathname': '.gp-last-query',
+                                   'uploadedAt': '2026-09-08T14:49:49.000Z'}]}
+        with patch.dict(os.environ, {'BLOB_READ_WRITE_TOKEN': 't'}), \
+             patch.object(refresh_job.httpx, 'get', return_value=_Resp()) as g:
+            ts = refresh_job._blob_uploaded_at('.gp-last-query')
+        assert ts > 0
+        # must hit the authenticated API host, not the public CDN base
+        assert g.call_args[0][0] == refresh_job.BLOB_API
+
+    def test_ignores_a_non_matching_pathname(self):
+        class _Resp:
+            def raise_for_status(self): pass
+            @staticmethod
+            def json():
+                return {'blobs': [{'pathname': 'something-else', 'uploadedAt': '2026-09-08T14:49:49.000Z'}]}
+        with patch.dict(os.environ, {'BLOB_READ_WRITE_TOKEN': 't'}), \
+             patch.object(refresh_job.httpx, 'get', return_value=_Resp()):
+            assert refresh_job._blob_uploaded_at('.gp-last-query') == 0.0
+
+    def test_missing_token_yields_zero_not_a_false_recent_time(self):
+        """0.0 means 'unknown', which makes the gap infinite and permits a query. Returning
+        a recent-looking time instead would silently freeze refreshes."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('BLOB_READ_WRITE_TOKEN', None)
+            assert refresh_job._blob_uploaded_at('.gp-last-query') == 0.0
+
+    def test_api_failure_yields_zero(self):
+        with patch.dict(os.environ, {'BLOB_READ_WRITE_TOKEN': 't'}), \
+             patch.object(refresh_job.httpx, 'get', side_effect=RuntimeError('down')):
+            assert refresh_job._blob_uploaded_at('.gp-last-query') == 0.0
+
+
 class TestHttpDateParsing:
     def test_parses_an_http_date(self):
         ts = refresh_job._http_date_to_epoch('Wed, 19 Aug 2026 17:17:12 GMT')
