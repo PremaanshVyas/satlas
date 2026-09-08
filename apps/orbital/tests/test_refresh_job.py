@@ -135,28 +135,35 @@ class TestBlobBaseFallback:
     is exempt from the once-per-hour guard."""
 
     def _reload_with(self, value):
+        """Returns (base, default) captured DURING the reload.
+
+        importlib.reload mutates the module in place rather than returning a copy, so
+        handing back the module object and reading it after the cleanup reload would read
+        post-cleanup state — which silently made two of these assertions vacuous.
+        """
         if value is None:
             os.environ.pop('CATALOG_BLOB_BASE', None)
         else:
             os.environ['CATALOG_BLOB_BASE'] = value
         try:
-            return importlib.reload(refresh_job)
+            mod = importlib.reload(refresh_job)
+            return mod.BLOB_BASE, mod.DEFAULT_BLOB_BASE
         finally:
             os.environ.pop('CATALOG_BLOB_BASE', None)
             importlib.reload(refresh_job)
 
     def test_empty_string_falls_back_to_the_default(self):
-        mod = self._reload_with('')
-        assert mod.BLOB_BASE == mod.DEFAULT_BLOB_BASE
-        assert mod.BLOB_BASE.startswith('https://')
+        base, default = self._reload_with('')
+        assert base == default
+        assert base.startswith('https://')
 
     def test_unset_falls_back_to_the_default(self):
-        mod = self._reload_with(None)
-        assert mod.BLOB_BASE == mod.DEFAULT_BLOB_BASE
+        base, default = self._reload_with(None)
+        assert base == default
 
     def test_explicit_value_is_honoured_and_stripped(self):
-        mod = self._reload_with('https://example.test/')
-        assert mod.BLOB_BASE == 'https://example.test'
+        base, _ = self._reload_with('https://example.test/')
+        assert base == 'https://example.test'
 
 
 class TestPutBlob:
