@@ -37,6 +37,7 @@ import time
 import httpx
 
 from satellites import (
+    CATALOG_MAX_EPOCH_AGE_DAYS,
     GP_MIN_INTERVAL_SECONDS,
     SPACETRACK_CATALOG_URL,
     SPACETRACK_DELTA_TEMPLATE,
@@ -46,6 +47,7 @@ from satellites import (
     _merge_tles,
     _parse_tle_text,
     _satcat_due,
+    prune_stale_tles,
     _SATCAT_TYPE_MAP,
 )
 
@@ -271,6 +273,17 @@ async def refresh_catalog() -> bool:
     _stamp_gp_query()  # before anything that can fail — a query is spent either way
 
     merged = fetched if bootstrap else _merge_tles(existing, fetched)
+
+    # The merge only ever adds and updates, so a long-lived cache accumulates objects that
+    # have re-entered and are no longer published. Applying the same epoch window the
+    # bootstrap query uses keeps the catalog equal to what a fresh full pull would return.
+    # New launches are unaffected: they carry fresh epochs by definition.
+    before = len(merged)
+    merged = prune_stale_tles(merged)
+    dropped = before - len(merged)
+    if dropped:
+        log(f'pruned {dropped} element sets older than {CATALOG_MAX_EPOCH_AGE_DAYS}d '
+            f'({before} -> {len(merged)})')
 
     # Never overwrite a good catalog with a bad one. This is the S44 rule: an empty or
     # implausibly small result is a failed fetch, not a real catalog.

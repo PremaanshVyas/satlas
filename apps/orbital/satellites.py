@@ -185,6 +185,55 @@ def _s3_put_satcat(rows: list) -> None:
     )
 
 
+# Mirrors EPOCH/>now-90 in SPACETRACK_CATALOG_URL. The bootstrap query already applies this
+# server-side; applying the same window locally keeps a long-lived merged cache identical to
+# what a fresh bootstrap would return, instead of drifting upward forever.
+CATALOG_MAX_EPOCH_AGE_DAYS = 90
+
+
+def tle_epoch_datetime(tle1: str):
+    """Epoch from TLE line 1, columns 19-32 (YYDDD.DDDDDDDD). None if unparseable.
+
+    Two-digit year convention from the TLE spec: 57-99 means 19xx, 00-56 means 20xx.
+    """
+    try:
+        raw = tle1[18:32].strip()
+        yy = int(raw[:2])
+        doy = float(raw[2:])
+        year = 1900 + yy if yy >= 57 else 2000 + yy
+        return (
+            datetime.datetime(year, 1, 1, tzinfo=datetime.timezone.utc)
+            + datetime.timedelta(days=doy - 1)
+        )
+    except (ValueError, IndexError, OverflowError):
+        return None
+
+
+def prune_stale_tles(records: list, now: float = None,
+                     max_age_days: int = CATALOG_MAX_EPOCH_AGE_DAYS) -> list:
+    """Drop element sets older than the catalog window.
+
+    Why this is needed: _merge_tles only ever adds and updates, so a cache built from
+    hourly deltas grows monotonically. Decayed objects stop receiving new element sets but
+    were never removed, so the count inflated with things that had already re-entered.
+
+    Why it cannot drop new satellites: a recently launched object is actively tracked and
+    carries a fresh epoch. Only objects Space-Track has stopped publishing for age out.
+    There is no cap, no target size and no allow-list — the catalog is exactly as large as
+    the number of currently-tracked objects, and grows freely as launches happen.
+
+    An unparseable epoch is KEPT, not dropped: a parsing failure must never silently delete
+    real satellites (the alpha-5 lesson).
+    """
+    cutoff = (now if now is not None else time.time()) - max_age_days * 86400
+    kept = []
+    for r in records:
+        epoch = tle_epoch_datetime(r.get('tle1', ''))
+        if epoch is None or epoch.timestamp() >= cutoff:
+            kept.append(r)
+    return kept
+
+
 def _merge_tles(existing: list, updates: list) -> list:
     """Overlay delta updates onto the cached catalog, keyed by NORAD id, NORAD-sorted."""
     by_id = {r['norad_id']: r for r in existing}
