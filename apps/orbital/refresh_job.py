@@ -49,10 +49,18 @@ from satellites import (
     _SATCAT_TYPE_MAP,
 )
 
-BLOB_BASE = os.environ.get(
-    'CATALOG_BLOB_BASE',
-    'https://bop9747v4vkycovg.public.blob.vercel-storage.com',
-).rstrip('/')
+DEFAULT_BLOB_BASE = 'https://bop9747v4vkycovg.public.blob.vercel-storage.com'
+
+# `or`, not os.environ.get's default argument. A GitHub Actions `${{ vars.X }}` for an
+# undefined variable expands to an EMPTY STRING, not an unset var, so the default argument
+# never applies and the base URL silently became ''. That made every read fail, every run
+# look like a cold start, and every cold start take the full-pull path — which is exempt
+# from the once-per-hour guard. An unset variable would have quietly reinstated the exact
+# query pattern that got the account suspended.
+BLOB_BASE = (os.environ.get('CATALOG_BLOB_BASE') or DEFAULT_BLOB_BASE).rstrip('/')
+
+# Writes go to the API host, not the public read host.
+BLOB_API = 'https://blob.vercel-storage.com'
 
 OUT_DIR = os.environ.get('REFRESH_OUT_DIR', '.')
 
@@ -104,6 +112,68 @@ def _blob_last_modified(pathname: str) -> float:
     return _http_date_to_epoch(resp.headers.get('last-modified'))
 
 
+def put_blob(pathname: str, body: bytes, content_type: str) -> str:
+    """Publish a blob using the read-write token alone.
+
+    Deliberately not `vercel blob put`: the CLI needs account-level credentials on top of
+    --rw-token and fails in CI with "No existing credentials found". The HTTP API accepts
+    the token by itself, which is the credential actually scoped to this job.
+
+    x-add-random-suffix must be 0. The readers fetch a fixed URL, so a randomised pathname
+    would publish successfully and still leave the site empty.
+    """
+    token = os.environ.get('BLOB_READ_WRITE_TOKEN')
+    if not token:
+        raise RuntimeError('BLOB_READ_WRITE_TOKEN is not set — cannot publish')
+
+    resp = httpx.put(
+        f'{BLOB_API}/{pathname}',
+        headers={
+            'authorization': f'Bearer {token}',
+            'x-content-type': content_type,
+            'x-add-random-suffix': '0',
+            'x-cache-control-max-age': '7200',
+        },
+        content=body,
+        timeout=120,
+    )
+    resp.raise_for_status()
+    url = resp.json().get('url', '')
+    if not url.endswith(f'/{pathname}'):
+        raise RuntimeError(f'published to an unexpected pathname: {url}')
+    return url
+
+
+GP_MARKER = '.gp-last-query'
+
+
+def _gp_clock() -> float:
+    """When Space-Track was last QUERIED, not when we last published successfully.
+
+    These differ, and the difference bit us: the bootstrap run queried gp, then failed to
+    publish. The store stayed empty, so the next run would have read "no catalog", taken
+    the cold-start path (exempt from the interval guard) and queried again minutes later.
+    A publishing failure must not hand back a fresh rate budget.
+
+    The marker is written immediately after a successful fetch, so it advances even when
+    everything downstream fails. Falls back to the catalog's own timestamp for stores
+    written before the marker existed.
+    """
+    marker = _blob_last_modified(GP_MARKER)
+    if marker:
+        return marker
+    return _blob_last_modified('catalog.tle')
+
+
+def _stamp_gp_query() -> None:
+    """Advance the durable gp clock. Never fatal: failing to stamp must not discard a
+    catalog we already paid a query for."""
+    try:
+        put_blob(GP_MARKER, str(time.time()).encode(), 'text/plain')
+    except Exception as exc:  # noqa: BLE001
+        log(f'could not stamp the gp clock ({exc.__class__.__name__}) — continuing')
+
+
 def _write_catalog(records: list, path: str) -> None:
     lines = []
     for r in records:
@@ -134,8 +204,19 @@ def _condense_satcat(rows: list) -> list:
 async def refresh_catalog() -> bool:
     """One gp query: a full pull when the store is empty, otherwise an hourly delta merged
     into what is already there. Returns True if a catalog file was written."""
-    existing_text, last_modified = _read_blob('catalog.tle')
+    existing_text, _ = _read_blob('catalog.tle')
     existing = _parse_tle_text(existing_text) if existing_text else []
+
+    # The clock is the last QUERY, not the last successful publish.
+    last_query = _gp_clock()
+    gap = max(time.time() - last_query, 0.0) if last_query else float('inf')
+
+    if gap < GP_MIN_INTERVAL_SECONDS:
+        log(
+            f'last gp query was {gap / 60:.1f} min ago; the class allows one per hour '
+            f'({GP_MIN_INTERVAL_SECONDS / 60:.0f} min) — skipping to stay compliant'
+        )
+        return False
 
     if len(existing) < MIN_PLAUSIBLE_RECORDS:
         if existing:
@@ -144,20 +225,6 @@ async def refresh_catalog() -> bool:
         url = SPACETRACK_CATALOG_URL
         bootstrap = True
     else:
-        gap = max(time.time() - last_modified, 0.0)
-
-        # The gp class allows one query per hour. The cron enforces that for scheduled
-        # runs, but workflow_dispatch can fire at any time, so the interval is also
-        # checked here against the store's own Last-Modified. That is the S45 rule: the
-        # rate clock must live in durable storage, never in the scheduler or in memory,
-        # or a manual trigger reproduces exactly the abuse that caused the suspension.
-        if gap < GP_MIN_INTERVAL_SECONDS:
-            log(
-                f'last catalog write was {gap / 60:.1f} min ago; gp allows one query per '
-                f'hour ({GP_MIN_INTERVAL_SECONDS / 60:.0f} min) — skipping to stay compliant'
-            )
-            return False
-
         days = _delta_window_days(gap)
         log(f'{len(existing)} records on hand, {gap / 3600:.2f}h old — delta window {days:.4f}d')
         url = SPACETRACK_DELTA_TEMPLATE.format(days=f'{days:.4f}')
@@ -165,6 +232,7 @@ async def refresh_catalog() -> bool:
 
     fetched = await _fetch_space_track_tles(url)
     log(f'Space-Track returned {len(fetched)} records')
+    _stamp_gp_query()  # before anything that can fail — a query is spent either way
 
     merged = fetched if bootstrap else _merge_tles(existing, fetched)
 
@@ -177,6 +245,10 @@ async def refresh_catalog() -> bool:
     out = os.path.join(OUT_DIR, 'catalog.tle')
     _write_catalog(merged, out)
     log(f'wrote {out}: {len(merged)} records')
+
+    with open(out, 'rb') as f:
+        url = put_blob('catalog.tle', f.read(), 'text/plain; charset=utf-8')
+    log(f'published {url}')
     return True
 
 
@@ -203,6 +275,10 @@ async def refresh_satcat() -> bool:
     with open(out, 'w', encoding='utf-8') as f:
         json.dump(condensed, f, separators=(',', ':'))
     log(f'wrote {out}: {len(condensed)} rows')
+
+    with open(out, 'rb') as f:
+        url = put_blob('satcat.json', f.read(), 'application/json')
+    log(f'published {url}')
     return True
 
 

@@ -44,36 +44,23 @@ jobs:
         env:
           SPACETRACK_USER: ${{ secrets.SPACETRACK_USER }}
           SPACETRACK_PASS: ${{ secrets.SPACETRACK_PASS }}
-          CATALOG_BLOB_BASE: ${{ vars.CATALOG_BLOB_BASE }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          # CATALOG_BLOB_BASE is deliberately NOT set from `vars`. An undefined
+          # `${{ vars.X }}` expands to an empty string rather than staying unset, which
+          # silently blanked the base URL and made every run look like a cold start.
         run: python refresh_job.py
 
-      # Do NOT pass --add-random-suffix. The flag turns the behaviour ON whenever it is
-      # present, whatever value follows it (`false` and `=false` both add a suffix).
-      # Omitting it is the only way to get the stable pathname the readers depend on.
-      - name: Upload catalog.tle
-        if: steps.refresh.outputs.catalog_written == 'true'
-        working-directory: apps/orbital
-        env:
-          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-        run: |
-          npx --yes vercel@latest blob put catalog.tle \
-            --access public \
-            --pathname catalog.tle \
-            --allow-overwrite true \
-            --cache-control-max-age 7200 \
-            --content-type "text/plain; charset=utf-8" \
-            --rw-token "$BLOB_READ_WRITE_TOKEN"
+      # Keep the fetched data even if publishing fails. A gp query costs an hour of the
+      # rate budget, so losing it to a storage error means waiting an hour to retry.
+      - name: Preserve fetched data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-${{ github.run_id }}
+          path: |
+            apps/orbital/catalog.tle
+            apps/orbital/satcat.json
+          if-no-files-found: ignore
+          retention-days: 7
 
-      - name: Upload satcat.json
-        if: steps.refresh.outputs.satcat_written == 'true'
-        working-directory: apps/orbital
-        env:
-          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-        run: |
-          npx --yes vercel@latest blob put satcat.json \
-            --access public \
-            --pathname satcat.json \
-            --allow-overwrite true \
-            --cache-control-max-age 7200 \
-            --content-type "application/json" \
-            --rw-token "$BLOB_READ_WRITE_TOKEN"
+
