@@ -47,6 +47,9 @@ jobs:
           CATALOG_BLOB_BASE: ${{ vars.CATALOG_BLOB_BASE }}
         run: python refresh_job.py
 
+      # Do NOT pass --add-random-suffix. The flag turns the behaviour ON whenever it is
+      # present, whatever value follows it (`false` and `=false` both add a suffix).
+      # Omitting it is the only way to get the stable pathname the readers depend on.
       - name: Upload catalog.tle
         if: steps.refresh.outputs.catalog_written == 'true'
         working-directory: apps/orbital
@@ -57,7 +60,6 @@ jobs:
             --access public \
             --pathname catalog.tle \
             --allow-overwrite true \
-            --add-random-suffix false \
             --cache-control-max-age 7200 \
             --content-type "text/plain; charset=utf-8" \
             --rw-token "$BLOB_READ_WRITE_TOKEN"
@@ -72,7 +74,6 @@ jobs:
             --access public \
             --pathname satcat.json \
             --allow-overwrite true \
-            --add-random-suffix false \
             --cache-control-max-age 7200 \
             --content-type "application/json" \
             --rw-token "$BLOB_READ_WRITE_TOKEN"
