@@ -46,9 +46,22 @@ SITES = [
 ]
 
 
+def _timescale(module):
+    """The two copies hold their timescale differently.
+
+    apps/orbital/passes.py builds it at module scope; the Vercel function defers it into a
+    lazy cache so a 57 MB skyfield/numpy import is not paid on every cold start, including
+    requests rejected by validation. Resolve whichever shape this module uses.
+    """
+    if hasattr(module, '_ts'):
+        return module._ts
+    return module._skyfield()['ts']
+
+
 def _pin_now(module, monkeypatch):
-    fixed = module._ts.utc(2026, 9, 9, 12, 0, 0)
-    monkeypatch.setattr(module._ts, 'now', lambda: fixed)
+    ts = _timescale(module)
+    fixed = ts.utc(2026, 9, 9, 12, 0, 0)
+    monkeypatch.setattr(ts, 'now', lambda: fixed)
 
 
 @pytest.mark.parametrize('lat,lon', SITES)
