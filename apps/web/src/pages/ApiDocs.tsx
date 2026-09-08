@@ -246,17 +246,13 @@ export default function ApiDocs() {
                 <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-label w-32 flex-shrink-0">Vercel Edge</span>
                 <code className="font-mono text-[11px] text-secondary">{BASE}</code>
               </div>
-              <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-                <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-label w-32 flex-shrink-0">Orbital Service</span>
-                <code className="font-mono text-[11px] text-secondary">https://api.satlas.app</code>
-              </div>
             </div>
 
             <p className="font-mono text-[10px] font-light text-label leading-relaxed">
               All <code className="text-secondary">/api/*</code> routes are served from the Vercel Edge Network —
-              catalog responses are globally cached and served in under 100 ms. The orbital service at{' '}
-              <code className="text-secondary">api.satlas.app</code> runs on AWS ECS Fargate (us-east-1)
-              and handles real-time propagation and pass prediction.
+              catalog responses are globally cached and served in under 100 ms. Pass prediction runs as a
+                Python function on the same edge, propagating with{' '}
+                <code className="text-secondary">skyfield</code>.
             </p>
           </section>
 
@@ -650,7 +646,7 @@ export default function ApiDocs() {
                 {
                   name: 'Space-Track.org',
                   detail: 'TLE catalog',
-                  desc: 'The authoritative source for all satellite tracking data, operated by US Space Command. A single Satlas worker seeds the full GP catalog once, then pulls an hourly delta of newly-published elements (and daily satellite metadata), caching everything on S3/CloudFront and Vercel Edge. Data is subject to Space-Track.org redistribution terms.',
+                  desc: 'The authoritative source for all satellite tracking data, operated by US Space Command. A single scheduled Satlas job seeds the full GP catalog once, then pulls an hourly delta of newly-published elements (and daily satellite metadata), caching everything on Vercel Blob and Vercel Edge. Data is subject to Space-Track.org redistribution terms.',
                 },
                 {
                   name: 'SGP4 / skyfield',
@@ -663,9 +659,9 @@ export default function ApiDocs() {
                   desc: 'The /api/catalog endpoint is cached at the edge with s-maxage=7200. Most requests are served by the nearest edge node in under 100 ms worldwide. The stale-while-revalidate=86400 header means the cache is always warm.',
                 },
                 {
-                  name: 'AWS ECS Fargate',
-                  detail: 'Orbital service',
-                  desc: 'The api.satlas.app orbital service runs on ECS Fargate in us-east-1. It maintains an in-memory TLE cache refreshed from the CloudFront distribution, handles SGP4 propagation, and serves pass predictions via FastAPI.',
+                  name: 'Vercel Functions',
+                  detail: 'Orbital compute',
+                  desc: 'Pass prediction runs as a Python function using skyfield, alongside the TypeScript functions that serve the catalog, overhead lookups and satellite metadata. TLEs are resolved from the Vercel Blob catalog before propagation, so the compute layer holds no state of its own.',
                 },
                 {
                   name: 'Claude (Anthropic)',

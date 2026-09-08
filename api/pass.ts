@@ -73,9 +73,15 @@ function computeVisibilityScore(sunElev: number, illuminated: boolean, maxElev: 
   return { score, label }
 }
 
+// Pass prediction now runs as a Vercel Python function alongside this one, using the same
+// skyfield code the ECS service ran. api.satlas.app died with the AWS account; a same-origin
+// call keeps the existing request/response contract intact so nothing downstream changed.
 const ORBITAL_SERVICE_URL =
   process.env.ORBITAL_SERVICE_URL ??
-  'https://api.satlas.app'
+  // VERCEL_URL is the current deployment, so a preview calls its own copy of the Python
+  // function rather than production's. Without this a preview silently exercises whatever
+  // is already live, which defeats the point of testing it before merge.
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api` : 'https://satlas.app/api')
 
 const CATALOG_URL =
   process.env.CATALOG_BLOB_URL ?? 'https://bop9747v4vkycovg.public.blob.vercel-storage.com/catalog.tle'
