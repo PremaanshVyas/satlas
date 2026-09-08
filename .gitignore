@@ -33,3 +33,4 @@ docs/superpowers/
 .terraform/
 *.tfstate
 *.tfstate.backup
+.vercel

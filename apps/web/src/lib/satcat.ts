@@ -2,10 +2,11 @@
 // Fetched once per session and cached in localStorage.
 // All data is optional — if the fetch fails, the info card still shows TLE-derived params.
 
-// Derive satcat URL from the same CloudFront bucket that serves catalog.tle.
-// Falls back to the known CloudFront origin when VITE_CATALOG_URL is not set (e.g. Vercel without the env var).
+// Derive the satcat URL from the same store that serves catalog.tle.
+// Falls back to the known Vercel Blob origin when VITE_CATALOG_URL is not set.
+// (Was CloudFront until the AWS account was suspended; only the storage moved.)
 const _cfBase = (import.meta.env.VITE_CATALOG_URL as string | undefined)?.replace('/catalog.tle', '')
-  ?? 'https://dgsll6twimcwl.cloudfront.net'
+  ?? 'https://bop9747v4vkycovg.public.blob.vercel-storage.com'
 const SATCAT_URL = `${_cfBase}/satcat.json`
 
 const SATCAT_CACHE_KEY = 'satlas-satcat-v6'

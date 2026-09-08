@@ -3,7 +3,7 @@ import * as satellite from 'satellite.js'
 
 export const config = { maxDuration: 30 }
 
-const CLOUDFRONT_CATALOG = process.env.CLOUDFRONT_CATALOG ?? 'https://dgsll6twimcwl.cloudfront.net/catalog.tle'
+const CATALOG_URL = process.env.CATALOG_BLOB_URL ?? 'https://bop9747v4vkycovg.public.blob.vercel-storage.com/catalog.tle'
 
 // ── Rate limiting (in-process, per warm instance) ─────────────────────────────
 const RATE_WINDOW_MS = 60_000
@@ -48,7 +48,7 @@ let _cacheAt = 0
 async function fetchTle(query: string): Promise<TleRecord | null> {
   const now = Date.now()
   if (!_cache || now - _cacheAt > 120_000) {
-    const res = await fetch(CLOUDFRONT_CATALOG, { signal: AbortSignal.timeout(8000) })
+    const res = await fetch(CATALOG_URL, { signal: AbortSignal.timeout(8000) })
     if (!res.ok) return null
     const tles = parseTleText(await res.text())
     _cache = tles.map(r => ({ ...r, name: r.name.replace(/^0 /, '') }))
