@@ -20,16 +20,33 @@ from http.server import BaseHTTPRequestHandler
 from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
-from skyfield.api import EarthSatellite, load, wgs84
-
+# skyfield is imported lazily inside _skyfield(). Importing it at module scope costs the
+# cold start of a ~57 MB bundle on EVERY request, including ones rejected by validation,
+# and makes an import failure indistinguishable from a hang.
 # Bootstrap only, for a request that supplies no TLE. api/pass.ts always supplies one.
 ISS_TLE1 = '1 25544U 98067A   26231.53387315  .00011071  00000-0  20501-3 0  9990'
 ISS_TLE2 = '2 25544  51.6332 346.5707 0007665  63.0282 297.1489 15.49512520581579'
 
-_ts = load.timescale(builtin=True)
-_iss = EarthSatellite(ISS_TLE1, ISS_TLE2, 'ISS (ZARYA)', _ts)
-
 MIN_ELEVATION_DEG = 10.0
+
+_cached = {}
+
+
+def _skyfield():
+    """Import and initialise on first use, then reuse across warm invocations.
+
+    Loader is pointed at /tmp because a serverless filesystem is read-only everywhere
+    else; skyfield's default Loader('.') writes into the working directory.
+    """
+    if not _cached:
+        from skyfield.api import EarthSatellite, Loader, wgs84
+        loader = Loader('/tmp/skyfield', verbose=False)
+        ts = loader.timescale(builtin=True)
+        _cached['ts'] = ts
+        _cached['wgs84'] = wgs84
+        _cached['EarthSatellite'] = EarthSatellite
+        _cached['iss'] = EarthSatellite(ISS_TLE1, ISS_TLE2, 'ISS (ZARYA)', ts)
+    return _cached
 
 
 def az_to_direction(az_deg: float) -> str:
@@ -45,10 +62,13 @@ def predict_passes(
     tle2: Optional[str] = None,
     name: Optional[str] = None,
 ) -> list[dict[str, Any]]:
+    sk = _skyfield()
+    _ts, wgs84 = sk['ts'], sk['wgs84']
+
     if tle1 and tle2:
-        sat = EarthSatellite(tle1, tle2, name or 'UNKNOWN', _ts)
+        sat = sk['EarthSatellite'](tle1, tle2, name or 'UNKNOWN', _ts)
     else:
-        sat = _iss
+        sat = sk['iss']
 
     location = wgs84.latlon(latitude, longitude)
     t0 = _ts.now()
@@ -165,5 +185,5 @@ class handler(BaseHTTPRequestHandler):
             # Never surface internal detail; the S40 rule about err.message applies here too.
             self._respond(500, {'error': 'Pass prediction temporarily unavailable.'})
 
-    def log_message(self, *args) -> None:  # noqa: D102 — silence per-request stderr noise
+    def log_message(self, format, *args) -> None:  # match BaseHTTPRequestHandler's signature
         pass
