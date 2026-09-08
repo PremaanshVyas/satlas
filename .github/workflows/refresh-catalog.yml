@@ -1,0 +1,79 @@
+name: Refresh catalog
+
+# The single Space-Track client, replacing the ECS worker after the AWS account was
+# suspended. The schedule IS the rate limit: one invocation issues at most one gp query
+# and then exits, so the crash-loop that caused the S44 suspension is not expressible here.
+#
+# :17 past the hour matches the off-peak minute Space-Track's guidance asks for and the
+# GP_QUERY_MINUTE the worker used. SATCAT is not on its own schedule; refresh_job.py gates
+# it internally to once per UTC day at/after 1700, so 23 of the 24 daily runs skip it.
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+# Never let two runs overlap. Without this a delayed run could still be fetching when the
+# next hour fires, which would put two gp queries in flight inside one hour.
+concurrency:
+  group: refresh-catalog
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: Space-Track to Vercel Blob
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      # httpx is all refresh_job.py needs. boto3 is deliberately absent: satellites.py
+      # imports it lazily and the Blob path never touches AWS.
+      - name: Install dependencies
+        run: pip install --no-cache-dir httpx==0.27.0
+
+      - name: Fetch from Space-Track
+        id: refresh
+        working-directory: apps/orbital
+        env:
+          SPACETRACK_USER: ${{ secrets.SPACETRACK_USER }}
+          SPACETRACK_PASS: ${{ secrets.SPACETRACK_PASS }}
+          CATALOG_BLOB_BASE: ${{ vars.CATALOG_BLOB_BASE }}
+        run: python refresh_job.py
+
+      # Do NOT pass --add-random-suffix. The flag turns the behaviour ON whenever it is
+      # present, whatever value follows it (`false` and `=false` both add a suffix).
+      # Omitting it is the only way to get the stable pathname the readers depend on.
+      - name: Upload catalog.tle
+        if: steps.refresh.outputs.catalog_written == 'true'
+        working-directory: apps/orbital
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: |
+          npx --yes vercel@latest blob put catalog.tle \
+            --access public \
+            --pathname catalog.tle \
+            --allow-overwrite true \
+            --cache-control-max-age 7200 \
+            --content-type "text/plain; charset=utf-8" \
+            --rw-token "$BLOB_READ_WRITE_TOKEN"
+
+      - name: Upload satcat.json
+        if: steps.refresh.outputs.satcat_written == 'true'
+        working-directory: apps/orbital
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: |
+          npx --yes vercel@latest blob put satcat.json \
+            --access public \
+            --pathname satcat.json \
+            --allow-overwrite true \
+            --cache-control-max-age 7200 \
+            --content-type "application/json" \
+            --rw-token "$BLOB_READ_WRITE_TOKEN"

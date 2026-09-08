@@ -5,7 +5,10 @@ import logging
 import os
 import time
 
-import boto3
+try:
+    import boto3
+except ImportError:  # only needed by the legacy AWS path; the scheduled refresh job
+    boto3 = None     # writes to Vercel Blob and never imports it
 import httpx
 
 CELESTRAK_ISS_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'

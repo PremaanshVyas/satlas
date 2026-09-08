@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 export const config = { maxDuration: 30 }
 
-const CLOUDFRONT_CATALOG = process.env.CLOUDFRONT_CATALOG ?? 'https://dgsll6twimcwl.cloudfront.net/catalog.tle'
+const CATALOG_URL = process.env.CATALOG_BLOB_URL ?? 'https://bop9747v4vkycovg.public.blob.vercel-storage.com/catalog.tle'
 const CATALOG_BASE = process.env.CATALOG_BASE ?? 'https://satlas.app'
 
 // ── Rate limiting (in-process, per warm instance) ─────────────────────────────
@@ -57,7 +57,7 @@ let _fetchedAt = 0
 async function getCatalog(): Promise<SatRecord[]> {
   const now = Date.now()
   if (_cache && now - _fetchedAt < 120_000) return _cache
-  const cfFetch = fetch(CLOUDFRONT_CATALOG, { signal: AbortSignal.timeout(8_000) })
+  const cfFetch = fetch(CATALOG_URL, { signal: AbortSignal.timeout(8_000) })
     .then(r => r.ok ? r.text() : Promise.reject(new Error(`CF ${r.status}`)))
   const apiFetch = fetch(`${CATALOG_BASE}/api/catalog`, { signal: AbortSignal.timeout(10_000) })
     .then(r => r.ok ? r.text() : Promise.reject(new Error(`API ${r.status}`)))
