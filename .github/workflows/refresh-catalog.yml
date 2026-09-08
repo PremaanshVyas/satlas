@@ -9,7 +9,17 @@ name: Refresh catalog
 # it internally to once per UTC day at/after 1700, so 23 of the 24 daily runs skip it.
 on:
   schedule:
+    # Two attempts per hour, not two queries. GitHub's scheduler is best effort and
+    # silently drops runs under load — three consecutive windows were missed after this
+    # workflow was disabled and re-enabled, and nothing re-registered the schedule until
+    # this file itself changed.
+    #
+    # The :47 pass is a retry, not extra load. refresh_job.py enforces the gp
+    # once-per-hour interval against a durable clock in the Blob store, so whichever
+    # attempt runs first wins and the other logs "skipping to stay compliant". If :17 is
+    # dropped, the catalog recovers 30 minutes later instead of waiting a full hour.
     - cron: '17 * * * *'
+    - cron: '47 * * * *'
   workflow_dispatch:
 
 # Never let two runs overlap. Without this a delayed run could still be fetching when the
