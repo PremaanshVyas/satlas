@@ -1,3 +1,5 @@
+import { noradKey } from './norad'
+
 // Satellite catalog metadata served from our own S3/CloudFront (written by ECS from Space-Track).
 // Fetched once per session and cached in localStorage.
 // All data is optional — if the fetch fails, the info card still shows TLE-derived params.
@@ -120,9 +122,13 @@ function parseSatcatJson(rows: SatcatRow[]): Map<string, SatcatEntry> {
   const map = new Map<string, SatcatEntry>()
   for (const r of rows) {
     if (!r.norad_id) continue
-    // Space-Track omits leading zeros (e.g. '6707'); TLE catalog pads to 5 digits ('06707').
-    // Pad here so Map lookups using the TLE-derived NORAD ID always hit.
-    const paddedId = r.norad_id.padStart(5, '0')
+    // Canonical key: the decoded integer as a string, which collapses every encoding of the
+    // same object — '6707', '06707' and alpha-5 'A0001' — onto one key.
+    // padStart(5,'0') handled only the leading-zero case. It could never reconcile an
+    // alpha-5 id with satcat's decoded form, because 'A0001' and '100001' are both already
+    // 5+ characters and padding leaves them untouched. That mismatch is why satellites above
+    // NORAD 99999 showed an empty info card despite having metadata.
+    const paddedId = noradKey(r.norad_id)
     const owner = NORAD_OWNER_OVERRIDES[r.norad_id] ?? OWNER_MAP[r.owner] ?? r.owner
     map.set(paddedId, {
       noradId: paddedId,

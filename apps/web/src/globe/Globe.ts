@@ -11,6 +11,7 @@ import { SatelliteMesh } from './SatelliteMesh'
 import { SatelliteField, DEFAULT_COLOR as SAT_DEFAULT_COLOR } from './SatelliteField'
 import { getSunDirection } from '../lib/solar'
 import { fetchSatelliteCatalog } from '../lib/celestrak'
+import { noradKey } from '../lib/norad'
 import type { TLERecord } from '../lib/celestrak'
 import { fetchSatcat } from '../lib/satcat'
 import type { SatcatEntry } from '../lib/satcat'
@@ -723,7 +724,7 @@ export class Globe {
     this._lastInfoNorad = noradId
     this._lastInfoSatrec = satrec
     const orbital = Globe.computeOrbitalParams(satrec)
-    const meta = this.satcat.get(noradId) ?? null
+    const meta = this.satcat.get(noradKey(noradId)) ?? null
     this.onSatelliteSelectInfo?.(orbital, meta)
   }
 

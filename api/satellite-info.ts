@@ -1,6 +1,24 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import * as satellite from 'satellite.js'
 
+// Space-Track alpha-5: ids above 99999 are encoded as a letter plus four digits
+// (A0000 = 100000, T0000 = 270000), skipping I and O. parseInt returns NaN for those, and
+// NaN never equals anything — not even itself — so every alpha-5 satellite silently failed
+// id lookup while name lookup kept working, which made it look like missing data.
+// Duplicated per file on purpose: Vercel functions cannot import from sibling api/ modules
+// (S32 ADR — cross-function imports resolve at build and fail at runtime).
+const ALPHA5_DIGITS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+function noradToInt(raw: string): number {
+  const s = (raw ?? '').trim().toUpperCase()
+  if (s === '') return NaN
+  if (/^\d+$/.test(s)) return parseInt(s, 10)
+  const first = ALPHA5_DIGITS.indexOf(s[0])
+  const rest = s.slice(1)
+  if (first >= 10 && /^\d{1,4}$/.test(rest)) return first * 10000 + parseInt(rest, 10)
+  return NaN
+}
+
+
 export const config = { maxDuration: 30 }
 
 const CATALOG_URL = process.env.CATALOG_BLOB_URL ?? 'https://bop9747v4vkycovg.public.blob.vercel-storage.com/catalog.tle'
@@ -54,10 +72,12 @@ async function fetchTle(query: string): Promise<TleRecord | null> {
     _cache = tles.map(r => ({ ...r, name: r.name.replace(/^0 /, '') }))
     _cacheAt = now
   }
-  const isNorad = /^\d+$/.test(query.trim())
-  if (isNorad) {
-    const queryInt = parseInt(query.trim(), 10)
-    return _cache.find(r => parseInt(r.noradId, 10) === queryInt) ?? null
+  // Try an id match first, then fall through to name search. Gating on /^\d+$/ used to
+  // send alpha-5 ids like 'A0001' down the name path, where they matched nothing.
+  const queryInt = noradToInt(query)
+  if (!Number.isNaN(queryInt)) {
+    const byId = _cache.find(r => noradToInt(r.noradId) === queryInt)
+    if (byId) return byId
   }
   const q = query.trim().toUpperCase()
   return _cache.find(r => r.name.toUpperCase().includes(q)) ?? null
