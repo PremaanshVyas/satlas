@@ -146,6 +146,26 @@ function computeArcPoints(satrec: satellite.SatRec): THREE.Vector3[] {
   return points
 }
 
+// Aim the walk at slightly longer than the measured cadence. Sets never arrive exactly on
+// schedule, and without headroom the dots reach the target early and sit still until the
+// next one lands — a short pause on a few percent of frames, which is the artefact we are
+// removing. Undershooting costs nothing instead: SatelliteField resumes from wherever the
+// dot was actually drawn, so running a little behind is a small steady lag, never a jump.
+const INTERPOLATION_HEADROOM = 1.15
+
+/**
+ * How far along the walk from the previous position set to the current one we should be,
+ * given the real clock. Exported so the smoothness it produces can be tested directly —
+ * a headless browser renders far too slowly to observe it in a real frame loop.
+ *
+ * Returns 1 (sit on the current set) before any set has arrived. SatelliteField clamps,
+ * so a late set parks the dots on target rather than letting them overshoot.
+ */
+export function interpolationFactor(realNow: number, lastArrivalMs: number, intervalMs: number): number {
+  if (lastArrivalMs === 0 || intervalMs <= 0) return 1
+  return (realNow - lastArrivalMs) / (intervalMs * INTERPOLATION_HEADROOM)
+}
+
 export class Globe {
   private renderer!: THREE.WebGLRenderer
   private camera!: THREE.PerspectiveCamera
@@ -162,6 +182,10 @@ export class Globe {
   private worker: Worker | null = null
   private lastFieldTickMs = 0
   private workerBusy = false
+  // Real-clock bookkeeping for shader-side position interpolation: when the last position
+  // set landed, and how far apart sets have been arriving.
+  private lastPosArrivalMs = 0
+  private posIntervalMs = FIELD_TICK_MS
   private mounted = false
   private rafId: number | null = null
   private catalogRefreshInterval: ReturnType<typeof setInterval> | null = null
@@ -256,6 +280,24 @@ export class Globe {
     // Reset rate-limiter and busy flag so the next RAF frame immediately sends a fresh tick
     this.lastFieldTickMs = 0
     this.workerBusy = false
+    // The gap between position sets is about to change scale; drop the old estimate so the
+    // shader doesn't spend a frame interpolating at the previous speed's pace.
+    this.lastPosArrivalMs = 0
+  }
+
+  /**
+   * Record that a fresh position set just landed and re-estimate the cadence.
+   *
+   * Smoothed rather than taken raw: one slow propagator tick would otherwise stretch the
+   * next interpolation and produce the very hitch this is meant to remove.
+   */
+  private notePositionArrival(): void {
+    const now = performance.now()
+    if (this.lastPosArrivalMs !== 0) {
+      const dt = now - this.lastPosArrivalMs
+      if (dt > 0 && dt < 1000) this.posIntervalMs = this.posIntervalMs * 0.7 + dt * 0.3
+    }
+    this.lastPosArrivalMs = now
   }
 
   getSimulatedTime(): Date {
@@ -521,6 +563,7 @@ export class Globe {
         this.onCatalogRefresh?.(this.catalogCount)
         this.rebuildCategoryMask()
         this.buildSatScales()
+        this.field.setVisibility(this.activeCategoryMask, this.satScales)
         if (this.agentFilterCategories) this.applyAgentCategoryColors()
         this.worker.postMessage({ type: 'init', tles: others })
         return
@@ -550,6 +593,7 @@ export class Globe {
       this.hoveredIdx = -1
 
       this.field = new SatelliteField(others.length)
+      this.field.setVisibility(this.activeCategoryMask, this.satScales)
       this.scene.add(this.field.mesh)
       if (this.agentFilterCategories) this.applyAgentCategoryColors()
 
@@ -562,7 +606,8 @@ export class Globe {
         const msg = e.data as { type: string; buffer?: Float32Array }
         if (msg.type === 'positions' && msg.buffer && this.field) {
           this.lastPositionBuffer = msg.buffer
-          this.field.update(msg.buffer, this.activeCategoryMask, this.satScales)
+          this.field.setPositions(msg.buffer)
+          this.notePositionArrival()
         }
       }
       this.worker.onerror = (e: ErrorEvent) => {
@@ -582,9 +627,7 @@ export class Globe {
     this.agentFilterCategories = null
     this.activeCategories = cats
     this.rebuildCategoryMask()
-    if (this.field && this.lastPositionBuffer) {
-      this.field.update(this.lastPositionBuffer, this.activeCategoryMask, this.satScales)
-    }
+    this.field?.setVisibility(this.activeCategoryMask, this.satScales)
     if (this.field) this.field.setCategoryColors([], null)
     if (this.hoveredIdx >= 0) this.refreshInstanceColor(this.hoveredIdx)
     for (const idx of this.selectedIdxs) this.refreshInstanceColor(idx)
@@ -595,9 +638,7 @@ export class Globe {
     this.agentFilterCategories = categories.length > 0 ? [...categories] : null
     this.activeCategories = new Set(cats)
     this.rebuildCategoryMask()
-    if (this.field && this.lastPositionBuffer) {
-      this.field.update(this.lastPositionBuffer, this.activeCategoryMask, this.satScales)
-    }
+    this.field?.setVisibility(this.activeCategoryMask, this.satScales)
     this.applyAgentCategoryColors()
   }
 
@@ -620,9 +661,7 @@ export class Globe {
         this.rebuildCategoryMask()
       }
     }
-    if (this.field && this.lastPositionBuffer) {
-      this.field.update(this.lastPositionBuffer, this.activeCategoryMask, this.satScales)
-    }
+    this.field?.setVisibility(this.activeCategoryMask, this.satScales)
     this.field?.setCategoryColors([], null)
     if (this.hoveredIdx >= 0) this.refreshInstanceColor(this.hoveredIdx)
     for (const idx of this.selectedIdxs) this.refreshInstanceColor(idx)
@@ -1343,6 +1382,16 @@ export class Globe {
       this.workerBusy = true
       this.lastFieldTickMs = realNow
       this.worker.postMessage({ type: 'tick', timestamp: nowMs })
+    }
+
+    // Walk the dots from the previous position set toward the current one over however long
+    // the propagator is actually taking. Without this the field only moves when the worker
+    // replies (~28Hz for the full catalog) while everything else renders at 60fps, which is
+    // invisible at 1x and reads as stutter once fast-forward makes each step large.
+    // SatelliteField clamps at 1, so a set that arrives later than the headroom allows
+    // parks the dots on target rather than letting them run past it.
+    if (this.field) {
+      this.field.setLerp(interpolationFactor(realNow, this.lastPosArrivalMs, this.posIntervalMs))
     }
 
     if (this.flyFromPos && this.flyToPos && this.flyStartTime !== null) {
