@@ -4,6 +4,32 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Compliance] The rule that got us suspended was only a comment, so it became a test (2026-09-10)
+
+### What prompted it
+Lowering the catalog's edge cache. The refresh job publishes hourly, but `/api/catalog` was held at the edge for two hours, so the globe could serve a catalog two hours older than the one we spend Space-Track query budget to keep current. The duplicate-id fix earlier the same day was correct at the source and still would have taken two hours to reach anyone.
+
+Shortening a cache is exactly the kind of change that deserves suspicion here, because the original suspension was a caching problem. When the catalog endpoint queried Space-Track directly, every edge location re-fetched the full catalog on a miss, and one popular minute produced dozens of queries against a one-per-hour limit.
+
+### Why it is safe now
+The endpoint no longer has that path. A cache miss re-reads the copy in Vercel Blob, and nothing under `api/` holds a Space-Track URL or credential. More misses cost Blob reads, not query budget. The entire budget is spent by the one scheduled job, which was not touched.
+
+That was verified before the change, not assumed.
+
+### The gap that was left
+The runtime guards already cover a great deal: the once-per-hour interval, the durable clock that survives restarts, the refusal to overwrite a good catalog with a failed fetch, the daily satcat cadence. None of them could have prevented the actual suspension, because the offending code path never went through the refresh job at all. The rule that exactly one process may talk to Space-Track was enforced by a comment.
+
+It is now enforced by tests: no serverless function and no frontend file may reach Space-Track, any new caller anywhere in the repository fails until it is deliberately allowlisted, the catalog endpoint must read the Blob copy and keep the comment explaining why, and the interval and off-peak-minute constants are tripwired so relaxing them cannot pass unnoticed.
+
+### Two wrong versions of the check, both instructive
+Matching the phrase "Space-Track" failed on the catalog endpoint, whose comment exists precisely to say it must never query Space-Track. Matching the bare hostname then failed on the public API docs, which name Space-Track.org in the attribution their redistribution terms require us to display.
+
+Neither is a violation. Documenting a rule is not breaking it, and crediting a source is not calling it. The check now matches a scheme-and-host URL or the credential names, because what makes a file a client is holding a URL it can call or the secrets to authenticate with.
+
+The guard was then verified by planting a real Space-Track query URL in an unrelated function and confirming two tests failed, because a guard that has never been seen to fail is not known to work.
+
+---
+
 ## [API] Alpha-5 satellites could not be tracked, and every orbital period was 60x too small (2026-09-10)
 
 ### What happened
