@@ -4,6 +4,32 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Freshness] The catalog was refreshing every one to four hours, not hourly (2026-09-10)
+
+### What happened
+Found by watching for a scheduled run that never arrived. The workflow claimed an hourly refresh with a retry, and the code was correct, but GitHub's cron is best effort and drops runs under load. The workflow already said so. What it did not say is how much.
+
+Measured over 34.7 hours: 19 of 69 scheduled slots actually fired, a 72% drop rate, a median gap of 99 minutes and a worst gap of 244. On the day this was found there were no scheduled runs at all between 05:21 and 08:03.
+
+Two attempts an hour never produced an hourly refresh. It produced one every one to four hours, and the catalog was exactly that stale. This is the "stale data" the original bug report suspected, arrived at from a completely different direction.
+
+An earlier manual trigger had masked it. One missed slot reads as bad luck; it took the two after it also being dropped to look properly.
+
+### The change
+Six attempts per hour instead of two. `:00` and `:30` are avoided deliberately, since that is when everyone else's cron fires and Space-Track asks for off-peak minutes. At the observed drop rate this takes the chance of at least one run landing in a given hour from roughly 48% to roughly 86%.
+
+### Why more attempts is not more queries
+A query is gated on a durable clock in the Blob store, not on the schedule. The job refuses unless 55 minutes have passed since the last query, and stamps that clock immediately after fetching, before anything that can fail. Whichever attempt lands first wins and every other one logs that it is skipping to stay compliant. Overlapping runs are prevented separately by a concurrency group, so there is no way for two attempts to read the clock before either writes it.
+
+Nothing about the query itself changed: same single client, same interval, same off-peak minutes, same daily satcat gate.
+
+### The safety argument is a test, not a claim
+Six attempts across a simulated hour must make exactly one query. The next hour must be allowed again, because a guard that throttles is correct and a guard that deadlocks looks identical to a working one until the data is visibly stale. An attempt just inside the schedule tolerance must still be refused.
+
+Then the guard was disabled to confirm those six attempts do make six queries. A test that has never been seen to fail is not known to work, and this one now has been.
+
+---
+
 ## [Compliance] The rule that got us suspended was only a comment, so it became a test (2026-09-10)
 
 ### What prompted it
