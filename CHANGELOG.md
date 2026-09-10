@@ -4,6 +4,23 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [API] Alpha-5 satellites could not be tracked, and every orbital period was 60x too small (2026-09-10)
+
+### What happened
+Both found by exercising the live API on an alpha-5 satellite once the id decoder had shipped. Neither was reported, and neither would have surfaced from reading the code.
+
+**Pass prediction rejected every satellite above catalog number 99999.** The input guard required digits only, so `norad_id=A0001` returned a 400 before the decoder was ever reached. The resolver underneath already handled alpha-5 correctly; the guard was the only thing in the way. Clicking one of those satellites and asking when it passes overhead produced an error.
+
+**The orbital period was wrong by a factor of 60 everywhere the API reported it.** Mean motion in the SGP4 record is radians per minute, so `2 * pi / no` is already minutes. Both TypeScript copies divided by 60 again, producing hours under a field named `orbital_period_min`. The API reported the ISS orbital period as 1.5, and the agent read that out as "1.5 minutes" for something that orbits in 92.9.
+
+### Why only there
+The Python implementation has always been correct, and so has the frontend, which computes the same expression without the division for its LEO/MEO/GEO badge. Only the two serverless copies carried the bug, and they carried it identically, because Vercel bundles each function independently and a shared helper cannot be imported across them. That constraint is documented and deliberate, and this is the cost of it: a formula duplicated by hand is a formula that can be wrong in both places at once.
+
+### After
+The ISS now reports 93 minutes against a true 92.96, pass prediction answers for alpha-5 ids, and the agent derives 15.5 orbits per day from the corrected figure. Input validation still rejects malformed ids and out-of-range coordinates.
+
+---
+
 ## [Data] 1,610 satellites were in the catalog twice, under two spellings of one id (2026-09-10)
 
 ### What happened
