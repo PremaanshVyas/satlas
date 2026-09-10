@@ -1,5 +1,23 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
+// Space-Track alpha-5: ids above 99999 are encoded as a letter plus four digits
+// (A0000 = 100000, T0000 = 270000), skipping I and O. parseInt returns NaN for those, and
+// NaN never equals anything — not even itself — so every alpha-5 satellite silently failed
+// id lookup while name lookup kept working, which made it look like missing data.
+// Duplicated per file on purpose: Vercel functions cannot import from sibling api/ modules
+// (S32 ADR — cross-function imports resolve at build and fail at runtime).
+const ALPHA5_DIGITS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+function noradToInt(raw: string): number {
+  const s = (raw ?? '').trim().toUpperCase()
+  if (s === '') return NaN
+  if (/^\d+$/.test(s)) return parseInt(s, 10)
+  const first = ALPHA5_DIGITS.indexOf(s[0])
+  const rest = s.slice(1)
+  if (first >= 10 && /^\d{1,4}$/.test(rest)) return first * 10000 + parseInt(rest, 10)
+  return NaN
+}
+
+
 export const config = { maxDuration: 30 }
 
 const CATALOG_URL = process.env.CATALOG_BLOB_URL ?? 'https://bop9747v4vkycovg.public.blob.vercel-storage.com/catalog.tle'
@@ -115,10 +133,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (q) {
       const query = String(q).trim()
-      if (/^\d+$/.test(query)) {
-        // NORAD ID — exact integer match to handle leading-zero variants
-        const queryInt = parseInt(query, 10)
-        results = results.filter(r => parseInt(r.noradId, 10) === queryInt)
+      const queryInt = noradToInt(query)
+      if (!Number.isNaN(queryInt)) {
+        // NORAD id — decoded integer match, so '6707', '06707' and alpha-5 'A0001' all work
+        results = results.filter(r => noradToInt(r.noradId) === queryInt)
       } else {
         const qLower = query.toLowerCase()
         results = results.filter(r => r.name.toLowerCase().includes(qLower))

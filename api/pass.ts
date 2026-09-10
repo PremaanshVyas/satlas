@@ -1,6 +1,24 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import * as satellite from 'satellite.js'
 
+// Space-Track alpha-5: ids above 99999 are encoded as a letter plus four digits
+// (A0000 = 100000, T0000 = 270000), skipping I and O. parseInt returns NaN for those, and
+// NaN never equals anything — not even itself — so every alpha-5 satellite silently failed
+// id lookup while name lookup kept working, which made it look like missing data.
+// Duplicated per file on purpose: Vercel functions cannot import from sibling api/ modules
+// (S32 ADR — cross-function imports resolve at build and fail at runtime).
+const ALPHA5_DIGITS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+function noradToInt(raw: string): number {
+  const s = (raw ?? '').trim().toUpperCase()
+  if (s === '') return NaN
+  if (/^\d+$/.test(s)) return parseInt(s, 10)
+  const first = ALPHA5_DIGITS.indexOf(s[0])
+  const rest = s.slice(1)
+  if (first >= 10 && /^\d{1,4}$/.test(rest)) return first * 10000 + parseInt(rest, 10)
+  return NaN
+}
+
+
 export const config = { maxDuration: 30 }
 
 // ── Solar / shadow helpers ────────────────────────────────────────────────────
@@ -153,8 +171,9 @@ async function resolveTle(noradId: string): Promise<TleRecord | null> {
     _catalog = parseTleText(text)
     _fetchedAt = now
   }
-  const targetId = parseInt(noradId.trim(), 10)
-  return _catalog.find(r => parseInt(r.noradId, 10) === targetId) ?? null
+  const targetId = noradToInt(noradId)
+  if (Number.isNaN(targetId)) return null
+  return _catalog.find(r => noradToInt(r.noradId) === targetId) ?? null
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
