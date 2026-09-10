@@ -4,6 +4,63 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Rendering] Fast-forward stuttered because dots only moved when the propagator replied (2026-09-10)
+
+### What happened
+At high time scales the satellites did not move smoothly. The obvious suspect was the orbital propagation, and it was not that. SGP4 for the full 34k catalog takes about 35 ms, which is fine.
+
+The problem was that the dots only moved when the worker replied. The scene renders at 60 fps, so roughly two frames in three drew every satellite exactly where the previous frame had, and then one frame moved them the whole way at once. At 1x each of those jumps is smaller than a pixel and nobody notices. At 100x it is a hundred times larger, and that is the stutter.
+
+### Measuring it
+The frame loop was replayed in a test with the real numbers: 16.7 ms frames, a 35 ms propagator, the same busy-flag gate the renderer uses. The old path left 87% of frames with no movement at all, and made the worst frame's step eight times the average. That matches what it looked like.
+
+### Fix
+The satellite field now keeps the previous and current position sets as instanced attributes, and the vertex shader draws `mix(aPrev, aPos, uLerp)`. The globe advances `uLerp` every frame from the rate at which sets are actually arriving, so smoothness stopped depending on how fast the propagator can run.
+
+One detail matters more than the rest. Each walk starts from where the dot was actually drawn, not from the previous target. Those differ whenever a set lands off cadence, and taking the old target instead would fling every dot across the remaining gap, which is the exact artefact being removed. Because continuity no longer depends on the cadence estimate being right, the walk can safely aim slightly long, so dots never arrive early and sit waiting for the next set.
+
+### A second cost, found while fixing the first
+Publishing a position set rebuilt an instance matrix per satellite on the main thread: 34,321 matrix compositions, measured at 1.4 ms, plus a 2.2 MB upload to the GPU on every update. Writing two typed arrays instead measures 0.021 ms and uploads 0.8 MB. This was not the cause of the stutter, and it is recorded as what it is, a secondary win.
+
+### A latent bug it exposed
+Category masks and per-satellite scales used to ride along with each position update. A delta catalog refresh rebuilds both but posts no positions of its own, so the stale mask stayed on screen until the next worker reply happened to carry the new one. Splitting visibility from positions made that ordering explicit.
+
+### Verifying a shader
+Shaders cannot be unit tested, and the machine had no browser automation available, so the check ran in headless Chrome against software WebGL: the program links with an empty info log, dots render, the lerp uniform measurably moves them, and masked instances draw nothing. The real globe was then loaded the same way against the live catalog: 34,384 instances, 34,370 with valid positions, and 14 sitting at the origin, which matches the known count of propagation failures exactly.
+
+That run also produced a reading that looked like a failure and was not. The lerp uniform sat at 0. Software rendering was taking 536 ms per frame, so the worker reply always landed immediately before the next frame and the walk never had time to advance. The frame time is what made that measurement meaningless, which is why the smoothness claim rests on the replayed frame loop rather than on the headless run.
+
+---
+
+## [Data] Satellites above NORAD 99999 had no info card and no AI answer (2026-09-10)
+
+### What happened
+The catalog passed 99,999 objects, so Space-Track began issuing alpha-5 ids: a letter followed by four digits, where the letter replaces the first two digits. A0000 is 100000, T0000 is 270000, and I and O are skipped so they cannot be misread as 1 and 0.
+
+Every lookup that crossed a data-source boundary broke, and all of them broke silently. `parseInt('A0001')` is NaN, and NaN is not equal to anything including itself, so an id comparison against an alpha-5 record could never match. Separately, satcat.json stores the decoded integer while the TLE carries the encoded form, so a map keyed on the raw string never found the metadata. 941 objects were affected: clicking one gave an empty info card, and asking the agent about it reported the service as unavailable.
+
+### Fix
+A single `noradToInt` decoder, using the same alphabet as `norad_to_int` in the refresh job so the frontend and the backend agree on what an id means, plus a `noradKey` that collapses `06707`, `6707` and `A0001` to one canonical form. That replaces `padStart(5, '0')`, which handled leading zeros but could never reconcile an alpha-5 id with its decoded value, since neither string is five characters after padding.
+
+The API functions each carry their own copy of the decoder rather than importing it, because Vercel bundles functions independently and a cross-function import fails at runtime rather than at build. The lookups also changed shape: try the id first, and fall through to a name match instead of refusing outright when the string does not parse as an id.
+
+### Still true after the fix
+609 objects genuinely have no catalogue metadata. They are analyst objects, labelled `TBA - TO BE ASSIGNED`, tracked but not yet identified. The info card renders empty for them rather than saying so, which is a separate piece of work.
+
+---
+
+## [Data] The catalog only ever grew, because the delta merge could not remove anything (2026-09-10)
+
+### What happened
+The hourly refresh fetches objects whose element sets changed and merges them into the stored catalog. A merge that only adds is correct for new launches and updated orbits, and wrong for decay: an object that reenters simply stops being updated, so its last element set sat in the catalog forever and the globe kept propagating a satellite that no longer exists.
+
+### Fix
+Prune by element-set age. Anything whose epoch is older than 90 days is dropped on merge. Age is the right signal because it is the same thing that makes an element set useless for propagation: SGP4 error grows with epoch age regardless of why the object stopped being tracked.
+
+Deliberately not a fixed cap or a target size. A cap would silently drop real objects the moment the catalog grew past it, and the whole point is that new satellites keep appearing.
+
+---
+
 ## [Migration] Off AWS entirely: catalog to Vercel Blob, pass prediction to a Python function (2026-09-09)
 
 ### What happened
