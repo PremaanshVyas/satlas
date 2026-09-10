@@ -162,7 +162,8 @@ let _fetchedAt = 0
 async function resolveTle(noradId: string): Promise<TleRecord | null> {
   const now = Date.now()
   if (!_catalog || now - _fetchedAt > 120_000) {
-    // Race CloudFront (fast from edge) against /api/catalog (authoritative)
+    // Race the Blob store (fast from edge) against /api/catalog (authoritative).
+    // The CloudFront leg this comment used to describe died with the AWS account.
     const cfFetch = fetch(CATALOG_URL, { signal: AbortSignal.timeout(8_000) })
       .then(r => r.ok ? r.text() : Promise.reject(new Error(`CF ${r.status}`)))
     const apiFetch = fetch(`${CATALOG_BASE}/api/catalog`, { signal: AbortSignal.timeout(10_000) })
@@ -209,8 +210,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const hoursAhead = Math.min(Math.max(1, parseInt(String(hours_ahead), 10) || 24), 168)
 
-  if (norad_id && !/^\d{1,6}$/.test(String(norad_id).trim())) {
-    res.status(400).json({ error: 'norad_id must be a numeric NORAD catalog number.' })
+  // Accepts plain ids and Space-Track alpha-5 (letter + 4 digits, e.g. A0001 = 100001).
+  // The digits-only guard here rejected every satellite above catalog number 99999 before
+  // resolveTle's decoder was ever reached, so asking for passes on one returned a 400.
+  if (norad_id && !/^(\d{1,6}|[A-Za-z]\d{4})$/.test(String(norad_id).trim())) {
+    res.status(400).json({ error: 'norad_id must be a NORAD catalog number.' })
     return
   }
 

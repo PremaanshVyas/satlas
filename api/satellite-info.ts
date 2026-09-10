@@ -123,7 +123,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const geo = satellite.eciToGeodetic(posVel.position as satellite.EciVec3<number>, gmst)
     const vel = posVel.velocity as satellite.EciVec3<number>
     const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
-    const period = (2 * Math.PI / satrec.no) / 60
+    // satrec.no is mean motion in radians per MINUTE, so this is already minutes.
+    // Dividing again by 60 reported the ISS orbital period as 1.5 (hours) under a
+    // field named _min, and the agent read it aloud as "1.5 minutes".
+    const period = 2 * Math.PI / satrec.no
 
     res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30')
     res.status(200).json({
