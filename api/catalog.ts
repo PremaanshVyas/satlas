@@ -27,9 +27,18 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
       return
     }
 
-    // Vercel edge caches this for 2h; the Blob store is CDN-backed too. The frontend may
-    // additionally be pointed straight at the Blob URL via VITE_CATALOG_URL to skip this hop.
-    res.setHeader('Cache-Control', 'public, s-maxage=7200, stale-while-revalidate=86400')
+    // Held at the edge for 30 min. The refresh job publishes hourly, so a 2h cache meant
+    // the globe could sit two hours behind a catalog we were spending Space-Track queries
+    // to keep fresh, and a correctness fix took that long to reach anyone.
+    //
+    // Shortening this is safe for compliance precisely because of the rule at the top of
+    // this file: a cache miss here re-reads the Blob copy, never Space-Track. Cache misses
+    // fanning out to Space-Track is the thing that got the account suspended, and that path
+    // no longer exists. More misses cost Blob reads, not query budget.
+    //
+    // stale-while-revalidate keeps the endpoint instant across the turnover: the first
+    // request after expiry is served the old copy while the new one is fetched behind it.
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400')
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     res.status(200).send(text)
   } catch {
