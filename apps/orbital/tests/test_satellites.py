@@ -281,6 +281,71 @@ class TestMergeTles:
         out = satellites._merge_tles(existing, updates)
         assert [r['norad_id'] for r in out] == ['00005', '25544', 'T0000']
 
+    def test_padded_and_unpadded_ids_are_the_same_object(self):
+        # The satellite number sits in fixed TLE columns, and Space-Track fills them two
+        # ways: zero-padded for most records, space-padded for a long tail of older ones.
+        # Keyed on the raw column these were two objects, so 1,610 satellites were being
+        # drawn twice on the globe and counted twice in the catalog total.
+        existing = [{'norad_id': '5', 'name': 'VANGUARD 1',
+                     'tle1': '1     5U 58002B   26200.00000000  .00000000  00000-0  00000-0 0  9990',
+                     'tle2': '2     5  34.0000   0.0000 0000000   0.0000   0.0000 10.00000000000000'}]
+        updates = [{'norad_id': '00005', 'name': 'VANGUARD 1',
+                    'tle1': '1 00005U 58002B   26252.00000000  .00000000  00000-0  00000-0 0  9991',
+                    'tle2': '2 00005  34.0000   0.0000 0000000   0.0000   0.0000 10.00000000000000'}]
+        out = satellites._merge_tles(existing, updates)
+        assert len(out) == 1
+        assert out[0]['norad_id'] == '00005'
+
+    def test_a_duplicate_already_in_the_cache_collapses_to_the_fresher_one(self):
+        # The cached catalog already holds both spellings, so the merge has to heal it
+        # rather than only avoid making it worse. Freshness decides, not input order.
+        stale = {'norad_id': '11', 'name': 'VANGUARD 2',
+                 'tle1': '1    11U 59001A   26200.00000000  .00000000  00000-0  00000-0 0  9990',
+                 'tle2': '2    11  32.0000   0.0000 0000000   0.0000   0.0000 11.00000000000000'}
+        fresh = {'norad_id': '00011', 'name': 'VANGUARD 2',
+                 'tle1': '1 00011U 59001A   26252.00000000  .00000000  00000-0  00000-0 0  9991',
+                 'tle2': '2 00011  32.0000   0.0000 0000000   0.0000   0.0000 11.00000000000000'}
+        for order in ([stale, fresh], [fresh, stale]):
+            out = satellites._merge_tles(order, [])
+            assert len(out) == 1
+            assert out[0]['tle1'].startswith('1 00011U')
+
+    def test_alpha5_and_its_decoded_form_are_the_same_object(self):
+        existing = [{'norad_id': '100001', 'name': 'X',
+                     'tle1': '1 A0001U 24001A   26200.00000000  .00000000  00000-0  00000-0 0  9990',
+                     'tle2': '2 A0001  50.0000   0.0000 0000000   0.0000   0.0000 15.00000000000000'}]
+        updates = [{'norad_id': 'A0001', 'name': 'X',
+                    'tle1': '1 A0001U 24001A   26252.00000000  .00000000  00000-0  00000-0 0  9991',
+                    'tle2': '2 A0001  50.0000   0.0000 0000000   0.0000   0.0000 15.00000000000000'}]
+        assert len(satellites._merge_tles(existing, updates)) == 1
+
+    def test_unparseable_ids_do_not_collapse_into_one_another(self):
+        # norad_to_int falls back to 0 for garbage. Using that as a merge key would let one
+        # malformed record silently swallow every other malformed record.
+        existing = [{'norad_id': 'JUNK-1', 'name': 'A', 'tle1': '1', 'tle2': '2'},
+                    {'norad_id': 'JUNK-2', 'name': 'B', 'tle1': '1', 'tle2': '2'}]
+        assert len(satellites._merge_tles(existing, [])) == 2
+
+
+class TestNoradKey:
+    def test_every_spelling_of_one_id_gives_one_key(self):
+        assert satellites.norad_key('00005') == satellites.norad_key('5') == satellites.norad_key('    5')
+
+    def test_alpha5_matches_its_decoded_value(self):
+        assert satellites.norad_key('A0001') == satellites.norad_key('100001') == '100001'
+        assert satellites.norad_key('T0000') == '270000'
+
+    def test_unparseable_keeps_its_own_identity(self):
+        assert satellites.norad_key('JUNK-1') == 'JUNK-1'
+        assert satellites.norad_key('') == ''
+
+    def test_agrees_with_the_frontend_decoder(self):
+        # apps/web/src/lib/norad.ts must decode identically, or a lookup that crosses the
+        # boundary between catalog and metadata misses. That is the S46 alpha-5 bug.
+        for raw, expected in [('25544', '25544'), ('06707', '6707'), ('A0000', '100000'),
+                              ('T0000', '270000'), ('H0000', '170000'), ('J0000', '180000')]:
+            assert satellites.norad_key(raw) == expected
+
 
 class TestNoradToInt:
     def test_plain_numeric(self):
