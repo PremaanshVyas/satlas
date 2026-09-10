@@ -9,17 +9,27 @@ name: Refresh catalog
 # it internally to once per UTC day at/after 1700, so 23 of the 24 daily runs skip it.
 on:
   schedule:
-    # Two attempts per hour, not two queries. GitHub's scheduler is best effort and
-    # silently drops runs under load — three consecutive windows were missed after this
-    # workflow was disabled and re-enabled, and nothing re-registered the schedule until
-    # this file itself changed.
+    # Six ATTEMPTS per hour, still at most one query. GitHub's scheduler is best effort and
+    # drops runs under load, and it drops far more than "occasionally": measured over 34.7
+    # hours this workflow fired 19 of 69 scheduled runs, a 72% drop rate, with a median gap
+    # of 99 minutes and a worst gap of 244. Two attempts an hour did not produce an hourly
+    # refresh. It produced one every one to four hours, and the catalog was that stale.
     #
-    # The :47 pass is a retry, not extra load. refresh_job.py enforces the gp
-    # once-per-hour interval against a durable clock in the Blob store, so whichever
-    # attempt runs first wins and the other logs "skipping to stay compliant". If :17 is
-    # dropped, the catalog recovers 30 minutes later instead of waiting a full hour.
+    # Adding attempts cannot add queries, because a query is gated on a durable clock in
+    # the Blob store rather than on the schedule: refresh_job.py refuses unless 55+ minutes
+    # have passed since the last query, and stamps that clock immediately after fetching,
+    # before anything that can fail. Whichever attempt lands first wins and every other one
+    # logs "skipping to stay compliant". TestAttemptsAreNotQueries pins this, and was
+    # checked by disabling the guard and confirming six attempts then make six queries.
+    #
+    # :00 and :30 are avoided deliberately. They are when everyone else's cron fires, and
+    # Space-Track asks for off-peak minutes.
+    - cron: '7 * * * *'
     - cron: '17 * * * *'
+    - cron: '27 * * * *'
+    - cron: '37 * * * *'
     - cron: '47 * * * *'
+    - cron: '57 * * * *'
   workflow_dispatch:
 
 # Never let two runs overlap. Without this a delayed run could still be fetching when the

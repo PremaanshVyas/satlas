@@ -284,3 +284,68 @@ class TestPutBlob:
              patch.object(refresh_job.httpx, 'put', return_value=_Resp()):
             assert refresh_job.put_blob('catalog.tle', b'x', 'text/plain') == \
                 'https://store.example/catalog.tle'
+
+
+class TestAttemptsAreNotQueries:
+    """The schedule is deliberately more frequent than the rate limit.
+
+    GitHub's cron is best effort and drops most slots under load: measured over 34.7 hours
+    the workflow fired 19 of 69 scheduled runs, a median gap of 99 minutes and a worst gap
+    of 244. Two attempts an hour therefore did not produce an hourly refresh, it produced
+    one every one to four hours, and the catalog was as stale as that gap.
+
+    The answer is more attempts, which is only safe because a query is gated on a durable
+    clock rather than on the schedule. These tests hold that line: whatever the cron says,
+    the number of Space-Track queries in an hour stays at one.
+    """
+
+    def _run(self, state, fetch, tmp_path):
+        def stamp():
+            state['since_last_query'] = 0.0
+
+        with patch.object(refresh_job, '_read_blob', return_value=(_catalog_text(PLENTY), 0.0)), \
+             patch.object(refresh_job, '_gp_clock',
+                          side_effect=lambda: time.time() - state['since_last_query']), \
+             patch.object(refresh_job, '_stamp_gp_query', side_effect=stamp), \
+             patch.object(refresh_job, '_fetch_space_track_tles', new=fetch), \
+             patch.object(refresh_job, 'put_blob', return_value=True), \
+             patch.object(refresh_job, 'OUT_DIR', str(tmp_path)):
+            return asyncio.run(refresh_job.refresh_catalog())
+
+    def test_six_attempts_in_one_hour_still_make_exactly_one_query(self, tmp_path):
+        state = {'since_last_query': 7200.0}          # last query two hours ago
+        fetch = AsyncMock(return_value=[])
+
+        self._run(state, fetch, tmp_path)             # :07 — allowed, spends the budget
+        for _ in range(5):                            # :17 :27 :37 :47 :57
+            state['since_last_query'] += 600.0        # ten minutes later each time
+            self._run(state, fetch, tmp_path)
+
+        assert fetch.await_count == 1, (
+            f'{fetch.await_count} queries in one hour. Attempts must not be queries: the '
+            'durable clock is the only thing standing between the cron and a suspension.'
+        )
+
+    def test_the_next_hour_is_allowed_again(self, tmp_path):
+        """The guard must throttle, not deadlock. A permanently blocked refresh looks
+        exactly like a working one until the catalog is visibly stale."""
+        state = {'since_last_query': 7200.0}
+        fetch = AsyncMock(return_value=[])
+
+        self._run(state, fetch, tmp_path)
+        state['since_last_query'] += GP_MIN_INTERVAL_SECONDS
+        self._run(state, fetch, tmp_path)
+
+        assert fetch.await_count == 2
+
+    def test_an_attempt_just_under_the_limit_is_refused(self, tmp_path):
+        """The boundary, including the schedule tolerance: a cron firing a few seconds
+        early must not be treated as a fresh hour."""
+        state = {'since_last_query': 7200.0}
+        fetch = AsyncMock(return_value=[])
+
+        self._run(state, fetch, tmp_path)
+        state['since_last_query'] += GP_MIN_INTERVAL_SECONDS - refresh_job.SCHEDULE_TOLERANCE_SECONDS - 1
+        self._run(state, fetch, tmp_path)
+
+        assert fetch.await_count == 1
