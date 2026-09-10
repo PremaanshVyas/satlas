@@ -35,3 +35,4 @@ docs/superpowers/
 *.tfstate.backup
 .vercel
 .env*.local
+__pycache__/

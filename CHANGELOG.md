@@ -4,6 +4,32 @@ A record of significant problems encountered during development, how they were d
 
 ---
 
+## [Data] 1,610 satellites were in the catalog twice, under two spellings of one id (2026-09-10)
+
+### What happened
+Found while checking the live catalog after the alpha-5 fix. The satellite number sits in fixed columns of a TLE, and Space-Track fills those columns two different ways depending on the element set: zero-padded for most records, space-padded for a long tail of older ones.
+
+```
+1 00005U 58002B   26252.16546155  .00000316  00000-0  40461-3 0  9998
+1     5U 58002B   26252.16546154  .00000316  00000-0  40461-3 0  9997
+```
+
+That is VANGUARD 1, twice, from the same source, milliseconds apart.
+
+The hourly delta merge keyed on the raw column, so those were two objects. Both spellings kept arriving, so both stayed current, and neither ever aged out of the 90-day prune that would otherwise have caught an abandoned record. 1,610 satellites were drawn twice on the globe, counted twice in the advertised total, and returned twice by the public search endpoint. Every one of them has an id below 10000, which is where padding is visible.
+
+### Fix
+A canonical key collapses every spelling of an id to one string, alpha-5 included, so `00005`, `5` and `    5` become the same object and `A0001` meets its decoded form `100001`.
+
+It deliberately does not reuse the existing `norad_to_int`, which falls back to 0 for anything unparseable. That is the right behaviour for a sort key and the wrong behaviour for a merge key, where it would let one malformed record silently swallow every other malformed record. Unparseable ids keep their raw form.
+
+The merge also had to heal a cache that already contained both spellings rather than only stop making it worse, so a collision among existing records keeps the fresher epoch instead of whichever came last. That makes the result independent of input order.
+
+### Result
+Running the fixed merge over the published catalog takes it from 34,385 records to 32,775, with every remaining record unique by canonical id and no object lost. The catalog heals itself on the next scheduled refresh.
+
+This is the fourth NORAD comparison bug in the project's history, after leading zeros in two places and alpha-5. The rule that keeps being relearned is that a catalog number is a value, not a string, and every comparison of one has to go through a single shared decoder.
+
 ## [Rendering] Fast-forward stuttered because dots only moved when the propagator replied (2026-09-10)
 
 ### What happened

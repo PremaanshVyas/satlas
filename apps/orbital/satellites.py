@@ -234,11 +234,47 @@ def prune_stale_tles(records: list, now: float = None,
     return kept
 
 
+def norad_key(norad_id: str) -> str:
+    """Canonical merge key: every encoding of one object collapses to a single string.
+
+    The satellite number occupies fixed columns in a TLE, and Space-Track fills those
+    columns two different ways depending on the element set: zero-padded ('00005') for most
+    records and space-padded ('    5') for a long tail of older ones. Alpha-5 adds a third
+    form. Keying the merge on the raw column meant one object could hold two catalog slots,
+    each refreshed by whichever form the source happened to send, so both stayed current and
+    neither ever aged out.
+
+    An unparseable id keeps its raw form instead of collapsing into a shared bucket, so one
+    malformed record can never swallow the others.
+    """
+    s = (norad_id or '').strip()
+    if not s:
+        return ''
+    if s.isdigit():
+        return str(int(s))
+    if len(s) > 1 and s[0].upper() in _ALPHA5_DIGITS[10:] and s[1:].isdigit():
+        return str(_ALPHA5_DIGITS.index(s[0].upper()) * 10000 + int(s[1:]))
+    return s
+
+
+def _epoch_or_min(record: dict):
+    """Epoch for freshness comparison; unparseable sorts oldest so a good record wins."""
+    return tle_epoch_datetime(record.get('tle1', '')) or datetime.datetime.min.replace(
+        tzinfo=datetime.timezone.utc)
+
+
 def _merge_tles(existing: list, updates: list) -> list:
     """Overlay delta updates onto the cached catalog, keyed by NORAD id, NORAD-sorted."""
-    by_id = {r['norad_id']: r for r in existing}
+    by_id: dict = {}
+    for r in existing:
+        k = norad_key(r['norad_id'])
+        prev = by_id.get(k)
+        # Two spellings of one id can already be sitting in the cached catalog. Keep the
+        # fresher element set rather than whichever happens to come last.
+        if prev is None or _epoch_or_min(r) >= _epoch_or_min(prev):
+            by_id[k] = r
     for r in updates:
-        by_id[r['norad_id']] = r
+        by_id[norad_key(r['norad_id'])] = r
     return sorted(by_id.values(), key=lambda r: norad_to_int(r['norad_id']))
 
 
